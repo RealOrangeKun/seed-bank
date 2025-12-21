@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seed Quality Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .upload-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .upload-btn {
+            background: #667eea;
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .results-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+        
+        .image-container {
+            position: relative;
+            background: #f5f5f5;
+            border-radius: 15px;
+            overflow: hidden;
+            display: inline-block;
+        }
+        
+        #uploadedImage {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        
+        .stats-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 25px;
+            border-radius: 15px;
+            color: white;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        
+        .good {
+            background: #00ff88;
+        }
+        
+        .bad {
+            background: #ff4444;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #667eea;
+        }
+        
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .seed-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .seed-item {
+            background: rgba(255,255,255,0.15);
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .badge.good {
+            background: #00ff88;
+            color: #000;
+        }
+        
+        .badge.bad {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌱 Seed Quality Detection System</h1>
+        
+        <div class="upload-section">
+            <input type="file" id="fileInput" accept="image/*">
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                📤 Upload Image
+            </button>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            ⏳ Analyzing image...
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="results" class="results-container" style="display: none;">
+            <div>
+                <div class="image-container" id="imageContainer">
+                    <img id="uploadedImage" src="" alt="Uploaded image">
+                    <canvas id="canvas"></canvas>
+                </div>
+            </div>
+            
+            <div class="stats-panel">
+                <div class="stat-card">
+                    <h3>TOTAL SEEDS DETECTED</h3>
+                    <div class="value" id="totalSeeds">0</div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>GOOD SEEDS</h3>
+                    <div class="value good" id="goodSeeds">0</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill good" id="goodProgress" style="width: 0%"></div>
+                    </div>
+                    <div style="margin-top: 5px;" id="goodPercent">0%</div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>BAD SEEDS</h3>
+                    <div class="value bad" id="badSeeds">0</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill bad" id="badProgress" style="width: 0%"></div>
+                    </div>
+                    <div style="margin-top: 5px;" id="badPercent">0%</div>
+                </div>
+                
+                <div class="seed-list" id="seedList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+            
+            try {
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // Send to API
+                const response = await fetch(`${API_URL}/api/analyze`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Display results
+                displayResults(data, file);
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = `Error: ${error.message}`;
+                console.error('Error:', error);
+            }
+        });
+        
+        function displayResults(data, imageFile) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('results').style.display = 'grid';
+            
+            // Display image
+            const img = document.getElementById('uploadedImage');
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                img.src = e.target.result;
+                img.onload = () => {
+                    // Draw bounding boxes after image loads
+                    drawBoundingBoxes(data.bounding_boxes, data.image_dimensions);
+                };
+            };
+            reader.readAsDataURL(imageFile);
+            
+            // Update statistics
+            document.getElementById('totalSeeds').textContent = data.total_seeds;
+            document.getElementById('goodSeeds').textContent = data.statistics.good_seeds;
+            document.getElementById('badSeeds').textContent = data.statistics.bad_seeds;
+            document.getElementById('goodPercent').textContent = `${data.statistics.good_percentage}%`;
+            document.getElementById('badPercent').textContent = `${data.statistics.bad_percentage}%`;
+            document.getElementById('goodProgress').style.width = `${data.statistics.good_percentage}%`;
+            document.getElementById('badProgress').style.width = `${data.statistics.bad_percentage}%`;
+            
+            // Display seed list
+            const seedList = document.getElementById('seedList');
+            seedList.innerHTML = '<h3 style="margin-bottom: 15px;">Detected Seeds</h3>';
+            
+            data.bounding_boxes.forEach((seed, idx) => {
+                const seedItem = document.createElement('div');
+                seedItem.className = 'seed-item';
+                seedItem.innerHTML = `
+                    <span>Seed #${idx + 1}</span>
+                    <span class="badge ${seed.quality.toLowerCase()}">${seed.quality}</span>
+                `;
+                seedList.appendChild(seedItem);
+            });
+        }
+        
+        function drawBoundingBoxes(boxes, imageDimensions) {
+            const img = document.getElementById('uploadedImage');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size to match displayed image
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // Calculate scaling factors
+            const scaleX = img.width / imageDimensions.width;
+            const scaleY = img.height / imageDimensions.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw each bounding box
+            boxes.forEach((box, idx) => {
+                // Scale coordinates to displayed image size
+                const x1 = box.x1 * scaleX;
+                const y1 = box.y1 * scaleY;
+                const width = box.width * scaleX;
+                const height = box.height * scaleY;
+                
+                // Set color based on quality
+                const color = box.quality === 'Good' ? '#00ff88' : '#ff4444';
+                
+                // Draw rectangle
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x1, y1, width, height);
+                
+                // Draw label background
+                ctx.fillStyle = color;
+                const label = `${box.quality} (${(box.classification_probability * 100).toFixed(1)}%)`;
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillRect(x1, y1 - 25, textWidth + 10, 25);
+                
+                // Draw label text
+                ctx.fillStyle = box.quality === 'Good' ? '#000' : '#fff';
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText(label, x1 + 5, y1 - 8);
+            });
+        }
+    </script>
+</body>
+</html>
