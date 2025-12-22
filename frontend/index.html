@@ -240,6 +240,26 @@
                         </div>
                     </div>
 
+                    <!-- Seed Details Card (Hidden by default) -->
+                    <div id="seed-details-card"
+                        class="hidden bg-white p-5 rounded-xl shadow-sm border border-gray-200 animate-fade-in mb-6">
+                        <div class="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                            <h3 class="font-semibold text-gray-900">Seed Details</h3>
+                            <span id="detail-id"
+                                class="text-sm font-medium px-2 py-1 rounded bg-gray-100 text-gray-600">#--</span>
+                        </div>
+
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Quality</span>
+                                <span id="detail-quality" class="font-medium">--</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Confidence</span>
+                                <span id="detail-confidence" class="font-medium">--</span>
+                            </div>
+                        </div>
+                    </div>
                     <!-- Seeds List -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[500px]">
                         <div class="p-4 border-b border-gray-100 flex items-center justify-between">
@@ -253,8 +273,9 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
+
+            </div>
             </div>
         </section>
 

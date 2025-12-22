@@ -50,6 +50,15 @@ const App = {
     },
 
     init() {
+        // Initialize Details Card Elements here to ensure DOM is ready
+        this.elements.detailsCard = document.getElementById('seed-details-card');
+        this.elements.detailId = document.getElementById('detail-id');
+        this.elements.detailQuality = document.getElementById('detail-quality');
+        this.elements.detailConfidence = document.getElementById('detail-confidence');
+        this.elements.detailArea = document.getElementById('detail-area');
+        this.elements.detailDims = document.getElementById('detail-dims');
+        this.elements.detailRatio = document.getElementById('detail-ratio');
+
         this.bindEvents();
         this.setupCanvasInteractions();
     },
@@ -434,14 +443,33 @@ const App = {
                     this.state.zoomLevel = 3;
                     const currentScale = baseScale * this.state.zoomLevel;
 
-                    const seedCenterX = seed.x1 + seed.width / 2;
-                    const seedCenterY = seed.y1 + seed.height / 2;
+                    // Calculate scale between API coords and Image coords
+                    // (Handle case where API returns coords for a different image size than the loaded one)
+                    const apiScaleX = image.width / result.image_dimensions.width;
+                    const apiScaleY = image.height / result.image_dimensions.height;
+
+                    // Ensure coordinates are numbers to prevent string concatenation
+                    const sX = Number(seed.x1);
+                    const sY = Number(seed.y1);
+                    const sW = Number(seed.width);
+                    const sH = Number(seed.height);
+
+                    const scaledX = sX * apiScaleX;
+                    const scaledY = sY * apiScaleY;
+                    const scaledW = sW * apiScaleX;
+                    const scaledH = sH * apiScaleY;
+
+                    const seedCenterX = scaledX + scaledW / 2;
+                    const seedCenterY = scaledY + scaledH / 2;
 
                     const centerX = (canvas.width - image.width * currentScale) / 2;
                     const centerY = (canvas.height - image.height * currentScale) / 2;
 
                     this.state.offsetX = (canvas.width / 2) - centerX - (seedCenterX * currentScale);
                     this.state.offsetY = (canvas.height / 2) - centerY - (seedCenterY * currentScale);
+
+                    // Show Details
+                    this.showSeedDetails(seed);
                 }
 
                 this.draw();
@@ -451,6 +479,19 @@ const App = {
         });
 
         lucide.createIcons();
+    },
+
+    showSeedDetails(seed) {
+        const { detailsCard, detailId, detailQuality, detailConfidence } = this.elements;
+
+        detailsCard.classList.remove('hidden');
+
+        detailId.textContent = `#${seed.id}`;
+        detailQuality.textContent = seed.quality;
+        detailQuality.className = `font-medium ${seed.quality === 'Good' ? 'text-green-600' : 'text-red-600'}`;
+
+        // Use classification_confidence as requested
+        detailConfidence.textContent = `${seed.classification_confidence}%`;
     },
 
     filterSeeds(filter) {
@@ -596,26 +637,32 @@ const App = {
             const crops = [];
             const tableData = result.bounding_boxes.map(seed => {
                 crops.push(this.getCroppedSeedDataUrl(image, seed));
-                return [seed.id, '', seed.quality]; // Empty string for image column
+                return [
+                    seed.id,
+                    '',
+                    seed.quality,
+                    `${seed.classification_confidence}%`
+                ];
             });
 
             doc.autoTable({
                 startY: startY + 5,
-                head: [['Seed ID', 'Image', 'Quality']],
+                head: [['ID', 'Image', 'Quality', 'Conf %']],
                 body: tableData,
                 theme: 'grid',
                 headStyles: { fillColor: [22, 163, 74] },
                 columnStyles: {
-                    0: { cellWidth: 30 },
+                    0: { cellWidth: 20 },
                     1: { cellWidth: 30, minCellHeight: 20 },
-                    2: { cellWidth: 'auto' }
+                    2: { cellWidth: 30 },
+                    3: { cellWidth: 30 }
                 },
                 didDrawCell: (data) => {
                     if (data.column.index === 1 && data.cell.section === 'body') {
                         const img = crops[data.row.index];
                         if (img) {
                             // Draw image centered in cell
-                            const dim = 16;
+                            const dim = 12;
                             const x = data.cell.x + (data.cell.width - dim) / 2;
                             const y = data.cell.y + (data.cell.height - dim) / 2;
                             doc.addImage(img, 'JPEG', x, y, dim, dim);
