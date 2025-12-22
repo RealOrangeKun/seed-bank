@@ -155,40 +155,46 @@ def detect_seeds(rgb_img: np.ndarray) -> tuple:
     return detected_seeds, (orig_h, orig_w)
 
 
-def calculate_confidence_score(prob: float, threshold: float = 0.9, k: float = 8.0) -> Dict:
+def calculate_confidence_score(
+    prob: float, threshold: float = 0.9, k: float = 8.0
+) -> Dict:
     """
     Calculate confidence scores based on distance from threshold with exponential weighting.
-    
+
     Args:
         prob: Classification probability (0-1)
         threshold: Decision threshold (default 0.9)
         k: Exponential coefficient for amplifying differences (higher = stronger early differences)
-    
+
     Returns:
         Dictionary with confidence metrics
     """
     # Calculate distance from threshold
     distance = abs(prob - threshold)
-    
+
     # Exponential confidence: amplifies early differences
     # confidence ranges from 0 to ~100%
     # Using 1 - e^(-k * distance) formula
-    confidence = (1 - np.exp(-k * distance)) * 100
-    
+    confidence = distance / 0.9 if distance < threshold else distance / 0.1
+
+    confidence *= 100
+
     # Good percentage: inverse of probability (lower prob = more good)
     good_percentage = (1 - prob) * 100
-    
+
     # Bad percentage: direct probability
     bad_percentage = prob * 100
-    
+
     # Determine which side of threshold
     is_bad = prob > threshold
-    
+
     return {
         "good_percentage": round(good_percentage, 2),
         "bad_percentage": round(bad_percentage, 2),
-        "classification_confidence": round(confidence, 2),  # How confident we are in the classification
-        "raw_probability": round(prob, 4)  # Keep raw value for reference
+        "classification_confidence": round(
+            confidence, 2
+        ),  # How confident we are in the classification
+        "raw_probability": round(prob, 4),  # Keep raw value for reference
     }
 
 
@@ -225,7 +231,7 @@ def classify_seeds(rgb_img: np.ndarray, detected_seeds: List[Dict]) -> List[Dict
 
         # Determine label (based on your notebook logic)
         label = "Bad" if prob > CLASSIFICATION_THRESHOLD else "Good"
-        
+
         # Calculate confidence scores
         confidence_metrics = calculate_confidence_score(prob, CLASSIFICATION_THRESHOLD)
 
@@ -237,14 +243,16 @@ def classify_seeds(rgb_img: np.ndarray, detected_seeds: List[Dict]) -> List[Dict
                 # New detailed metrics
                 "good_percentage": confidence_metrics["good_percentage"],
                 "bad_percentage": confidence_metrics["bad_percentage"],
-                "classification_confidence": confidence_metrics["classification_confidence"],
+                "classification_confidence": confidence_metrics[
+                    "classification_confidence"
+                ],
                 "raw_probability": confidence_metrics["raw_probability"],
                 # Seed physical metrics
                 "area": area,
                 "width": width,
                 "height": height,
                 "aspect_ratio": round(aspect_ratio, 2),
-                "centroid": {"x": centroid_x, "y": centroid_y}
+                "centroid": {"x": centroid_x, "y": centroid_y},
             }
         )
 
@@ -267,7 +275,7 @@ async def root():
 async def analyze_image(file: UploadFile = File(...)):
     """
     Single image analysis endpoint (for backward compatibility)
-    
+
     Returns:
     - bounding_boxes: List of detected seeds with coordinates and quality
     - statistics: Overall quality metrics
@@ -372,7 +380,7 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
     """
     Batch analysis endpoint: Upload multiple images and get combined results
     Similar to how the notebook processes a folder of images
-    
+
     Returns:
     - results: Array of results for each image
     - overall_statistics: Aggregated statistics across all images
@@ -381,60 +389,72 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
     try:
         if not files:
             raise HTTPException(status_code=400, detail="No files provided")
-        
+
         # Validate all files are images
         for file in files:
             if not file.content_type or not file.content_type.startswith("image/"):
-                raise HTTPException(status_code=400, detail=f"File {file.filename} is not an image")
-        
+                raise HTTPException(
+                    status_code=400, detail=f"File {file.filename} is not an image"
+                )
+
         print(f"Processing {len(files)} images in batch...")
-        
+
         # Process each image
         all_results = []
         total_good = 0
         total_bad = 0
         total_seeds = 0
-        
+
         for file_idx, file in enumerate(files):
             # Read and process image
             contents = await file.read()
             rgb_img = process_uploaded_image(contents)
-            
+
             # Step 1: Detect seeds
             detected_seeds, (img_height, img_width) = detect_seeds(rgb_img)
-            
+
             # Step 2: Classify seeds (if any detected)
             if len(detected_seeds) > 0:
                 classified_results = classify_seeds(rgb_img, detected_seeds)
-                
+
                 # Calculate statistics for this image
-                good_count = sum(1 for s in classified_results if s["quality"] == "Good")
+                good_count = sum(
+                    1 for s in classified_results if s["quality"] == "Good"
+                )
                 bad_count = sum(1 for s in classified_results if s["quality"] == "Bad")
-                
+
                 # Format bounding boxes
                 bounding_boxes = []
                 for idx, seed in enumerate(classified_results):
                     x1, y1, x2, y2 = seed["box"]
-                    bounding_boxes.append({
-                        "id": idx,
-                        "x1": x1,
-                        "y1": y1,
-                        "x2": x2,
-                        "y2": y2,
-                        "width": seed["width"],
-                        "height": seed["height"],
-                        "area": seed["area"],
-                        "aspect_ratio": seed["aspect_ratio"],
-                        "centroid": seed["centroid"],
-                        "quality": seed["quality"],
-                        "detection_confidence": round(seed["detection_confidence"], 4),
-                        "good_percentage": seed["good_percentage"],
-                        "bad_percentage": seed["bad_percentage"],
-                        "classification_confidence": seed["classification_confidence"],
-                        "raw_probability": seed["raw_probability"],
-                        "color": "#FF0000" if seed["quality"] == "Bad" else "#00FF00"
-                    })
-                
+                    bounding_boxes.append(
+                        {
+                            "id": idx,
+                            "x1": x1,
+                            "y1": y1,
+                            "x2": x2,
+                            "y2": y2,
+                            "width": seed["width"],
+                            "height": seed["height"],
+                            "area": seed["area"],
+                            "aspect_ratio": seed["aspect_ratio"],
+                            "centroid": seed["centroid"],
+                            "quality": seed["quality"],
+                            "detection_confidence": round(
+                                seed["detection_confidence"], 4
+                            ),
+                            "good_percentage": seed["good_percentage"],
+                            "bad_percentage": seed["bad_percentage"],
+                            "classification_confidence": seed[
+                                "classification_confidence"
+                            ],
+                            "raw_probability": seed["raw_probability"],
+                            "color": (
+                                "#FF0000" if seed["quality"] == "Bad" else "#00FF00"
+                            ),
+                        }
+                    )
+
                 total_good += good_count
                 total_bad += bad_count
                 total_seeds += len(classified_results)
@@ -442,7 +462,7 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
                 bounding_boxes = []
                 good_count = 0
                 bad_count = 0
-            
+
             # Store result for this image
             image_result = {
                 "filename": file.filename,
@@ -452,20 +472,29 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
                 "statistics": {
                     "good_seeds": good_count,
                     "bad_seeds": bad_count,
-                    "good_percentage": round((good_count / len(bounding_boxes) * 100), 2) if len(bounding_boxes) > 0 else 0,
-                    "bad_percentage": round((bad_count / len(bounding_boxes) * 100), 2) if len(bounding_boxes) > 0 else 0
+                    "good_percentage": (
+                        round((good_count / len(bounding_boxes) * 100), 2)
+                        if len(bounding_boxes) > 0
+                        else 0
+                    ),
+                    "bad_percentage": (
+                        round((bad_count / len(bounding_boxes) * 100), 2)
+                        if len(bounding_boxes) > 0
+                        else 0
+                    ),
                 },
-                "image_dimensions": {
-                    "width": img_width,
-                    "height": img_height
-                }
+                "image_dimensions": {"width": img_width, "height": img_height},
             }
             all_results.append(image_result)
-        
+
         # Calculate overall statistics
-        overall_good_pct = round((total_good / total_seeds * 100), 2) if total_seeds > 0 else 0
-        overall_bad_pct = round((total_bad / total_seeds * 100), 2) if total_seeds > 0 else 0
-        
+        overall_good_pct = (
+            round((total_good / total_seeds * 100), 2) if total_seeds > 0 else 0
+        )
+        overall_bad_pct = (
+            round((total_bad / total_seeds * 100), 2) if total_seeds > 0 else 0
+        )
+
         response_data = {
             "success": True,
             "total_images": len(files),
@@ -474,17 +503,17 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
                 "good_seeds": total_good,
                 "bad_seeds": total_bad,
                 "good_percentage": overall_good_pct,
-                "bad_percentage": overall_bad_pct
+                "bad_percentage": overall_bad_pct,
             },
             "results": all_results,
             "thresholds": {
                 "detection_confidence": DETECTION_CONF_THRESHOLD,
-                "classification_threshold": CLASSIFICATION_THRESHOLD
-            }
+                "classification_threshold": CLASSIFICATION_THRESHOLD,
+            },
         }
-        
+
         return JSONResponse(content=response_data)
-    
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -660,40 +689,44 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
     try:
         if not files:
             raise HTTPException(status_code=400, detail="No files provided")
-        
+
         # Validate all files are images
         for file in files:
             if not file.content_type or not file.content_type.startswith("image/"):
-                raise HTTPException(status_code=400, detail=f"File {file.filename} is not an image")
-        
+                raise HTTPException(
+                    status_code=400, detail=f"File {file.filename} is not an image"
+                )
+
         print(f"Processing {len(files)} images in batch (fast mode)...")
-        
+
         # Process each image
         all_results = []
         total_good = 0
         total_bad = 0
         total_seeds = 0
-        
+
         for file_idx, file in enumerate(files):
             # Read and process image
             contents = await file.read()
             rgb_img = process_uploaded_image(contents)
             orig_h, orig_w, _ = rgb_img.shape
-            
+
             # Call Roboflow API
             img_base64 = base64.b64encode(contents).decode("utf-8")
-            
+
             response = requests.post(
                 ROBOFLOW_URL,
                 data=img_base64,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-            
+
             if response.status_code != 200:
-                raise Exception(f"Roboflow API Error for {file.filename}: {response.text}")
-            
+                raise Exception(
+                    f"Roboflow API Error for {file.filename}: {response.text}"
+                )
+
             result = response.json()
-            
+
             # Parse Roboflow results
             detected_seeds = []
             if "predictions" in result:
@@ -703,38 +736,40 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                     h = pred["height"]
                     x = pred["x"]
                     y = pred["y"]
-                    
+
                     x1 = int(x - w / 2)
                     y1 = int(y - h / 2)
                     x2 = int(x + w / 2)
                     y2 = int(y + h / 2)
-                    
+
                     # Clip
                     x1 = max(0, min(x1, orig_w))
                     y1 = max(0, min(y1, orig_h))
                     x2 = max(0, min(x2, orig_w))
                     y2 = max(0, min(y2, orig_h))
-                    
+
                     detected_seeds.append(
                         {
                             "box": (x1, y1, x2, y2),
                             "detection_confidence": float(pred["confidence"]),
                         }
                     )
-            
+
             # Classify seeds if any detected
             if len(detected_seeds) > 0:
                 classified_results = classify_seeds(rgb_img, detected_seeds)
-                
+
                 # Calculate statistics
-                good_count = sum(1 for s in classified_results if s["quality"] == "Good")
+                good_count = sum(
+                    1 for s in classified_results if s["quality"] == "Good"
+                )
                 bad_count = sum(1 for s in classified_results if s["quality"] == "Bad")
-                
+
                 # Update totals
                 total_good += good_count
                 total_bad += bad_count
                 total_seeds += len(classified_results)
-                
+
                 # Format bounding boxes
                 bounding_boxes = []
                 for idx, seed in enumerate(classified_results):
@@ -752,44 +787,64 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                             "aspect_ratio": seed["aspect_ratio"],
                             "centroid": seed["centroid"],
                             "quality": seed["quality"],
-                            "detection_confidence": round(seed["detection_confidence"], 4),
+                            "detection_confidence": round(
+                                seed["detection_confidence"], 4
+                            ),
                             "good_percentage": seed["good_percentage"],
                             "bad_percentage": seed["bad_percentage"],
-                            "classification_confidence": seed["classification_confidence"],
+                            "classification_confidence": seed[
+                                "classification_confidence"
+                            ],
                             "raw_probability": seed["raw_probability"],
-                            "color": "#FF0000" if seed["quality"] == "Bad" else "#00FF00",
+                            "color": (
+                                "#FF0000" if seed["quality"] == "Bad" else "#00FF00"
+                            ),
                         }
                     )
-                
-                all_results.append({
-                    "filename": file.filename,
-                    "bounding_boxes": bounding_boxes,
-                    "statistics": {
-                        "total_seeds": len(classified_results),
-                        "good_seeds": good_count,
-                        "bad_seeds": bad_count,
-                        "good_percentage": round((good_count / len(classified_results) * 100), 2) if len(classified_results) > 0 else 0,
-                        "bad_percentage": round((bad_count / len(classified_results) * 100), 2) if len(classified_results) > 0 else 0,
-                    },
-                    "image_dimensions": {"width": orig_w, "height": orig_h}
-                })
+
+                all_results.append(
+                    {
+                        "filename": file.filename,
+                        "bounding_boxes": bounding_boxes,
+                        "statistics": {
+                            "total_seeds": len(classified_results),
+                            "good_seeds": good_count,
+                            "bad_seeds": bad_count,
+                            "good_percentage": (
+                                round((good_count / len(classified_results) * 100), 2)
+                                if len(classified_results) > 0
+                                else 0
+                            ),
+                            "bad_percentage": (
+                                round((bad_count / len(classified_results) * 100), 2)
+                                if len(classified_results) > 0
+                                else 0
+                            ),
+                        },
+                        "image_dimensions": {"width": orig_w, "height": orig_h},
+                    }
+                )
             else:
                 # No seeds detected
-                all_results.append({
-                    "filename": file.filename,
-                    "bounding_boxes": [],
-                    "statistics": {
-                        "total_seeds": 0,
-                        "good_seeds": 0,
-                        "bad_seeds": 0,
-                        "good_percentage": 0.0,
-                        "bad_percentage": 0.0,
-                    },
-                    "image_dimensions": {"width": orig_w, "height": orig_h}
-                })
-            
-            print(f"  [{file_idx+1}/{len(files)}] {file.filename}: {len(detected_seeds)} seeds detected")
-        
+                all_results.append(
+                    {
+                        "filename": file.filename,
+                        "bounding_boxes": [],
+                        "statistics": {
+                            "total_seeds": 0,
+                            "good_seeds": 0,
+                            "bad_seeds": 0,
+                            "good_percentage": 0.0,
+                            "bad_percentage": 0.0,
+                        },
+                        "image_dimensions": {"width": orig_w, "height": orig_h},
+                    }
+                )
+
+            print(
+                f"  [{file_idx+1}/{len(files)}] {file.filename}: {len(detected_seeds)} seeds detected"
+            )
+
         # Return batch results
         return JSONResponse(
             content={
@@ -801,14 +856,24 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                     "total_seeds": total_seeds,
                     "total_good": total_good,
                     "total_bad": total_bad,
-                    "overall_good_percentage": round((total_good / total_seeds * 100), 2) if total_seeds > 0 else 0,
-                    "overall_bad_percentage": round((total_bad / total_seeds * 100), 2) if total_seeds > 0 else 0,
-                }
+                    "overall_good_percentage": (
+                        round((total_good / total_seeds * 100), 2)
+                        if total_seeds > 0
+                        else 0
+                    ),
+                    "overall_bad_percentage": (
+                        round((total_bad / total_seeds * 100), 2)
+                        if total_seeds > 0
+                        else 0
+                    ),
+                },
             }
         )
-    
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fast batch analysis failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Fast batch analysis failed: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
