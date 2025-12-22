@@ -48,7 +48,7 @@
         <section id="upload-section" class="max-w-3xl mx-auto transition-all duration-500 ease-in-out">
             <div class="text-center mb-10">
                 <h2 class="text-3xl font-bold text-gray-900 mb-4">Analyze Seed Quality</h2>
-                <p class="text-lg text-gray-600 max-w-2xl mx-auto">Upload an image of your seed batch to automatically
+                <p class="text-lg text-gray-600 max-w-2xl mx-auto">Upload images of your seed batches to automatically
                     detect and classify individual seeds using our advanced AI models.</p>
             </div>
 
@@ -70,7 +70,7 @@
 
             <div id="drop-zone"
                 class="bg-white border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center hover:border-seed-green-500 hover:bg-seed-green-50 transition-all cursor-pointer group shadow-sm">
-                <input type="file" id="file-input" class="hidden" accept="image/jpeg, image/png, image/jpg">
+                <input type="file" id="file-input" class="hidden" accept="image/jpeg, image/png, image/jpg" multiple>
 
                 <div class="mb-6 flex justify-center">
                     <div
@@ -85,7 +85,7 @@
 
                 <button
                     class="bg-seed-green-600 hover:bg-seed-green-700 text-white font-medium py-2.5 px-6 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0">
-                    Select Image
+                    Select Images
                 </button>
             </div>
 
@@ -101,52 +101,54 @@
         </section>
 
         <!-- Loading State -->
-        <section id="loading-section" class="hidden max-w-3xl mx-auto text-center py-20">
-            <div class="relative w-24 h-24 mx-auto mb-8">
-                <div class="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
-                <div
-                    class="absolute inset-0 border-4 border-seed-green-500 rounded-full border-t-transparent animate-spin">
-                </div>
-                <i data-lucide="scan-line"
-                    class="absolute inset-0 m-auto w-8 h-8 text-seed-green-600 animate-pulse"></i>
-            </div>
-            <h3 class="text-2xl font-bold text-gray-900 mb-2">Analyzing Seeds...</h3>
-            <p class="text-gray-500">Detecting objects and classifying quality. This may take a few seconds.</p>
+        <section id="loading-section" class="hidden flex flex-col items-center justify-center py-20">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-seed-green-600 mb-4"></div>
+            <p class="text-gray-600 font-medium">Analyzing seeds...</p>
         </section>
 
         <!-- Results Section -->
-        <section id="results-section" class="hidden transition-all duration-500 ease-in-out">
+        <section id="results-section" class="hidden space-y-6">
 
             <!-- Toolbar -->
-            <div class="flex flex-wrap items-center justify-between mb-6 gap-4">
-                <div class="flex items-center gap-2">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
                     <button id="btn-new-analysis"
-                        class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm font-medium text-sm">
+                        class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         New Analysis
                     </button>
-                    <div class="h-6 w-px bg-gray-300 mx-2"></div>
-                    <h2 class="text-xl font-bold text-gray-900">Analysis Results</h2>
+                    <h2 class="text-2xl font-bold text-gray-900">Analysis Results</h2>
                 </div>
 
-                <div class="flex items-center gap-3">
-                    <div class="flex bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
-                        <button id="view-all"
-                            class="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-900 shadow-sm">All</button>
-                        <button id="view-good"
-                            class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900">Good</button>
-                        <button id="view-bad"
-                            class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900">Bad</button>
-                    </div>
-                    <button id="btn-export"
-                        class="flex items-center gap-2 px-4 py-2 bg-seed-green-600 text-white rounded-lg hover:bg-seed-green-700 transition-colors shadow-sm font-medium text-sm">
-                        <i data-lucide="download" class="w-4 h-4"></i>
-                        Export Report
+                <div class="flex items-center gap-3 bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
+                    <button id="view-all"
+                        class="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-900 shadow-sm transition-all">
+                        All
+                    </button>
+                    <button id="view-good"
+                        class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
+                        Good
+                    </button>
+                    <button id="view-bad"
+                        class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
+                        Bad
                     </button>
                 </div>
+
+                <button id="btn-export"
+                    class="flex items-center gap-2 px-4 py-2 bg-seed-green-600 text-white rounded-lg hover:bg-seed-green-700 transition-colors shadow-sm">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Export Report
+                </button>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Image Tabs -->
+            <div id="image-tabs" class="flex overflow-x-auto gap-2 pb-2 border-b border-gray-200">
+                <!-- Tabs will be injected here -->
+            </div>
+
+            <!-- Main Content Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 <!-- Left Column: Image Canvas -->
                 <div class="lg:col-span-2 space-y-4">

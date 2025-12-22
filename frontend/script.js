@@ -1,16 +1,21 @@
 const App = {
     state: {
-        currentFile: null,
-        apiResponse: null,
-        image: null,
-        scale: 1, // Base scale to fit image in container
-        zoomLevel: 1, // User zoom level
-        offsetX: 0, // Pan X
-        offsetY: 0, // Pan Y
+        files: [], // Array of uploaded files
+        results: [], // Array of analysis results per image
+        images: [], // Array of loaded Image objects
+        currentTabIndex: 0,
+
+        // View state (per tab, but for simplicity we reset on tab switch or keep global if preferred. 
+        // Let's keep global for now, resetting on tab switch)
+        scale: 1,
+        zoomLevel: 1,
+        offsetX: 0,
+        offsetY: 0,
         isDragging: false,
         lastMouseX: 0,
         lastMouseY: 0,
         highlightedSeedId: null,
+
         mode: 'accurate' // 'accurate' or 'fast'
     },
 
@@ -40,7 +45,8 @@ const App = {
         filterBad: document.getElementById('view-bad'),
         modelAccurate: document.getElementById('model-accurate'),
         modelFast: document.getElementById('model-fast'),
-        btnExport: document.getElementById('btn-export')
+        btnExport: document.getElementById('btn-export'),
+        imageTabs: document.getElementById('image-tabs')
     },
 
     init() {
@@ -66,7 +72,7 @@ const App = {
             e.preventDefault();
             dropZone.classList.remove('border-seed-green-500', 'bg-seed-green-50');
             if (e.dataTransfer.files.length) {
-                this.handleFile(e.dataTransfer.files[0]);
+                this.handleFiles(e.dataTransfer.files);
             }
         });
 
@@ -74,7 +80,7 @@ const App = {
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length) {
-                this.handleFile(e.target.files[0]);
+                this.handleFiles(e.target.files);
             }
         });
 
@@ -162,28 +168,41 @@ const App = {
         this.draw();
     },
 
-    handleFile(file) {
-        if (!file.type.startsWith('image/')) {
-            this.showError('Please upload a valid image file (JPG, PNG).');
+    handleFiles(fileList) {
+        const files = Array.from(fileList).filter(file => file.type.startsWith('image/'));
+
+        if (files.length === 0) {
+            this.showError('Please upload valid image files (JPG, PNG).');
             return;
         }
 
-        this.state.currentFile = file;
-        this.uploadImage(file);
+        this.state.files = files;
+        this.uploadImages(files);
     },
 
-    async uploadImage(file) {
+    async uploadImages(files) {
         this.showLoading(true);
         this.hideError();
 
         const formData = new FormData();
-        formData.append('file', file);
+        files.forEach(file => {
+            formData.append('files', file);
+        });
 
-        const endpoint = this.state.mode === 'fast' ? '/api/analyze/fast' : '/api/analyze';
+        // Note: Batch endpoint is always /api/analyze-batch, but we might want to pass mode?
+        // The current backend /api/analyze-batch doesn't seem to take a mode param, it uses default models.
+        // If we want fast mode for batch, we might need to update backend or just use accurate for now.
+        // Let's assume /api/analyze-batch uses the default (accurate) models for now as per backend code.
+        // Wait, the user asked for batch analysis. The backend has /api/analyze-batch.
+        // Does /api/analyze-batch support fast mode? Looking at main.py... no, it uses detect_seeds (local).
+        // So batch analysis will always be "Accurate" mode for now unless we modify backend.
+        // I will proceed with /api/analyze-batch.
+
+        const endpoint = '/api/analyze-batch';
 
         try {
-            // Load image for display first
-            await this.loadImage(file);
+            // Load all images for display
+            this.state.images = await Promise.all(files.map(file => this.loadImage(file)));
 
             const response = await fetch(`http://localhost:8000${endpoint}`, {
                 method: 'POST',
@@ -195,22 +214,17 @@ const App = {
             }
 
             const data = await response.json();
-            this.state.apiResponse = data;
+            this.state.results = data.results;
 
+            // Initialize view
+            this.state.currentTabIndex = 0;
             this.showResults();
-            this.renderStats();
-            this.renderSeedsList();
-
-            // Reset view
-            this.state.zoomLevel = 1;
-            this.state.offsetX = 0;
-            this.state.offsetY = 0;
-
-            this.draw();
+            this.renderTabs();
+            this.updateView();
 
         } catch (error) {
             console.error(error);
-            this.showError(error.message || 'Failed to analyze image.');
+            this.showError(error.message || 'Failed to analyze images.');
             this.showLoading(false);
         }
     },
@@ -220,10 +234,7 @@ const App = {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
-                img.onload = () => {
-                    this.state.image = img;
-                    resolve(img);
-                };
+                img.onload = () => resolve(img);
                 img.onerror = reject;
                 img.src = e.target.result;
             };
@@ -231,8 +242,55 @@ const App = {
         });
     },
 
+    renderTabs() {
+        const tabsContainer = this.elements.imageTabs;
+        tabsContainer.innerHTML = '';
+
+        this.state.files.forEach((file, index) => {
+            const btn = document.createElement('button');
+            const isActive = index === this.state.currentTabIndex;
+
+            btn.className = `px-4 py-2 text-sm font-medium whitespace-nowrap rounded-t-lg border-b-2 transition-colors ${isActive
+                ? 'border-seed-green-600 text-seed-green-600 bg-white'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`;
+            btn.textContent = file.name;
+
+            btn.addEventListener('click', () => {
+                this.state.currentTabIndex = index;
+                // Reset zoom/pan on tab switch
+                this.state.zoomLevel = 1;
+                this.state.offsetX = 0;
+                this.state.offsetY = 0;
+                this.state.highlightedSeedId = null;
+
+                this.renderTabs(); // Re-render to update active state
+                this.updateView();
+            });
+
+            tabsContainer.appendChild(btn);
+        });
+    },
+
+    updateView() {
+        this.renderStats();
+        this.renderSeedsList();
+        this.draw();
+    },
+
+    getCurrentResult() {
+        return this.state.results[this.state.currentTabIndex];
+    },
+
+    getCurrentImage() {
+        return this.state.images[this.state.currentTabIndex];
+    },
+
     draw() {
-        if (!this.state.image) return;
+        const image = this.getImage();
+        const result = this.getCurrentResult();
+
+        if (!image) return;
 
         const canvas = this.elements.canvas;
         const ctx = canvas.getContext('2d');
@@ -246,29 +304,29 @@ const App = {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Calculate base scale to fit image in canvas initially
-        const scaleX = canvas.width / this.state.image.width;
-        const scaleY = canvas.height / this.state.image.height;
+        const scaleX = canvas.width / image.width;
+        const scaleY = canvas.height / image.height;
         const baseScale = Math.min(scaleX, scaleY);
 
         // Apply transformations
         ctx.save();
 
         // Center the image initially
-        const centerX = (canvas.width - this.state.image.width * baseScale * this.state.zoomLevel) / 2;
-        const centerY = (canvas.height - this.state.image.height * baseScale * this.state.zoomLevel) / 2;
+        const centerX = (canvas.width - image.width * baseScale * this.state.zoomLevel) / 2;
+        const centerY = (canvas.height - image.height * baseScale * this.state.zoomLevel) / 2;
 
         ctx.translate(centerX + this.state.offsetX, centerY + this.state.offsetY);
         ctx.scale(baseScale * this.state.zoomLevel, baseScale * this.state.zoomLevel);
 
         // Draw Image
-        ctx.drawImage(this.state.image, 0, 0);
+        ctx.drawImage(image, 0, 0);
 
         // Draw Bounding Boxes
-        if (this.state.apiResponse && this.state.apiResponse.bounding_boxes) {
-            const apiScaleX = this.state.image.width / this.state.apiResponse.image_dimensions.width;
-            const apiScaleY = this.state.image.height / this.state.apiResponse.image_dimensions.height;
+        if (result && result.bounding_boxes) {
+            const apiScaleX = image.width / result.image_dimensions.width;
+            const apiScaleY = image.height / result.image_dimensions.height;
 
-            this.state.apiResponse.bounding_boxes.forEach(box => {
+            result.bounding_boxes.forEach(box => {
                 const x = box.x1 * apiScaleX;
                 const y = box.y1 * apiScaleY;
                 const w = box.width * apiScaleX;
@@ -300,14 +358,17 @@ const App = {
     },
 
     renderStats() {
-        const stats = this.state.apiResponse.statistics;
+        const result = this.getCurrentResult();
+        if (!result) return;
+
+        const stats = result.statistics;
         const { statGoodCount, statGoodPercent, statBadCount, statBadPercent, statTotal, statProgressBar } = this.elements;
 
         statGoodCount.textContent = stats.good_seeds;
         statGoodPercent.textContent = `${stats.good_percentage}%`;
         statBadCount.textContent = stats.bad_seeds;
         statBadPercent.textContent = `${stats.bad_percentage}%`;
-        statTotal.textContent = this.state.apiResponse.total_seeds;
+        statTotal.textContent = result.total_seeds;
 
         // Animate progress bar
         setTimeout(() => {
@@ -316,10 +377,13 @@ const App = {
     },
 
     renderSeedsList(filter = 'all') {
+        const result = this.getCurrentResult();
+        if (!result) return;
+
         const list = this.elements.seedsList;
         list.innerHTML = '';
 
-        const seeds = this.state.apiResponse.bounding_boxes.filter(seed => {
+        const seeds = result.bounding_boxes.filter(seed => {
             if (filter === 'all') return true;
             return seed.quality === filter;
         });
@@ -336,12 +400,12 @@ const App = {
             const iconColor = seed.quality === 'Good' ? 'text-green-500' : 'text-red-500';
             const icon = seed.quality === 'Good' ? 'check-circle' : 'x-circle';
 
+            // Removed confidence score as requested
             item.innerHTML = `
                 <div class="flex items-center gap-3">
                     <i data-lucide="${icon}" class="w-5 h-5 ${iconColor}"></i>
                     <div>
                         <p class="font-medium text-gray-900 text-sm">Seed #${seed.id}</p>
-                        <p class="text-xs text-gray-500">Conf: ${(seed.classification_probability * 100).toFixed(1)}%</p>
                     </div>
                 </div>
                 <div class="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-600 group-hover:bg-white">
@@ -352,9 +416,35 @@ const App = {
             item.addEventListener('click', () => {
                 this.state.highlightedSeedId = seed.id;
                 this.renderSeedsList(filter); // Re-render to update active state
-                this.draw(); // Re-draw canvas to show highlight
 
-                // Scroll into view logic could go here
+                // Zoom to seed
+                const image = this.getImage();
+                if (image) {
+                    const canvas = this.elements.canvas;
+                    const container = this.elements.canvasContainer;
+
+                    canvas.width = container.clientWidth;
+                    canvas.height = 500;
+
+                    const scaleX = canvas.width / image.width;
+                    const scaleY = canvas.height / image.height;
+                    const baseScale = Math.min(scaleX, scaleY);
+
+                    // Target zoom level
+                    this.state.zoomLevel = 3;
+                    const currentScale = baseScale * this.state.zoomLevel;
+
+                    const seedCenterX = seed.x1 + seed.width / 2;
+                    const seedCenterY = seed.y1 + seed.height / 2;
+
+                    const centerX = (canvas.width - image.width * currentScale) / 2;
+                    const centerY = (canvas.height - image.height * currentScale) / 2;
+
+                    this.state.offsetX = (canvas.width / 2) - centerX - (seedCenterX * currentScale);
+                    this.state.offsetY = (canvas.height / 2) - centerY - (seedCenterY * currentScale);
+                }
+
+                this.draw();
             });
 
             list.appendChild(item);
@@ -410,9 +500,10 @@ const App = {
     },
 
     reset() {
-        this.state.currentFile = null;
-        this.state.apiResponse = null;
-        this.state.image = null;
+        this.state.files = [];
+        this.state.results = [];
+        this.state.images = [];
+        this.state.currentTabIndex = 0;
         this.state.highlightedSeedId = null;
         this.state.zoomLevel = 1;
         this.state.offsetX = 0;
@@ -427,96 +518,134 @@ const App = {
     generatePDF() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        const stats = this.state.apiResponse.statistics;
 
-        // Title
-        doc.setFontSize(20);
-        doc.setTextColor(22, 163, 74); // Seed green
-        doc.text("Seed Quality Analysis Report", 20, 20);
+        this.state.results.forEach((result, index) => {
+            const image = this.state.images[index];
+            const file = this.state.files[index];
+            const stats = result.statistics;
 
-        // Date
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
+            if (index > 0) {
+                doc.addPage();
+            }
 
-        // Stats
-        doc.setFontSize(14);
-        doc.setTextColor(0);
-        doc.text("Summary Statistics", 20, 45);
+            // Title
+            doc.setFontSize(20);
+            doc.setTextColor(22, 163, 74); // Seed green
+            doc.text("Seed Quality Analysis Report", 20, 20);
 
-        doc.setFontSize(12);
-        doc.text(`Total Seeds Detected: ${this.state.apiResponse.total_seeds}`, 20, 55);
-        doc.text(`Good Seeds: ${stats.good_seeds} (${stats.good_percentage}%)`, 20, 65);
-        doc.text(`Bad Seeds: ${stats.bad_seeds} (${stats.bad_percentage}%)`, 20, 75);
+            // Date & File
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
+            doc.text(`File: ${file.name}`, 20, 35);
 
-        const modeLabel = this.state.mode === 'fast' ? 'Fast (YOLO)' : 'Accurate (Faster R-CNN)';
-        doc.text(`Mode Used: ${modeLabel}`, 20, 85);
+            // Stats
+            doc.setFontSize(14);
+            doc.setTextColor(0);
+            doc.text("Summary Statistics", 20, 45);
 
-        // --- Full Image Generation ---
-        // Create a temporary canvas to draw the full image with boxes
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
+            doc.setFontSize(12);
+            doc.text(`Total Seeds Detected: ${result.total_seeds}`, 20, 55);
+            doc.text(`Good Seeds: ${stats.good_seeds} (${stats.good_percentage}%)`, 20, 65);
+            doc.text(`Bad Seeds: ${stats.bad_seeds} (${stats.bad_percentage}%)`, 20, 75);
 
-        // Set dimensions to original image size
-        tempCanvas.width = this.state.image.width;
-        tempCanvas.height = this.state.image.height;
+            const modeLabel = 'Batch Analysis (Accurate)';
+            doc.text(`Mode Used: ${modeLabel}`, 20, 85);
 
-        // Draw original image
-        tempCtx.drawImage(this.state.image, 0, 0);
+            // --- Full Image Generation ---
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
 
-        // Draw all bounding boxes
-        if (this.state.apiResponse && this.state.apiResponse.bounding_boxes) {
-            // No scaling needed as we are drawing on original dimensions
-            this.state.apiResponse.bounding_boxes.forEach(box => {
-                const x = box.x1;
-                const y = box.y1;
-                const w = box.width;
-                const h = box.height;
+            tempCanvas.width = image.width;
+            tempCanvas.height = image.height;
 
-                // Draw Box
-                tempCtx.strokeStyle = box.color;
-                tempCtx.lineWidth = 5; // Thicker line for high-res image
-                tempCtx.strokeRect(x, y, w, h);
+            tempCtx.drawImage(image, 0, 0);
 
-                // Draw Label
-                const fontSize = 24; // Larger font
-                tempCtx.font = `bold ${fontSize}px Arial`;
-                tempCtx.fillStyle = box.color;
-                tempCtx.fillText(`#${box.id}`, x, y - 10);
+            if (result && result.bounding_boxes) {
+                result.bounding_boxes.forEach(box => {
+                    const x = box.x1;
+                    const y = box.y1;
+                    const w = box.width;
+                    const h = box.height;
+
+                    tempCtx.strokeStyle = box.color;
+                    tempCtx.lineWidth = 5;
+                    tempCtx.strokeRect(x, y, w, h);
+
+                    const fontSize = 24;
+                    tempCtx.font = `bold ${fontSize}px Arial`;
+                    tempCtx.fillStyle = box.color;
+                    tempCtx.fillText(`#${box.id}`, x, y - 10);
+                });
+            }
+
+            const imgData = tempCanvas.toDataURL("image/jpeg", 0.8);
+
+            const pdfWidth = doc.internal.pageSize.getWidth();
+            const imgProps = doc.getImageProperties(imgData);
+            const imgHeight = (imgProps.height * (pdfWidth - 40)) / imgProps.width;
+
+            doc.addImage(imgData, 'JPEG', 20, 95, pdfWidth - 40, imgHeight);
+
+            // --- Detailed Table with Crops ---
+            const startY = 95 + imgHeight + 10;
+
+            doc.text("Detailed Seed List", 20, startY);
+
+            // Prepare data and crops
+            const crops = [];
+            const tableData = result.bounding_boxes.map(seed => {
+                crops.push(this.getCroppedSeedDataUrl(image, seed));
+                return [seed.id, '', seed.quality]; // Empty string for image column
             });
-        }
 
-        const imgData = tempCanvas.toDataURL("image/jpeg", 0.8);
-
-        // Scale image to fit PDF width
-        const pdfWidth = doc.internal.pageSize.getWidth();
-        const imgProps = doc.getImageProperties(imgData);
-        const imgHeight = (imgProps.height * (pdfWidth - 40)) / imgProps.width;
-
-        // Add Image
-        doc.addImage(imgData, 'JPEG', 20, 95, pdfWidth - 40, imgHeight);
-
-        // --- Detailed Table ---
-        const startY = 95 + imgHeight + 10;
-
-        doc.text("Detailed Seed List", 20, startY);
-
-        const tableData = this.state.apiResponse.bounding_boxes.map(seed => [
-            seed.id,
-            seed.quality,
-            `${(seed.classification_probability * 100).toFixed(1)}%`
-        ]);
-
-        doc.autoTable({
-            startY: startY + 5,
-            head: [['Seed ID', 'Quality', 'Confidence']],
-            body: tableData,
-            theme: 'grid',
-            headStyles: { fillColor: [22, 163, 74] }, // Seed green
+            doc.autoTable({
+                startY: startY + 5,
+                head: [['Seed ID', 'Image', 'Quality']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { fillColor: [22, 163, 74] },
+                columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 30, minCellHeight: 20 },
+                    2: { cellWidth: 'auto' }
+                },
+                didDrawCell: (data) => {
+                    if (data.column.index === 1 && data.cell.section === 'body') {
+                        const img = crops[data.row.index];
+                        if (img) {
+                            // Draw image centered in cell
+                            const dim = 16;
+                            const x = data.cell.x + (data.cell.width - dim) / 2;
+                            const y = data.cell.y + (data.cell.height - dim) / 2;
+                            doc.addImage(img, 'JPEG', x, y, dim, dim);
+                        }
+                    }
+                }
+            });
         });
 
-        // Save
-        doc.save("seed-analysis-report.pdf");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        doc.save(`seed-analysis-report-${timestamp}.pdf`);
+    },
+
+    getCroppedSeedDataUrl(image, box) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const w = box.width;
+        const h = box.height;
+
+        // Add some padding? No, exact crop is fine.
+        canvas.width = w;
+        canvas.height = h;
+
+        // Draw crop
+        ctx.drawImage(image, box.x1, box.y1, w, h, 0, 0, w, h);
+        return canvas.toDataURL('image/jpeg', 0.9);
+    },
+
+    getImage() {
+        return this.state.images[this.state.currentTabIndex];
     }
 };
 
