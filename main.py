@@ -175,7 +175,7 @@ def calculate_confidence_score(
     # Exponential confidence: amplifies early differences
     # confidence ranges from 0 to ~100%
     # Using 1 - e^(-k * distance) formula
-    confidence = distance / 0.9 if distance < threshold else distance / 0.1
+    confidence = prob
 
     confidence *= 100
 
