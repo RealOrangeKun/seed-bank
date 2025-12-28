@@ -17,7 +17,7 @@ import io
 from typing import List, Dict
 import os
 
-app = FastAPI(title="Seed Quality Detection API", version="1.0.0")
+app = FastAPI(title="Bank Seed Demo API", version="1.0.0")
 
 # CORS middleware for frontend access
 app.add_middleware(
