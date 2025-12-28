@@ -43,6 +43,10 @@ const App = {
         filterAll: document.getElementById('view-all'),
         filterGood: document.getElementById('view-good'),
         filterBad: document.getElementById('view-bad'),
+
+        // System Status
+        statusDot: document.getElementById('system-status-dot'),
+        statusText: document.getElementById('system-status-text'),
         modelAccurate: document.getElementById('model-accurate'),
         modelFast: document.getElementById('model-fast'),
         btnExport: document.getElementById('btn-export'),
@@ -61,6 +65,32 @@ const App = {
 
         this.bindEvents();
         this.setupCanvasInteractions();
+        this.checkBackendStatus();
+    },
+
+    async checkBackendStatus() {
+        const { statusDot, statusText } = this.elements;
+        const API_URL = 'http://localhost:8000'; // Define API_URL here or as a global constant
+
+        try {
+            const response = await fetch(`${API_URL}/`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'running') {
+                    statusDot.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
+                    statusText.textContent = 'System Ready';
+                    return;
+                }
+            }
+            throw new Error('Backend not ready');
+        } catch (error) {
+            console.error('Backend check failed:', error);
+            statusDot.className = 'w-2 h-2 rounded-full bg-red-500';
+            statusText.textContent = 'System Offline';
+
+            // Retry after 5 seconds
+            setTimeout(() => this.checkBackendStatus(), 5000);
+        }
     },
 
     bindEvents() {
