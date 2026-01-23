@@ -50,5 +50,8 @@ Thumbs.db
 *.tmp
 *.bak
 
+# Uploaded images (user data)
+uploads/batches/*/
+!uploads/batches/.gitkeep
 
 node_modules/
