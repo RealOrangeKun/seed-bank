@@ -58,3 +58,9 @@ fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 requests==2.31.0
+
+# Database dependencies
+psycopg[binary]==3.2.3
+sqlalchemy>=2.0.40
+alembic==1.14.0
+python-dotenv==1.0.1
