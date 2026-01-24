@@ -1,4 +1,6 @@
 const App = {
+    API_URL: 'http://localhost:8000', // API base URL
+    
     state: {
         files: [], // Array of uploaded files
         results: [], // Array of analysis results per image
@@ -16,7 +18,13 @@ const App = {
         lastMouseY: 0,
         highlightedSeedId: null,
 
-        mode: 'accurate' // 'accurate' or 'fast'
+        mode: 'accurate', // 'accurate' or 'fast'
+        
+        // History state
+        historyPage: 1,
+        historyLimit: 20,
+        historyStatusFilter: null,
+        historyStats: null
     },
 
     elements: {
@@ -50,7 +58,19 @@ const App = {
         modelAccurate: document.getElementById('model-accurate'),
         modelFast: document.getElementById('model-fast'),
         btnExport: document.getElementById('btn-export'),
-        imageTabs: document.getElementById('image-tabs')
+        imageTabs: document.getElementById('image-tabs'),
+        
+        // History elements
+        historySection: document.getElementById('history-section'),
+        btnHistory: document.getElementById('btn-history'),
+        btnBackFromHistory: document.getElementById('btn-back-from-history'),
+        historyStats: document.getElementById('history-stats'),
+        batchesList: document.getElementById('batches-list'),
+        historyPagination: document.getElementById('history-pagination'),
+        filterStatusAll: document.getElementById('filter-status-all'),
+        filterStatusCompleted: document.getElementById('filter-status-completed'),
+        filterStatusFailed: document.getElementById('filter-status-failed'),
+        filterStatusPending: document.getElementById('filter-status-pending')
     },
 
     init() {
@@ -70,10 +90,9 @@ const App = {
 
     async checkBackendStatus() {
         const { statusDot, statusText } = this.elements;
-        const API_URL = 'http://localhost:8000'; // Define API_URL here or as a global constant
 
         try {
-            const response = await fetch(`${API_URL}/`);
+            const response = await fetch(`${this.API_URL}/`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.status === 'running') {
@@ -94,7 +113,7 @@ const App = {
     },
 
     bindEvents() {
-        const { dropZone, fileInput, btnNewAnalysis, filterAll, filterGood, filterBad, modelAccurate, modelFast, btnExport } = this.elements;
+        const { dropZone, fileInput, btnNewAnalysis, filterAll, filterGood, filterBad, modelAccurate, modelFast, btnExport, btnHistory, btnBackFromHistory, filterStatusAll, filterStatusCompleted, filterStatusFailed, filterStatusPending } = this.elements;
 
         // Drag & Drop
         dropZone.addEventListener('dragover', (e) => {
@@ -137,6 +156,34 @@ const App = {
 
         // Export
         btnExport.addEventListener('click', () => this.generatePDF());
+        
+        // History navigation - check if elements exist
+        if (btnHistory) {
+            btnHistory.addEventListener('click', () => {
+                console.log('History button clicked');
+                this.showHistory();
+            });
+        }
+        if (btnBackFromHistory) {
+            btnBackFromHistory.addEventListener('click', () => {
+                this.hideHistory();
+                this.elements.uploadSection.classList.remove('hidden');
+            });
+        }
+        
+        // History filters - check if elements exist
+        if (filterStatusAll) {
+            filterStatusAll.addEventListener('click', () => this.setHistoryStatusFilter(null));
+        }
+        if (filterStatusCompleted) {
+            filterStatusCompleted.addEventListener('click', () => this.setHistoryStatusFilter('COMPLETED'));
+        }
+        if (filterStatusFailed) {
+            filterStatusFailed.addEventListener('click', () => this.setHistoryStatusFilter('FAILED'));
+        }
+        if (filterStatusPending) {
+            filterStatusPending.addEventListener('click', () => this.setHistoryStatusFilter('PENDING'));
+        }
     },
 
     setMode(mode) {
@@ -243,7 +290,7 @@ const App = {
             // Load all images for display
             this.state.images = await Promise.all(files.map(file => this.loadImage(file)));
 
-            const response = await fetch(`http://localhost:8000${endpoint}`, {
+            const response = await fetch(`${this.API_URL}${endpoint}`, {
                 method: 'POST',
                 body: formData
             });
@@ -296,6 +343,7 @@ const App = {
             btn.textContent = file.name;
 
             btn.addEventListener('click', () => {
+                console.log('Tab clicked:', index);
                 this.state.currentTabIndex = index;
                 // Reset zoom/pan on tab switch
                 this.state.zoomLevel = 1;
@@ -303,6 +351,10 @@ const App = {
                 this.state.offsetY = 0;
                 this.state.highlightedSeedId = null;
 
+                console.log('Current tab index:', this.state.currentTabIndex);
+                console.log('Current image:', this.getImage());
+                console.log('Current result:', this.getCurrentResult());
+                
                 this.renderTabs(); // Re-render to update active state
                 this.updateView();
             });
@@ -723,10 +775,520 @@ const App = {
 
     getImage() {
         return this.state.images[this.state.currentTabIndex];
+    },
+    
+    // ============================================================================
+    // History Functions
+    // ============================================================================
+    
+    async showHistory() {
+        console.log('showHistory called');
+        if (!this.elements.historySection) {
+            console.error('History section not found');
+            return;
+        }
+        
+        this.elements.uploadSection.classList.add('hidden');
+        this.elements.resultsSection.classList.add('hidden');
+        this.elements.loadingSection.classList.add('hidden');
+        this.elements.historySection.classList.remove('hidden');
+        
+        await this.loadHistoryStats();
+        await this.loadBatches();
+    },
+    
+    hideHistory() {
+        this.elements.historySection.classList.add('hidden');
+        // Don't automatically show upload - let the caller decide what to show
+    },
+    
+    async loadHistoryStats() {
+        try {
+            const response = await fetch(`${this.API_URL}/api/stats`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Stats API error:', response.status, errorText);
+                throw new Error(`Failed to load stats: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            if (data.success && data.stats) {
+                this.state.historyStats = data.stats;
+                this.renderHistoryStats(data.stats);
+            } else {
+                throw new Error('Invalid response format');
+            }
+        } catch (error) {
+            console.error('Failed to load history stats:', error);
+            // Show empty stats instead of error
+            this.renderHistoryStats({
+                total_batches: 0,
+                total_seeds_analyzed: 0,
+                total_good_seeds: 0,
+                total_bad_seeds: 0,
+                overall_good_percentage: 0.0,
+                overall_bad_percentage: 0.0
+            });
+        }
+    },
+    
+    renderHistoryStats(stats) {
+        const statsHtml = `
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow" style="display: flex; flex-direction: column;">
+                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Total Batches</div>
+                <div class="text-3xl font-bold text-gray-900">${stats.total_batches}</div>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow" style="display: flex; flex-direction: column;">
+                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Total Seeds</div>
+                <div class="text-3xl font-bold text-gray-900">${stats.total_seeds_analyzed.toLocaleString()}</div>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow" style="display: flex; flex-direction: column;">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="p-2 bg-green-500 rounded-lg text-white flex-shrink-0" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    </div>
+                    <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Good Seeds</div>
+                </div>
+                <div class="text-3xl font-bold text-green-600">${stats.total_good_seeds.toLocaleString()}</div>
+                <div class="text-xs font-medium text-gray-500 mt-2">${stats.overall_good_percentage.toFixed(1)}%</div>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow" style="display: flex; flex-direction: column;">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="p-2 bg-red-500 rounded-lg text-white flex-shrink-0" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="x-circle" class="w-5 h-5"></i>
+                    </div>
+                    <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Bad Seeds</div>
+                </div>
+                <div class="text-3xl font-bold text-red-600">${stats.total_bad_seeds.toLocaleString()}</div>
+                <div class="text-xs font-medium text-gray-500 mt-2">${stats.overall_bad_percentage.toFixed(1)}%</div>
+            </div>
+        `;
+        this.elements.historyStats.innerHTML = statsHtml;
+        // Force grid display
+        this.elements.historyStats.style.display = 'grid';
+        this.elements.historyStats.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        this.elements.historyStats.style.gap = '1rem';
+        // Initialize icons after DOM is ready
+        setTimeout(() => {
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }, 50);
+    },
+    
+    async loadBatches() {
+        const { historyPage, historyLimit, historyStatusFilter } = this.state;
+        
+        let url = `${this.API_URL}/api/batches?page=${historyPage}&limit=${historyLimit}`;
+        if (historyStatusFilter) {
+            url += `&status=${historyStatusFilter}`;
+        }
+        
+        try {
+            this.elements.batchesList.innerHTML = '<div class="text-center py-10 text-gray-400"><i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 animate-spin"></i><p>Loading batches...</p></div>';
+            lucide.createIcons();
+            
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to load batches');
+            
+            const data = await response.json();
+            this.renderBatches(data.batches);
+            this.renderPagination(data.pagination);
+        } catch (error) {
+            console.error('Failed to load batches:', error);
+            this.elements.batchesList.innerHTML = '<div class="text-center py-10 text-red-500">Failed to load batches</div>';
+        }
+    },
+    
+    renderBatches(batches) {
+        if (batches.length === 0) {
+            this.elements.batchesList.innerHTML = `
+                <div class="text-center py-20">
+                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 mb-4">
+                        <i data-lucide="inbox" class="w-10 h-10 text-gray-400"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">No batches found</h3>
+                    <p class="text-gray-500">Upload some images to get started!</p>
+                </div>
+            `;
+            lucide.createIcons();
+            return;
+        }
+        
+        const batchesHtml = batches.map(batch => {
+            const statusConfig = {
+                'COMPLETED': {
+                    badge: 'bg-green-100 text-green-700 border-green-200',
+                    icon: 'check-circle'
+                },
+                'FAILED': {
+                    badge: 'bg-red-100 text-red-700 border-red-200',
+                    icon: 'x-circle'
+                },
+                'PENDING': {
+                    badge: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+                    icon: 'clock'
+                },
+                'PROCESSING': {
+                    badge: 'bg-blue-100 text-blue-700 border-blue-200',
+                    icon: 'loader'
+                }
+            };
+            
+            const status = statusConfig[batch.status] || {
+                badge: 'bg-gray-100 text-gray-700 border-gray-200',
+                icon: 'help-circle'
+            };
+            
+            const date = new Date(batch.created_at);
+            const formattedDate = date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            const goodPercentage = batch.total_seeds > 0 
+                ? ((batch.good_seeds_count / batch.total_seeds) * 100).toFixed(1)
+                : 0;
+            
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group overflow-hidden" data-batch-id="${batch.id}">
+                    <div class="p-5">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <h3 class="text-xl font-bold text-gray-900">Batch #${batch.id}</h3>
+                                    <span class="px-2.5 py-1 rounded-md text-xs font-semibold border ${status.badge} flex items-center gap-1">
+                                        <i data-lucide="${status.icon}" class="w-3 h-3"></i>
+                                        ${batch.status}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-500 flex items-center gap-1">
+                                    <i data-lucide="calendar" class="w-4 h-4"></i>
+                                    ${formattedDate}
+                                </p>
+                            </div>
+                            ${batch.first_image_url ? `
+                                <div class="ml-4 flex-shrink-0">
+                                    <img src="${this.API_URL}${batch.first_image_url}" 
+                                         alt="Batch ${batch.id}" 
+                                         class="w-24 h-24 object-cover rounded-lg border-2 border-gray-200 group-hover:border-seed-green-300 transition-colors"
+                                         onerror="this.style.display='none'">
+                                </div>
+                            ` : `
+                                <div class="ml-4 flex-shrink-0 w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-gray-200">
+                                    <i data-lucide="image" class="w-8 h-8 text-gray-400"></i>
+                                </div>
+                            `}
+                        </div>
+                        
+                        <!-- Stats Grid -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                <div class="text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Total</div>
+                                <div class="text-lg font-bold text-gray-900">${batch.total_seeds}</div>
+                            </div>
+                            <div class="bg-green-50 rounded-lg p-3 border border-green-100">
+                                <div class="text-xs font-medium text-green-600 mb-1 uppercase tracking-wide">Good</div>
+                                <div class="text-lg font-bold text-green-700">${batch.good_seeds_count}</div>
+                                <div class="text-xs text-green-600 mt-0.5">${goodPercentage}%</div>
+                            </div>
+                            <div class="bg-red-50 rounded-lg p-3 border border-red-100">
+                                <div class="text-xs font-medium text-red-600 mb-1 uppercase tracking-wide">Bad</div>
+                                <div class="text-lg font-bold text-red-700">${batch.bad_seeds_count}</div>
+                                <div class="text-xs text-red-600 mt-0.5">${(100 - goodPercentage).toFixed(1)}%</div>
+                            </div>
+                            <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                <div class="text-xs font-medium text-blue-600 mb-1 uppercase tracking-wide">Confidence</div>
+                                <div class="text-lg font-bold text-blue-700">${(batch.avg_confidence_score * 100).toFixed(1)}%</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                            <div class="flex items-center gap-4 text-sm text-gray-600">
+                                <span class="flex items-center gap-1">
+                                    <i data-lucide="image" class="w-4 h-4"></i>
+                                    ${batch.image_count} image${batch.image_count !== 1 ? 's' : ''}
+                                </span>
+                                ${batch.processing_duration_ms ? `
+                                    <span class="flex items-center gap-1">
+                                        <i data-lucide="clock" class="w-4 h-4"></i>
+                                        ${(batch.processing_duration_ms / 1000).toFixed(1)}s
+                                    </span>
+                                ` : ''}
+                            </div>
+                            <button class="flex items-center gap-2 px-4 py-2 bg-seed-green-600 hover:bg-seed-green-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm group-hover:shadow-md">
+                                <span>View Details</span>
+                                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        this.elements.batchesList.innerHTML = batchesHtml;
+        lucide.createIcons();
+        
+        // Add click handlers
+        this.elements.batchesList.querySelectorAll('[data-batch-id]').forEach(el => {
+            el.addEventListener('click', () => {
+                const batchId = parseInt(el.getAttribute('data-batch-id'));
+                this.loadBatchDetails(batchId);
+            });
+        });
+    },
+    
+    renderPagination(pagination) {
+        if (pagination.total_pages <= 1) {
+            this.elements.historyPagination.innerHTML = '';
+            return;
+        }
+        
+        const paginationHtml = `
+            <div class="flex items-center justify-center gap-3 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <button ${!pagination.has_prev ? 'disabled' : ''} 
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                        pagination.has_prev 
+                            ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm' 
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-transparent'
+                    }"
+                    ${pagination.has_prev ? `onclick="App.goToHistoryPage(${pagination.page - 1})"` : ''}>
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    Previous
+                </button>
+                <div class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 rounded-lg">
+                    Page <span class="font-bold text-gray-900">${pagination.page}</span> of <span class="font-bold text-gray-900">${pagination.total_pages}</span>
+                </div>
+                <button ${!pagination.has_next ? 'disabled' : ''}
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                        pagination.has_next 
+                            ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm' 
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-transparent'
+                    }"
+                    ${pagination.has_next ? `onclick="App.goToHistoryPage(${pagination.page + 1})"` : ''}>
+                    Next
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        `;
+        this.elements.historyPagination.innerHTML = paginationHtml;
+        lucide.createIcons();
+    },
+    
+    goToHistoryPage(page) {
+        this.state.historyPage = page;
+        this.loadBatches();
+    },
+    
+    setHistoryStatusFilter(status) {
+        this.state.historyStatusFilter = status;
+        this.state.historyPage = 1; // Reset to first page
+        
+        // Update button styles
+        const buttons = {
+            null: this.elements.filterStatusAll,
+            'COMPLETED': this.elements.filterStatusCompleted,
+            'FAILED': this.elements.filterStatusFailed,
+            'PENDING': this.elements.filterStatusPending
+        };
+        
+        Object.keys(buttons).forEach(key => {
+            const btn = buttons[key];
+            if (key === (status || 'null')) {
+                btn.classList.add('bg-gray-100', 'text-gray-900', 'shadow-sm');
+                btn.classList.remove('text-gray-600', 'hover:bg-gray-50');
+            } else {
+                btn.classList.remove('bg-gray-100', 'text-gray-900', 'shadow-sm');
+                btn.classList.add('text-gray-600', 'hover:bg-gray-50');
+            }
+        });
+        
+        this.loadBatches();
+    },
+    
+    async loadBatchDetails(batchId) {
+        try {
+            this.showLoading(true);
+            
+            // Fetch batch details
+            const batchResponse = await fetch(`${this.API_URL}/api/batches/${batchId}`);
+            if (!batchResponse.ok) throw new Error('Failed to load batch details');
+            const batchData = await batchResponse.json();
+            
+            // Fetch detections
+            const detectionsResponse = await fetch(`${this.API_URL}/api/batches/${batchId}/detections`);
+            if (!detectionsResponse.ok) throw new Error('Failed to load detections');
+            const detectionsData = await detectionsResponse.json();
+            
+            // Process data for display
+            const batch = batchData.batch;
+            const images = batch.images;
+            
+            console.log('Batch images from API:', images);
+            
+            // Load images with error handling - use image ID to ensure uniqueness
+            this.state.images = await Promise.all(images.map((img, idx) => {
+                return new Promise((resolve, reject) => {
+                    const image = new Image();
+                    const imageUrl = `${this.API_URL}${img.url}`;
+                    console.log(`Loading image ${idx} (ID: ${img.id}):`, imageUrl, 'Original filename:', img.original_filename);
+                    image.onload = () => {
+                        console.log(`✓ Loaded image ${idx} (ID: ${img.id}):`, imageUrl);
+                        resolve(image);
+                    };
+                    image.onerror = (e) => {
+                        console.error(`✗ Failed to load image ${idx} (ID: ${img.id}):`, imageUrl, e);
+                        // Create a placeholder image instead of rejecting
+                        const placeholder = new Image();
+                        placeholder.width = img.width || 800;
+                        placeholder.height = img.height || 600;
+                        // Create a blank canvas as placeholder
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width || 800;
+                        canvas.height = img.height || 600;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#f0f0f0';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#999';
+                        ctx.font = '20px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Image failed to load', canvas.width / 2, canvas.height / 2);
+                        placeholder.src = canvas.toDataURL();
+                        resolve(placeholder);
+                    };
+                    image.src = imageUrl;
+                });
+            }));
+            
+            // Group detections by image
+            const detectionsByImage = {};
+            detectionsData.detections.forEach(det => {
+                if (!detectionsByImage[det.image_id]) {
+                    detectionsByImage[det.image_id] = [];
+                }
+                detectionsByImage[det.image_id].push(det);
+            });
+            
+            // Create a map of image ID to loaded Image object
+            const imageMap = {};
+            images.forEach((img, idx) => {
+                imageMap[img.id] = this.state.images[idx];
+            });
+            
+            console.log('Image map:', Object.keys(imageMap).map(id => ({ id, url: images.find(img => img.id == id)?.url })));
+            
+            // Format results - ensure we match images by ID, not index
+            this.state.results = images.map((img, idx) => {
+                const detections = detectionsByImage[img.id] || [];
+                const goodCount = detections.filter(d => d.quality_label === 'GOOD').length;
+                const badCount = detections.filter(d => d.quality_label === 'BAD').length;
+                const total = detections.length;
+                
+                // Get the corresponding loaded image
+                const loadedImage = imageMap[img.id];
+                if (!loadedImage) {
+                    console.error(`No loaded image found for image ID ${img.id}`);
+                }
+                
+                // Convert detections to bounding boxes format
+                const bounding_boxes = detections.map((det, detIdx) => {
+                    // Convert normalized coordinates back to pixel coordinates
+                    const x1 = det.box_x_norm * img.width;
+                    const y1 = det.box_y_norm * img.height;
+                    const width = det.box_w_norm * img.width;
+                    const height = det.box_h_norm * img.height;
+                    
+                    return {
+                        id: detIdx,
+                        x1: x1,
+                        y1: y1,
+                        x2: x1 + width,
+                        y2: y1 + height,
+                        width: width,
+                        height: height,
+                        area: det.area,
+                        aspect_ratio: det.aspect_ratio,
+                        centroid: { x: det.centroid_x, y: det.centroid_y },
+                        quality: det.quality_label === 'GOOD' ? 'Good' : 'Bad',
+                        detection_confidence: det.detection_confidence,
+                        good_percentage: det.good_percentage,
+                        bad_percentage: det.bad_percentage,
+                        classification_confidence: (det.confidence_score * 100).toFixed(2),
+                        raw_probability: det.confidence_score,
+                        color: det.quality_label === 'GOOD' ? '#00FF00' : '#FF0000'
+                    };
+                });
+                
+                return {
+                    filename: img.original_filename || `image_${idx}`,
+                    image_index: idx,
+                    image_id: img.id, // Store image ID for reference
+                    total_seeds: total,
+                    bounding_boxes: bounding_boxes,
+                    statistics: {
+                        good_seeds: goodCount,
+                        bad_seeds: badCount,
+                        good_percentage: total > 0 ? ((goodCount / total) * 100).toFixed(2) : 0,
+                        bad_percentage: total > 0 ? ((badCount / total) * 100).toFixed(2) : 0
+                    },
+                    image_dimensions: {
+                        width: img.width,
+                        height: img.height
+                    }
+                };
+            });
+            
+            // Ensure images array matches results array order
+            // Reorder images array to match results order
+            this.state.images = images.map(img => imageMap[img.id]);
+            
+            // Set files for tabs - ensure same length as images
+            this.state.files = images.map((img, idx) => ({
+                name: img.original_filename || `image_${idx}.jpg`
+            }));
+            
+            // Ensure arrays are aligned
+            if (this.state.images.length !== this.state.results.length) {
+                console.error('Mismatch: images.length =', this.state.images.length, 'results.length =', this.state.results.length);
+            }
+            if (this.state.files.length !== this.state.images.length) {
+                console.error('Mismatch: files.length =', this.state.files.length, 'images.length =', this.state.images.length);
+            }
+            
+            // Show results - hide all other sections first
+            this.elements.historySection.classList.add('hidden');
+            this.elements.uploadSection.classList.add('hidden');
+            this.elements.loadingSection.classList.add('hidden');
+            
+            this.state.currentTabIndex = 0;
+            this.state.zoomLevel = 1;
+            this.state.offsetX = 0;
+            this.state.offsetY = 0;
+            this.state.highlightedSeedId = null;
+            
+            this.showResults();
+            this.renderTabs();
+            this.updateView();
+            
+            console.log('Batch details loaded. Current tab:', this.state.currentTabIndex);
+            console.log('Current image:', this.getImage());
+            console.log('Current result:', this.getCurrentResult());
+            
+        } catch (error) {
+            console.error('Failed to load batch details:', error);
+            this.showError(error.message || 'Failed to load batch details');
+            this.showLoading(false);
+        }
     }
 };
 
 // Start the app
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
+    // Make App available globally for inline onclick handlers
+    window.App = App;
 });

@@ -29,6 +29,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-4">
+                <button id="btn-history" class="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
+                    <i data-lucide="history" class="w-5 h-5"></i>
+                    <span class="text-sm font-medium">History</span>
+                </button>
                 <button class="text-gray-500 hover:text-gray-700 transition-colors">
                     <i data-lucide="help-circle" class="w-5 h-5"></i>
                 </button>
@@ -104,6 +108,60 @@
         <section id="loading-section" class="hidden flex flex-col items-center justify-center py-20">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-seed-green-600 mb-4"></div>
             <p class="text-gray-600 font-medium">Analyzing seeds...</p>
+        </section>
+
+        <!-- History Section -->
+        <section id="history-section" class="hidden max-w-7xl mx-auto space-y-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-3xl font-bold text-gray-900">Scan History</h2>
+                <button id="btn-back-from-history" class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    Back to Upload
+                </button>
+            </div>
+
+            <!-- Statistics Summary -->
+            <div id="history-stats" class="grid grid-cols-2 gap-4 mb-6" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));">
+                <!-- Stats will be loaded here -->
+            </div>
+
+            <!-- Filters -->
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                <div class="flex flex-wrap items-center gap-3">
+                    <label class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        <i data-lucide="filter" class="w-4 h-4"></i>
+                        Filter by Status:
+                    </label>
+                    <div class="flex gap-2 flex-wrap">
+                        <button id="filter-status-all" class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-900 shadow-sm transition-all hover:bg-gray-200">
+                            All
+                        </button>
+                        <button id="filter-status-completed" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-green-50 hover:text-green-700 transition-all border border-transparent hover:border-green-200">
+                            Completed
+                        </button>
+                        <button id="filter-status-failed" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-all border border-transparent hover:border-red-200">
+                            Failed
+                        </button>
+                        <button id="filter-status-pending" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 transition-all border border-transparent hover:border-yellow-200">
+                            Pending
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batches List -->
+            <div id="batches-list" class="space-y-4">
+                <!-- Batches will be loaded here -->
+                <div class="text-center py-10 text-gray-400">
+                    <i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 animate-spin"></i>
+                    <p>Loading batches...</p>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div id="history-pagination" class="flex items-center justify-center gap-4 py-4">
+                <!-- Pagination will be loaded here -->
+            </div>
         </section>
 
         <!-- Results Section -->
