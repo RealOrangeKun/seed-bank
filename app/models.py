@@ -1,5 +1,5 @@
 """SQLAlchemy models for the seed bank database."""
-from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Enum, Text, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Enum, Text, Boolean, CheckConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -31,6 +31,14 @@ class User(Base):
     device_fingerprint = Column(String(255), unique=True, nullable=True, index=True)
     is_guest = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Constraint: Either (username OR email) OR device_fingerprint must be present
+    __table_args__ = (
+        CheckConstraint(
+            '(username IS NOT NULL OR email IS NOT NULL) OR device_fingerprint IS NOT NULL',
+            name='user_identity_required'
+        ),
+    )
 
     # Relationships
     scan_batches = relationship("ScanBatch", back_populates="user")
@@ -121,8 +129,6 @@ class SeedDetection(Base):
     # Confidence percentages
     good_percentage = Column(Float, nullable=True)
     bad_percentage = Column(Float, nullable=True)
-    classification_confidence = Column(Float, nullable=True)
-    raw_probability = Column(Float, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

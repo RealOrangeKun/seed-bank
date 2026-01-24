@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import torch
@@ -16,6 +16,13 @@ from torchvision import transforms
 import io
 from typing import List, Dict
 import os
+from datetime import datetime
+from sqlalchemy.orm import Session
+
+# Database imports
+from app.database import get_db
+from app.models import User, ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel
+from app.crud import get_or_create_guest_user, generate_device_fingerprint
 
 app = FastAPI(title="Bank Seed Demo API", version="1.0.0")
 
@@ -96,6 +103,34 @@ async def load_models():
     classification_model.to(device)
     classification_model.eval()
     print("✓ Classification model loaded successfully")
+
+
+def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str) -> str:
+    """
+    Save uploaded image to local storage with MinIO-ready path structure.
+    
+    Args:
+        file_contents: Image file bytes
+        batch_id: Scan batch ID
+        filename: Original filename
+        
+    Returns:
+        Storage path (relative, MinIO-ready format)
+    """
+    # Create batch directory
+    batch_dir = f"uploads/batches/{batch_id}"
+    os.makedirs(batch_dir, exist_ok=True)
+    
+    # Get file extension
+    ext = os.path.splitext(filename)[1] or ".jpg"
+    
+    # Save image
+    image_path = f"{batch_dir}/image_0{ext}"
+    with open(image_path, "wb") as f:
+        f.write(file_contents)
+    
+    # Return MinIO-ready path (relative, can be converted to s3:// later)
+    return image_path
 
 
 def process_uploaded_image(file_bytes: bytes) -> np.ndarray:
@@ -272,7 +307,11 @@ async def root():
 
 
 @app.post("/api/analyze")
-async def analyze_image(file: UploadFile = File(...)):
+async def analyze_image(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
     """
     Single image analysis endpoint (for backward compatibility)
 
@@ -286,6 +325,24 @@ async def analyze_image(file: UploadFile = File(...)):
         if not file.content_type or not file.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="File must be an image")
 
+        # Extract device fingerprint from request headers
+        user_agent = request.headers.get("user-agent", "")
+        client_host = request.client.host if request.client else None
+        device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+
+        # Get or create guest user (will reuse if fingerprint matches)
+        guest_user = get_or_create_guest_user(db, device_fingerprint)
+        
+        # Create scan batch
+        processing_start = datetime.utcnow()
+        scan_batch = ScanBatch(
+            user_id=guest_user.id,
+            status=ProcessingStatus.PROCESSING,
+            processing_start_at=processing_start
+        )
+        db.add(scan_batch)
+        db.flush()
+        
         # Read and process image
         contents = await file.read()
         rgb_img = process_uploaded_image(contents)
@@ -294,9 +351,28 @@ async def analyze_image(file: UploadFile = File(...)):
         detected_seeds, (img_height, img_width) = detect_seeds(rgb_img)
 
         if len(detected_seeds) == 0:
+            # Save image even if no seeds detected
+            storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or "image.jpg")
+            scan_image = ScanImage(
+                batch_id=scan_batch.id,
+                storage_path=storage_path,
+                original_filename=file.filename,
+                width=img_width,
+                height=img_height
+            )
+            db.add(scan_image)
+            
+            # Update batch as completed with zero seeds
+            processing_end = datetime.utcnow()
+            scan_batch.status = ProcessingStatus.COMPLETED
+            scan_batch.processing_end_at = processing_end
+            scan_batch.processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
+            db.commit()
+            
             return JSONResponse(
                 content={
                     "success": True,
+                    "batch_id": scan_batch.id,
                     "message": "No seeds detected in the image",
                     "total_seeds": 0,
                     "bounding_boxes": [],
@@ -317,6 +393,71 @@ async def analyze_image(file: UploadFile = File(...)):
         good_count = sum(1 for s in classified_results if s["quality"] == "Good")
         bad_count = sum(1 for s in classified_results if s["quality"] == "Bad")
         total_count = len(classified_results)
+        
+        # Save image to storage
+        storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or "image.jpg")
+        
+        # Create scan image record
+        scan_image = ScanImage(
+            batch_id=scan_batch.id,
+            storage_path=storage_path,
+            original_filename=file.filename,
+            width=img_width,
+            height=img_height
+        )
+        db.add(scan_image)
+        db.flush()
+        
+        # Calculate average confidence
+        avg_confidence = (
+            sum(s["classification_confidence"] for s in classified_results) / total_count
+            if total_count > 0 else 0.0
+        )
+        
+        # Save seed detections
+        for seed_data in classified_results:
+            x1, y1, x2, y2 = seed_data["box"]
+            
+            # Normalize bounding box coordinates (0.0-1.0)
+            box_x_norm = x1 / img_width if img_width > 0 else 0.0
+            box_y_norm = y1 / img_height if img_height > 0 else 0.0
+            box_w_norm = (x2 - x1) / img_width if img_width > 0 else 0.0
+            box_h_norm = (y2 - y1) / img_height if img_height > 0 else 0.0
+            
+            detection = SeedDetection(
+                batch_id=scan_batch.id,
+                image_id=scan_image.id,
+                quality_label=QualityLabel.GOOD if seed_data["quality"] == "Good" else QualityLabel.BAD,
+                confidence_score=seed_data["classification_confidence"] / 100.0,  # Convert percentage to 0-1
+                detection_confidence=seed_data["detection_confidence"],
+                box_x_norm=box_x_norm,
+                box_y_norm=box_y_norm,
+                box_w_norm=box_w_norm,
+                box_h_norm=box_h_norm,
+                area=seed_data["area"],
+                width=seed_data["width"],
+                height=seed_data["height"],
+                aspect_ratio=seed_data["aspect_ratio"],
+                centroid_x=seed_data["centroid"]["x"],
+                centroid_y=seed_data["centroid"]["y"],
+                good_percentage=seed_data["good_percentage"],
+                bad_percentage=seed_data["bad_percentage"]
+            )
+            db.add(detection)
+        
+        # Update batch with final statistics
+        processing_end = datetime.utcnow()
+        processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
+        
+        scan_batch.status = ProcessingStatus.COMPLETED
+        scan_batch.total_seeds = total_count
+        scan_batch.bad_seeds_count = bad_count
+        scan_batch.avg_confidence_score = avg_confidence / 100.0  # Convert to 0-1
+        scan_batch.processing_end_at = processing_end
+        scan_batch.processing_duration_ms = processing_duration_ms
+        
+        # Commit all changes
+        db.commit()
 
         # Format bounding boxes for frontend
         bounding_boxes = []
@@ -348,6 +489,7 @@ async def analyze_image(file: UploadFile = File(...)):
 
         response_data = {
             "success": True,
+            "batch_id": scan_batch.id,
             "total_seeds": total_count,
             "bounding_boxes": bounding_boxes,
             "statistics": {
@@ -370,13 +512,21 @@ async def analyze_image(file: UploadFile = File(...)):
         return JSONResponse(content=response_data)
 
     except ValueError as e:
+        if 'db' in locals():
+            db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        if 'db' in locals():
+            db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.post("/api/analyze-batch")
-async def analyze_batch(files: List[UploadFile] = File(...)):
+async def analyze_batch(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
     """
     Batch analysis endpoint: Upload multiple images and get combined results
     Similar to how the notebook processes a folder of images
@@ -397,6 +547,24 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
                     status_code=400, detail=f"File {file.filename} is not an image"
                 )
 
+        # Extract device fingerprint from request headers
+        user_agent = request.headers.get("user-agent", "")
+        client_host = request.client.host if request.client else None
+        device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+
+        # Get or create guest user (will reuse if fingerprint matches)
+        guest_user = get_or_create_guest_user(db, device_fingerprint)
+        
+        # Create scan batch for the entire batch
+        processing_start = datetime.utcnow()
+        scan_batch = ScanBatch(
+            user_id=guest_user.id,
+            status=ProcessingStatus.PROCESSING,
+            processing_start_at=processing_start
+        )
+        db.add(scan_batch)
+        db.flush()
+
         print(f"Processing {len(files)} images in batch...")
 
         # Process each image
@@ -404,6 +572,7 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
         total_good = 0
         total_bad = 0
         total_seeds = 0
+        all_confidences = []
 
         for file_idx, file in enumerate(files):
             # Read and process image
@@ -412,6 +581,20 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
 
             # Step 1: Detect seeds
             detected_seeds, (img_height, img_width) = detect_seeds(rgb_img)
+
+            # Save image to storage
+            storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or f"image_{file_idx}.jpg")
+            
+            # Create scan image record
+            scan_image = ScanImage(
+                batch_id=scan_batch.id,
+                storage_path=storage_path,
+                original_filename=file.filename,
+                width=img_width,
+                height=img_height
+            )
+            db.add(scan_image)
+            db.flush()
 
             # Step 2: Classify seeds (if any detected)
             if len(detected_seeds) > 0:
@@ -422,6 +605,38 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
                     1 for s in classified_results if s["quality"] == "Good"
                 )
                 bad_count = sum(1 for s in classified_results if s["quality"] == "Bad")
+
+                # Save seed detections
+                for seed_data in classified_results:
+                    x1, y1, x2, y2 = seed_data["box"]
+                    
+                    # Normalize bounding box coordinates (0.0-1.0)
+                    box_x_norm = x1 / img_width if img_width > 0 else 0.0
+                    box_y_norm = y1 / img_height if img_height > 0 else 0.0
+                    box_w_norm = (x2 - x1) / img_width if img_width > 0 else 0.0
+                    box_h_norm = (y2 - y1) / img_height if img_height > 0 else 0.0
+                    
+                    detection = SeedDetection(
+                        batch_id=scan_batch.id,
+                        image_id=scan_image.id,
+                        quality_label=QualityLabel.GOOD if seed_data["quality"] == "Good" else QualityLabel.BAD,
+                        confidence_score=seed_data["classification_confidence"] / 100.0,  # Convert percentage to 0-1
+                        detection_confidence=seed_data["detection_confidence"],
+                        box_x_norm=box_x_norm,
+                        box_y_norm=box_y_norm,
+                        box_w_norm=box_w_norm,
+                        box_h_norm=box_h_norm,
+                        area=seed_data["area"],
+                        width=seed_data["width"],
+                        height=seed_data["height"],
+                        aspect_ratio=seed_data["aspect_ratio"],
+                        centroid_x=seed_data["centroid"]["x"],
+                        centroid_y=seed_data["centroid"]["y"],
+                        good_percentage=seed_data["good_percentage"],
+                        bad_percentage=seed_data["bad_percentage"]
+                    )
+                    db.add(detection)
+                    all_confidences.append(seed_data["classification_confidence"])
 
                 # Format bounding boxes
                 bounding_boxes = []
@@ -494,9 +709,29 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
         overall_bad_pct = (
             round((total_bad / total_seeds * 100), 2) if total_seeds > 0 else 0
         )
+        
+        # Calculate average confidence
+        avg_confidence = (
+            sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+        )
+
+        # Update batch with final statistics
+        processing_end = datetime.utcnow()
+        processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
+        
+        scan_batch.status = ProcessingStatus.COMPLETED
+        scan_batch.total_seeds = total_seeds
+        scan_batch.bad_seeds_count = total_bad
+        scan_batch.avg_confidence_score = avg_confidence / 100.0  # Convert to 0-1
+        scan_batch.processing_end_at = processing_end
+        scan_batch.processing_duration_ms = processing_duration_ms
+        
+        # Commit all changes
+        db.commit()
 
         response_data = {
             "success": True,
+            "batch_id": scan_batch.id,
             "total_images": len(files),
             "total_seeds_all_images": total_seeds,
             "overall_statistics": {
@@ -515,8 +750,12 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
         return JSONResponse(content=response_data)
 
     except ValueError as e:
+        if 'db' in locals():
+            db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        if 'db' in locals():
+            db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
