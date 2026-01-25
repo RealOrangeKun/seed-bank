@@ -910,14 +910,22 @@ const App = {
             lucide.createIcons();
             
             const response = await fetch(url);
-            if (!response.ok) throw new Error('Failed to load batches');
+            if (!response.ok) {
+                if (response.status === 404) {
+                    throw new Error('No scan history found');
+                }
+                throw new Error('Failed to load batches');
+            }
             
             const data = await response.json();
             this.renderBatches(data.batches);
             this.renderPagination(data.pagination);
         } catch (error) {
             console.error('Failed to load batches:', error);
-            this.elements.batchesList.innerHTML = '<div class="text-center py-10 text-red-500">Failed to load batches</div>';
+            const message = error.message === 'No scan history found' 
+                ? '<div class="text-center py-10 text-gray-500">No scan history found</div>'
+                : '<div class="text-center py-10 text-red-500">Failed to load batches</div>';
+            this.elements.batchesList.innerHTML = message;
         }
     },
     
