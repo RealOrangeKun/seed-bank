@@ -135,11 +135,20 @@ const App = {
         });
 
         // File Input
-        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length) {
-                this.handleFiles(e.target.files);
+                // Immediately convert FileList to Array to prevent reference issues
+                const filesArray = Array.from(e.target.files);
+                // Use setTimeout to break out of the event loop and prevent navigation
+                setTimeout(() => {
+                    this.handleFiles(filesArray);
+                }, 0);
             }
+            // Clear the input value to allow re-selection of the same file
+            e.target.value = '';
         });
 
         // New Analysis
@@ -267,11 +276,14 @@ const App = {
     },
 
     async uploadImages(files) {
+        console.log('uploadImages called with', files.length, 'files');
+        
         this.showLoading(true);
         this.hideError();
 
         const formData = new FormData();
         files.forEach(file => {
+            console.log('Appending file:', file.name, file.type, file.size);
             formData.append('files', file);
         });
 
@@ -285,21 +297,30 @@ const App = {
         // I will proceed with /api/analyze-batch.
 
         const endpoint = '/api/analyze-batch';
+        console.log('Sending POST to:', `${this.API_URL}${endpoint}`);
 
         try {
             // Load all images for display
+            console.log('Loading images for display...');
             this.state.images = await Promise.all(files.map(file => this.loadImage(file)));
+            console.log('Images loaded successfully');
 
+            console.log('Starting fetch request...');
             const response = await fetch(`${this.API_URL}${endpoint}`, {
                 method: 'POST',
                 body: formData
             });
 
+            console.log('Fetch completed, status:', response.status);
+
             if (!response.ok) {
                 throw new Error(`Server error: ${response.statusText}`);
             }
 
+            console.log('Parsing JSON response...');
             const data = await response.json();
+            console.log('Response data:', data);
+            
             this.state.results = data.results;
 
             // Initialize view
@@ -672,7 +693,7 @@ const App = {
             doc.text(`Good Seeds: ${stats.good_seeds} (${stats.good_percentage}%)`, 20, 65);
             doc.text(`Bad Seeds: ${stats.bad_seeds} (${stats.bad_percentage}%)`, 20, 75);
 
-            const modeLabel = 'Batch Analysis (Accurate)';
+            const modeLabel = this.state.mode === 'fast' ? 'Fast Mode' : 'Accurate Mode';
             doc.text(`Mode Used: ${modeLabel}`, 20, 85);
 
             // --- Full Image Generation ---

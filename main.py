@@ -742,6 +742,7 @@ async def analyze_batch(
         response_data = {
             "success": True,
             "batch_id": scan_batch.id,
+            "mode": "accurate",
             "total_images": len(files),
             "total_seeds_all_images": total_seeds,
             "overall_statistics": {
@@ -1098,7 +1099,7 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
         return JSONResponse(
             content={
                 "success": True,
-                "mode": "fast-batch",
+                "mode": "fast",
                 "results": all_results,
                 "overall_statistics": {
                     "total_images": len(files),
@@ -1540,4 +1541,9 @@ async def serve_image(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000,
+        timeout_keep_alive=600  # 10 minutes keep-alive timeout for long-running requests
+    )
