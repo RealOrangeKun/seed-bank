@@ -105,14 +105,15 @@ async def load_models():
     print("✓ Classification model loaded successfully")
 
 
-def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str) -> str:
+def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str, image_index: int = 0) -> str:
     """
     Save uploaded image to local storage with MinIO-ready path structure.
     
     Args:
         file_contents: Image file bytes
         batch_id: Scan batch ID
-        filename: Original filename
+        filename: Original filename (used for extension)
+        image_index: Index of image in batch (0, 1, 2, ...) for unique filenames
         
     Returns:
         Storage path (relative, MinIO-ready format)
@@ -124,8 +125,8 @@ def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str) ->
     # Get file extension
     ext = os.path.splitext(filename)[1] or ".jpg"
     
-    # Save image
-    image_path = f"{batch_dir}/image_0{ext}"
+    # Save image with unique name per index
+    image_path = f"{batch_dir}/image_{image_index}{ext}"
     with open(image_path, "wb") as f:
         f.write(file_contents)
     
@@ -582,8 +583,8 @@ async def analyze_batch(
             # Step 1: Detect seeds
             detected_seeds, (img_height, img_width) = detect_seeds(rgb_img)
 
-            # Save image to storage
-            storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or f"image_{file_idx}.jpg")
+            # Save image to storage (unique filename per image index)
+            storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or f"image_{file_idx}.jpg", image_index=file_idx)
             
             # Create scan image record
             scan_image = ScanImage(
@@ -1113,6 +1114,465 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
         raise HTTPException(
             status_code=500, detail=f"Fast batch analysis failed: {str(e)}"
         )
+
+
+# ============================================================================
+# GET Endpoints - History and Data Retrieval
+# ============================================================================
+
+@app.get("/api/batches")
+async def list_batches(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
+    status: Optional[str] = Query(None, description="Filter by status (PENDING, PROCESSING, COMPLETED, FAILED)"),
+    db: Session = Depends(get_db)
+):
+    """
+    List user's scan batches with pagination.
+    
+    Returns paginated list of batches for the current user (identified by device fingerprint).
+    """
+    # Extract device fingerprint
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+    
+    # Get user
+    user = get_user_by_fingerprint(db, device_fingerprint)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "success": False,
+                "error": {
+                    "code": "USER_NOT_FOUND",
+                    "message": "User not found",
+                    "details": None
+                }
+            }
+        )
+    
+    # Get batches
+    batches, total = get_user_batches(db, user.id, page, limit, status)
+    
+    # Calculate pagination info
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+    
+    return {
+        "success": True,
+        "batches": batches,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
+        }
+    }
+
+
+@app.get("/api/batches/{batch_id}")
+async def get_batch_details(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed information about a specific scan batch.
+    
+    Returns batch details including images and detection counts.
+    """
+    # Extract device fingerprint
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+    
+    # Get user
+    user = get_user_by_fingerprint(db, device_fingerprint)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "success": False,
+                "error": {
+                    "code": "USER_NOT_FOUND",
+                    "message": "User not found",
+                    "details": None
+                }
+            }
+        )
+    
+    # Get batch with ownership verification
+    batch = get_batch_by_id_and_user(db, batch_id, user.id)
+    if not batch:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "success": False,
+                "error": {
+                    "code": "BATCH_NOT_FOUND",
+                    "message": f"Batch with ID {batch_id} not found or access denied",
+                    "details": None
+                }
+            }
+        )
+    
+    # Get images for this batch
+    images = db.query(ScanImage).filter(
+        ScanImage.batch_id == batch.id
+    ).order_by(ScanImage.created_at.asc()).all()
+    
+    # Format images with detection counts
+    formatted_images = []
+    for img in images:
+        detection_count = db.query(func.count(SeedDetection.id)).filter(
+            SeedDetection.image_id == img.id
+        ).scalar() or 0
+        
+        # Use image ID in URL so each image has a unique URL (avoids same filename for multiple images)
+        image_url = f"/api/images/{batch.id}/by-id/{img.id}"
+        
+        formatted_images.append({
+            "id": img.id,
+            "storage_path": img.storage_path,
+            "original_filename": img.original_filename,
+            "width": img.width,
+            "height": img.height,
+            "url": image_url,
+            "detection_count": detection_count,
+            "created_at": img.created_at.isoformat() if img.created_at else None
+        })
+    
+    # Calculate good seeds count and percentages
+    good_seeds_count = batch.total_seeds - batch.bad_seeds_count if batch.total_seeds else 0
+    good_percentage = 0.0
+    bad_percentage = 0.0
+    if batch.total_seeds > 0:
+        good_percentage = round((good_seeds_count / batch.total_seeds) * 100, 2)
+        bad_percentage = round((batch.bad_seeds_count / batch.total_seeds) * 100, 2)
+    
+    return {
+        "success": True,
+        "batch": {
+            "id": batch.id,
+            "status": batch.status.value if batch.status else None,
+            "total_seeds": batch.total_seeds,
+            "bad_seeds_count": batch.bad_seeds_count,
+            "good_seeds_count": good_seeds_count,
+            "good_percentage": good_percentage,
+            "bad_percentage": bad_percentage,
+            "avg_confidence_score": batch.avg_confidence_score,
+            "processing_duration_ms": batch.processing_duration_ms,
+            "processing_start_at": batch.processing_start_at.isoformat() if batch.processing_start_at else None,
+            "processing_end_at": batch.processing_end_at.isoformat() if batch.processing_end_at else None,
+            "created_at": batch.created_at.isoformat() if batch.created_at else None,
+            "error_message": batch.error_message,
+            "images": formatted_images
+        }
+    }
+
+
+@app.get("/api/batches/{batch_id}/detections")
+async def get_batch_detections_endpoint(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    image_id: Optional[int] = Query(None, description="Filter by image ID"),
+    quality: Optional[str] = Query(None, description="Filter by quality (GOOD, BAD)"),
+    limit: int = Query(10000, ge=1, le=50000, description="Maximum number of detections to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all seed detections for a batch.
+    
+    Returns all detections with optional filtering by image_id or quality.
+    """
+    # Extract device fingerprint
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+    
+    # Get user
+    user = get_user_by_fingerprint(db, device_fingerprint)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "success": False,
+                "error": {
+                    "code": "USER_NOT_FOUND",
+                    "message": "User not found",
+                    "details": None
+                }
+            }
+        )
+    
+    # Validate quality filter if provided
+    if quality:
+        try:
+            QualityLabel(quality.upper())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error": {
+                        "code": "INVALID_QUALITY",
+                        "message": f"Invalid quality filter: {quality}. Must be GOOD or BAD",
+                        "details": None
+                    }
+                }
+            )
+    
+    # Get detections
+    detections = get_batch_detections(db, batch_id, user.id, image_id, quality, limit)
+    
+    # Verify batch exists (for 404 if batch doesn't exist)
+    batch = get_batch_by_id_and_user(db, batch_id, user.id)
+    if not batch:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "success": False,
+                "error": {
+                    "code": "BATCH_NOT_FOUND",
+                    "message": f"Batch with ID {batch_id} not found or access denied",
+                    "details": None
+                }
+            }
+        )
+    
+    return {
+        "success": True,
+        "batch_id": batch_id,
+        "image_id": image_id,
+        "total_detections": len(detections),
+        "detections": detections
+    }
+
+
+@app.get("/api/stats")
+async def get_user_statistics_endpoint(
+    request: Request,
+    days: Optional[int] = Query(None, ge=1, description="Number of days to look back"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get aggregated statistics for the current user.
+    
+    Returns overall statistics including total batches, seeds analyzed, and averages.
+    """
+    # Extract device fingerprint
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+    
+    # Get user
+    user = get_user_by_fingerprint(db, device_fingerprint)
+    if not user:
+        # Return empty stats instead of 404 for better UX
+        empty_stats = {
+            "total_batches": 0,
+            "total_seeds_analyzed": 0,
+            "total_good_seeds": 0,
+            "total_bad_seeds": 0,
+            "overall_good_percentage": 0.0,
+            "overall_bad_percentage": 0.0,
+            "avg_seeds_per_batch": 0.0,
+            "avg_confidence_score": 0.0,
+            "avg_processing_time_ms": 0.0,
+            "batches_by_status": {
+                "COMPLETED": 0,
+                "FAILED": 0,
+                "PENDING": 0,
+                "PROCESSING": 0
+            },
+            "recent_activity": {
+                "batches_last_7_days": 0,
+                "batches_last_30_days": 0
+            },
+            "period": {
+                "days": days,
+                "start_date": datetime.utcnow().isoformat(),
+                "end_date": datetime.utcnow().isoformat()
+            }
+        }
+        return {
+            "success": True,
+            "stats": empty_stats,
+            "period": empty_stats.get("period", {})
+        }
+    
+    # Get statistics
+    try:
+        stats = get_user_statistics(db, user.id, days)
+        return {
+            "success": True,
+            "stats": stats,
+            "period": stats.get("period", {})
+        }
+    except Exception as e:
+        # Log error and return empty stats
+        import traceback
+        print(f"Error getting statistics: {e}")
+        traceback.print_exc()
+        empty_stats = {
+            "total_batches": 0,
+            "total_seeds_analyzed": 0,
+            "total_good_seeds": 0,
+            "total_bad_seeds": 0,
+            "overall_good_percentage": 0.0,
+            "overall_bad_percentage": 0.0,
+            "avg_seeds_per_batch": 0.0,
+            "avg_confidence_score": 0.0,
+            "avg_processing_time_ms": 0.0,
+            "batches_by_status": {
+                "COMPLETED": 0,
+                "FAILED": 0,
+                "PENDING": 0,
+                "PROCESSING": 0
+            },
+            "recent_activity": {
+                "batches_last_7_days": 0,
+                "batches_last_30_days": 0
+            },
+            "period": {
+                "days": days,
+                "start_date": datetime.utcnow().isoformat(),
+                "end_date": datetime.utcnow().isoformat()
+            }
+        }
+        return {
+            "success": True,
+            "stats": empty_stats,
+            "period": empty_stats.get("period", {})
+        }
+
+
+@app.options("/api/images/{batch_id}/{path:path}")
+async def serve_image_options(batch_id: int, path: str):
+    """Handle CORS preflight for image endpoints."""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+
+@app.get("/api/images/{batch_id}/by-id/{image_id}")
+async def serve_image_by_id(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    image_id: int = Path(..., description="ScanImage ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Serve a stored image by batch ID and image ID.
+    Uses storage_path from DB so each image is unique regardless of filename.
+    """
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+    
+    user = get_user_by_fingerprint(db, device_fingerprint)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    batch = get_batch_by_id_and_user(db, batch_id, user.id)
+    if not batch:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Look up image by ID and batch (ensures it belongs to this batch)
+    image = db.query(ScanImage).filter(
+        ScanImage.id == image_id,
+        ScanImage.batch_id == batch_id
+    ).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    file_path = image.storage_path
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image file not found")
+    
+    filename = os.path.basename(file_path)
+    content_type = "image/jpeg"
+    if filename.lower().endswith('.png'):
+        content_type = "image/png"
+    elif filename.lower().endswith('.gif'):
+        content_type = "image/gif"
+    elif filename.lower().endswith('.webp'):
+        content_type = "image/webp"
+    
+    with open(file_path, "rb") as f:
+        file_contents = f.read()
+    
+    return Response(
+        content=file_contents,
+        media_type=content_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Content-Disposition": f'inline; filename="{filename}"',
+        }
+    )
+
+
+@app.get("/api/images/{batch_id}/{filename}")
+async def serve_image(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    filename: str = Path(..., description="Image filename"),
+    db: Session = Depends(get_db)
+):
+    """
+    Serve stored image files by filename (e.g. for history thumbnails).
+    Security: Verifies batch ownership before serving images.
+    """
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+    
+    user = get_user_by_fingerprint(db, device_fingerprint)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    batch = get_batch_by_id_and_user(db, batch_id, user.id)
+    if not batch:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if '..' in filename or '/' in filename or '\\' in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    
+    file_path = os.path.join("uploads", "batches", str(batch_id), filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    content_type = "image/jpeg"
+    if filename.lower().endswith('.png'):
+        content_type = "image/png"
+    elif filename.lower().endswith('.gif'):
+        content_type = "image/gif"
+    elif filename.lower().endswith('.webp'):
+        content_type = "image/webp"
+    
+    with open(file_path, "rb") as f:
+        file_contents = f.read()
+    
+    return Response(
+        content=file_contents,
+        media_type=content_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Content-Disposition": f'inline; filename="{filename}"',
+        }
+    )
 
 
 if __name__ == "__main__":
