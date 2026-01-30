@@ -19,7 +19,9 @@ const App = {
         highlightedSeedId: null,
 
         mode: 'accurate', // 'accurate' or 'fast'
-        
+        // Report metadata for PDF (execution time, overall stats)
+        reportMetadata: null, // { processingDurationMs, overallStatistics: { good_seeds, bad_seeds, good_percentage, bad_percentage } }
+
         // History state
         historyPage: 1,
         historyLimit: 20,
@@ -44,6 +46,7 @@ const App = {
         statBadPercent: document.getElementById('stat-bad-percent'),
         statTotal: document.getElementById('stat-total'),
         statProgressBar: document.getElementById('stat-progress-bar'),
+        statExecutionTime: document.getElementById('stat-execution-time'),
         btnNewAnalysis: document.getElementById('btn-new-analysis'),
         btnZoomIn: document.getElementById('zoom-in'),
         btnZoomOut: document.getElementById('zoom-out'),
@@ -322,6 +325,10 @@ const App = {
             console.log('Response data:', data);
             
             this.state.results = data.results;
+            this.state.reportMetadata = {
+                processingDurationMs: data.processing_duration_ms ?? null,
+                overallStatistics: data.overall_statistics ?? null
+            };
 
             // Initialize view
             this.state.currentTabIndex = 0;
@@ -474,13 +481,18 @@ const App = {
         if (!result) return;
 
         const stats = result.statistics;
-        const { statGoodCount, statGoodPercent, statBadCount, statBadPercent, statTotal, statProgressBar } = this.elements;
+        const { statGoodCount, statGoodPercent, statBadCount, statBadPercent, statTotal, statProgressBar, statExecutionTime } = this.elements;
 
         statGoodCount.textContent = stats.good_seeds;
         statGoodPercent.textContent = `${stats.good_percentage}%`;
         statBadCount.textContent = stats.bad_seeds;
         statBadPercent.textContent = `${stats.bad_percentage}%`;
         statTotal.textContent = result.total_seeds;
+
+        if (statExecutionTime) {
+            const ms = this.state.reportMetadata?.processingDurationMs;
+            statExecutionTime.textContent = ms != null ? `${(ms / 1000).toFixed(2)} s` : '--';
+        }
 
         // Animate progress bar
         setTimeout(() => {
@@ -652,6 +664,7 @@ const App = {
         this.state.zoomLevel = 1;
         this.state.offsetX = 0;
         this.state.offsetY = 0;
+        this.state.reportMetadata = null;
 
         this.elements.fileInput.value = '';
         this.elements.resultsSection.classList.add('hidden');
@@ -671,128 +684,190 @@ const App = {
 
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
+        const pageW = doc.internal.pageSize.getWidth();
+        const GREEN = [22, 163, 74];
+        const GOOD = [34, 197, 94];
+        const BAD = [239, 68, 68];
+        const MUTED = [100, 116, 139];
+        const LIGHT_BG = [248, 250, 252];
 
         try {
+            const meta = this.state.reportMetadata;
+            let totalGood = 0, totalBad = 0, totalSeeds = 0;
+            this.state.results.forEach(r => {
+                totalGood += r.statistics?.good_seeds || 0;
+                totalBad += r.statistics?.bad_seeds || 0;
+                totalSeeds += r.total_seeds || 0;
+            });
+            const overallStats = meta?.overallStatistics ?? (totalSeeds > 0 ? {
+                good_seeds: totalGood,
+                bad_seeds: totalBad,
+                good_percentage: Math.round((totalGood / totalSeeds) * 1000) / 10,
+                bad_percentage: Math.round((totalBad / totalSeeds) * 1000) / 10
+            } : null);
+            const executionMs = meta?.processingDurationMs ?? null;
+
+            // ========== Page 1: Summary / Analytics (beautiful layout) ==========
+            doc.setFontSize(24);
+            doc.setTextColor(...GREEN);
+            doc.text("Seed Quality Analysis Report", pageW / 2, 22, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setTextColor(...MUTED);
+            doc.text(`Generated ${new Date().toLocaleString()}`, pageW / 2, 30, { align: 'center' });
+            doc.text(`${this.state.results.length} image(s) analyzed`, pageW / 2, 36, { align: 'center' });
+
+            let y = 46;
+
+            // Execution time callout
+            if (executionMs != null) {
+                const sec = (executionMs / 1000).toFixed(2);
+                doc.setDrawColor(203, 213, 225);
+                doc.setFillColor(...LIGHT_BG);
+                doc.rect(20, y - 4, 60, 14, 'FD');
+                doc.setFontSize(11);
+                doc.setTextColor(30, 64, 175);
+                doc.text("Execution time", 26, y + 2);
+                doc.setFontSize(14);
+                doc.setTextColor(0);
+                doc.text(`${sec} s`, 26, y + 10);
+                y += 22;
+            }
+
+            // Overall stats cards (two rows: total, then good/bad)
+            if (overallStats) {
+                doc.setFontSize(11);
+                doc.setTextColor(0);
+                doc.text(`Total seeds: ${overallStats.good_seeds + overallStats.bad_seeds}`, 20, y);
+                doc.setTextColor(...GOOD);
+                doc.text(`Good: ${overallStats.good_seeds} (${overallStats.good_percentage}%)`, 20, y + 8);
+                doc.setTextColor(...BAD);
+                doc.text(`Bad: ${overallStats.bad_seeds} (${overallStats.bad_percentage}%)`, 20, y + 16);
+                doc.setTextColor(0);
+                y += 28;
+            }
+
+            // Quality distribution chart (vertical bars)
+            if (overallStats && totalSeeds > 0) {
+                doc.setFontSize(12);
+                doc.setTextColor(0);
+                doc.text("Quality distribution", 20, y);
+                y += 6;
+                const chartLeft = 35;
+                const chartBottom = y + 38;
+                const maxBarH = 32;
+                const barW = 24;
+                const gap = 20;
+                const goodH = (overallStats.good_seeds / totalSeeds) * maxBarH;
+                const badH = (overallStats.bad_seeds / totalSeeds) * maxBarH;
+
+                doc.setFillColor(...GOOD);
+                doc.rect(chartLeft, chartBottom - goodH, barW, goodH, 'F');
+                doc.setFontSize(9);
+                doc.setTextColor(0);
+                doc.text("Good", chartLeft + barW / 2 - 6, chartBottom + 5);
+                doc.text(String(overallStats.good_seeds), chartLeft + barW / 2 - 4, chartBottom - goodH - 2);
+
+                doc.setFillColor(...BAD);
+                doc.rect(chartLeft + barW + gap, chartBottom - badH, barW, badH, 'F');
+                doc.text("Bad", chartLeft + barW + gap + barW / 2 - 5, chartBottom + 5);
+                doc.text(String(overallStats.bad_seeds), chartLeft + barW + gap + barW / 2 - 4, chartBottom - badH - 2);
+                y = chartBottom + 14;
+            }
+
+            // Per-image breakdown table (multiple images)
+            if (this.state.results.length > 1) {
+                doc.setFontSize(12);
+                doc.text("Per-image breakdown", 20, y);
+                const body = this.state.results.map((r, i) => {
+                    const s = r.statistics || {};
+                    const total = r.total_seeds || 0;
+                    const goodPct = total > 0 ? Math.round((s.good_seeds || 0) / total * 1000) / 10 : 0;
+                    const name = (this.state.files[i]?.name) || r.filename || `Image ${i + 1}`;
+                    return [name.length > 28 ? name.slice(0, 25) + '...' : name, s.good_seeds || 0, s.bad_seeds || 0, total, goodPct + '%'];
+                });
+                doc.autoTable({
+                    startY: y + 5,
+                    head: [['Image', 'Good', 'Bad', 'Total', 'Good %']],
+                    body,
+                    theme: 'grid',
+                    headStyles: { fillColor: GREEN },
+                    columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 22 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 28 } }
+                });
+            }
+
+            // ========== Per-image pages ==========
             this.state.results.forEach((result, index) => {
                 const image = this.state.images[index];
                 const file = this.state.files[index];
                 const stats = result.statistics;
-
                 if (!image || !result) return;
 
-                const fileName = (file && file.name) ? file.name : (result.filename || `image_${index}.jpg`);
+                const fileName = (file?.name) || result.filename || `image_${index}.jpg`;
+                doc.addPage();
 
-                if (index > 0) {
-                    doc.addPage();
-                }
-
-                // Title
                 doc.setFontSize(20);
-                doc.setTextColor(22, 163, 74); // Seed green
+                doc.setTextColor(...GREEN);
                 doc.text("Seed Quality Analysis Report", 20, 20);
-
-                // Date & File
                 doc.setFontSize(10);
-                doc.setTextColor(100);
-                doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
-                doc.text(`File: ${fileName}`, 20, 35);
+                doc.setTextColor(...MUTED);
+                doc.text(`Generated ${new Date().toLocaleString()}`, 20, 28);
+                doc.text(`File: ${fileName}`, 20, 34);
 
-            // Stats
-            doc.setFontSize(14);
-            doc.setTextColor(0);
-            doc.text("Summary Statistics", 20, 45);
+                doc.setFontSize(12);
+                doc.setTextColor(0);
+                doc.text("Summary", 20, 44);
+                doc.setFontSize(11);
+                doc.text(`Total: ${result.total_seeds}  •  Good: ${stats.good_seeds} (${stats.good_percentage}%)  •  Bad: ${stats.bad_seeds} (${stats.bad_percentage}%)`, 20, 52);
+                doc.text(`Mode: ${this.state.mode === 'fast' ? 'Fast' : 'Accurate'}`, 20, 58);
 
-            doc.setFontSize(12);
-            doc.text(`Total Seeds Detected: ${result.total_seeds}`, 20, 55);
-            doc.text(`Good Seeds: ${stats.good_seeds} (${stats.good_percentage}%)`, 20, 65);
-            doc.text(`Bad Seeds: ${stats.bad_seeds} (${stats.bad_percentage}%)`, 20, 75);
-
-            const modeLabel = this.state.mode === 'fast' ? 'Fast Mode' : 'Accurate Mode';
-            doc.text(`Mode Used: ${modeLabel}`, 20, 85);
-
-            // --- Full Image Generation ---
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-
-            tempCanvas.width = image.width;
-            tempCanvas.height = image.height;
-
-            tempCtx.drawImage(image, 0, 0);
-
-            if (result && result.bounding_boxes) {
-                result.bounding_boxes.forEach(box => {
-                    const x = box.x1;
-                    const y = box.y1;
-                    const w = box.width;
-                    const h = box.height;
-
-                    tempCtx.strokeStyle = box.color;
-                    tempCtx.lineWidth = 5;
-                    tempCtx.strokeRect(x, y, w, h);
-
-                    const fontSize = 24;
-                    tempCtx.font = `bold ${fontSize}px Arial`;
-                    tempCtx.fillStyle = box.color;
-                    tempCtx.fillText(`#${box.id}`, x, y - 10);
-                });
-            }
-
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = image.width;
+                tempCanvas.height = image.height;
+                tempCtx.drawImage(image, 0, 0);
+                if (result.bounding_boxes) {
+                    result.bounding_boxes.forEach(box => {
+                        tempCtx.strokeStyle = box.color;
+                        tempCtx.lineWidth = 5;
+                        tempCtx.strokeRect(box.x1, box.y1, box.width, box.height);
+                        tempCtx.font = 'bold 24px Arial';
+                        tempCtx.fillStyle = box.color;
+                        tempCtx.fillText(`#${box.id}`, box.x1, box.y1 - 10);
+                    });
+                }
                 let imgData;
                 try {
                     imgData = tempCanvas.toDataURL("image/jpeg", 0.8);
                 } catch (e) {
-                    console.error('Canvas export failed (tainted?):', e);
+                    console.error('Canvas export failed:', e);
                     this.showError('Export failed: images must be loaded with CORS. Try opening the batch again.');
                     return;
                 }
-
-                const pdfWidth = doc.internal.pageSize.getWidth();
                 const imgProps = doc.getImageProperties(imgData);
-                const imgHeight = (imgProps.height * (pdfWidth - 40)) / imgProps.width;
+                const imgH = (imgProps.height * (pageW - 40)) / imgProps.width;
+                doc.addImage(imgData, 'JPEG', 20, 65, pageW - 40, imgH);
 
-                doc.addImage(imgData, 'JPEG', 20, 95, pdfWidth - 40, imgHeight);
-
-                // --- Detailed Table with Crops ---
-                const startY = 95 + imgHeight + 10;
-
-                doc.text("Detailed Seed List", 20, startY);
-
+                const tableStartY = 65 + imgH + 12;
+                doc.setFontSize(12);
+                doc.text("Detailed Seed List", 20, tableStartY);
                 const crops = [];
                 const tableData = (result.bounding_boxes || []).map(seed => {
-                    try {
-                        crops.push(this.getCroppedSeedDataUrl(image, seed));
-                    } catch (e) {
-                        crops.push(null);
-                    }
-                    return [
-                        seed.id,
-                        '',
-                        seed.quality,
-                        `${seed.classification_confidence}%`
-                    ];
+                    try { crops.push(this.getCroppedSeedDataUrl(image, seed)); } catch (_) { crops.push(null); }
+                    return [seed.id, '', seed.quality, `${seed.classification_confidence}%`];
                 });
-
                 doc.autoTable({
-                    startY: startY + 5,
+                    startY: tableStartY + 5,
                     head: [['ID', 'Image', 'Quality', 'Conf %']],
                     body: tableData,
                     theme: 'grid',
-                    headStyles: { fillColor: [22, 163, 74] },
-                    columnStyles: {
-                        0: { cellWidth: 20 },
-                        1: { cellWidth: 30, minCellHeight: 20 },
-                        2: { cellWidth: 30 },
-                        3: { cellWidth: 30 }
-                    },
+                    headStyles: { fillColor: GREEN },
+                    columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 30, minCellHeight: 20 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 } },
                     didDrawCell: (data) => {
-                        if (data.column.index === 1 && data.cell.section === 'body') {
+                        if (data.column.index === 1 && data.cell.section === 'body' && crops[data.row.index]) {
                             const img = crops[data.row.index];
-                            if (img) {
-                                const dim = 12;
-                                const x = data.cell.x + (data.cell.width - dim) / 2;
-                                const y = data.cell.y + (data.cell.height - dim) / 2;
-                                doc.addImage(img, 'JPEG', x, y, dim, dim);
-                            }
+                            const dim = 12;
+                            doc.addImage(img, 'JPEG', data.cell.x + (data.cell.width - dim) / 2, data.cell.y + (data.cell.height - dim) / 2, dim, dim);
                         }
                     }
                 });
@@ -1320,6 +1395,15 @@ const App = {
             this.state.offsetX = 0;
             this.state.offsetY = 0;
             this.state.highlightedSeedId = null;
+            this.state.reportMetadata = {
+                processingDurationMs: batch.processing_duration_ms ?? null,
+                overallStatistics: batch.total_seeds != null ? {
+                    good_seeds: batch.good_seeds_count ?? 0,
+                    bad_seeds: batch.bad_seeds_count ?? 0,
+                    good_percentage: batch.good_percentage ?? 0,
+                    bad_percentage: batch.bad_percentage ?? 0
+                } : null
+            };
             
             this.showResults();
             this.renderTabs();

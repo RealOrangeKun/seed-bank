@@ -36,6 +36,7 @@ services:
       - ./data:/app/data
       - ./models:/app/models
       - ./uploads:/app/uploads
+      - torch_cache:/root/.cache/torch  # Persist PyTorch model cache
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - DATABASE_URL=postgresql+psycopg://seedbank:seedbank_dev_password@postgres:5432/seedbank_db
@@ -61,3 +62,4 @@ services:
 
 volumes:
   postgres_data:
+  torch_cache:  # PyTorch model cache volume
