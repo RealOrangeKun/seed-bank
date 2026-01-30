@@ -115,14 +115,15 @@ async def load_models():
     print("✓ Classification model loaded successfully")
 
 
-def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str) -> str:
+def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str, image_index: int = 0) -> str:
     """
     Save uploaded image to local storage with MinIO-ready path structure.
     
     Args:
         file_contents: Image file bytes
         batch_id: Scan batch ID
-        filename: Original filename
+        filename: Original filename (used for extension)
+        image_index: Index of image in batch (0, 1, 2, ...) for unique filenames
         
     Returns:
         Storage path (relative, MinIO-ready format)
@@ -134,8 +135,8 @@ def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str) ->
     # Get file extension
     ext = os.path.splitext(filename)[1] or ".jpg"
     
-    # Save image
-    image_path = f"{batch_dir}/image_0{ext}"
+    # Save image with unique name per index
+    image_path = f"{batch_dir}/image_{image_index}{ext}"
     with open(image_path, "wb") as f:
         f.write(file_contents)
     
@@ -592,8 +593,8 @@ async def analyze_batch(
             # Step 1: Detect seeds
             detected_seeds, (img_height, img_width) = detect_seeds(rgb_img)
 
-            # Save image to storage
-            storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or f"image_{file_idx}.jpg")
+            # Save image to storage (unique filename per image index)
+            storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or f"image_{file_idx}.jpg", image_index=file_idx)
             
             # Create scan image record
             scan_image = ScanImage(
@@ -1241,9 +1242,8 @@ async def get_batch_details(
             SeedDetection.image_id == img.id
         ).scalar() or 0
         
-        # Extract filename from storage_path
-        filename = img.storage_path.split('/')[-1]
-        image_url = f"/api/images/{batch.id}/{filename}"
+        # Use image ID in URL so each image has a unique URL (avoids same filename for multiple images)
+        image_url = f"/api/images/{batch.id}/by-id/{img.id}"
         
         formatted_images.append({
             "id": img.id,
@@ -1461,15 +1461,74 @@ async def get_user_statistics_endpoint(
         }
 
 
-@app.options("/api/images/{batch_id}/{filename}")
-async def serve_image_options():
-    """Handle CORS preflight for image endpoint."""
+@app.options("/api/images/{batch_id}/{path:path}")
+async def serve_image_options(batch_id: int, path: str):
+    """Handle CORS preflight for image endpoints."""
     return Response(
         status_code=200,
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+
+@app.get("/api/images/{batch_id}/by-id/{image_id}")
+async def serve_image_by_id(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    image_id: int = Path(..., description="ScanImage ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Serve a stored image by batch ID and image ID.
+    Uses storage_path from DB so each image is unique regardless of filename.
+    """
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+    
+    user = get_user_by_fingerprint(db, device_fingerprint)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    batch = get_batch_by_id_and_user(db, batch_id, user.id)
+    if not batch:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Look up image by ID and batch (ensures it belongs to this batch)
+    image = db.query(ScanImage).filter(
+        ScanImage.id == image_id,
+        ScanImage.batch_id == batch_id
+    ).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    file_path = image.storage_path
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image file not found")
+    
+    filename = os.path.basename(file_path)
+    content_type = "image/jpeg"
+    if filename.lower().endswith('.png'):
+        content_type = "image/png"
+    elif filename.lower().endswith('.gif'):
+        content_type = "image/gif"
+    elif filename.lower().endswith('.webp'):
+        content_type = "image/webp"
+    
+    with open(file_path, "rb") as f:
+        file_contents = f.read()
+    
+    return Response(
+        content=file_contents,
+        media_type=content_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Content-Disposition": f'inline; filename="{filename}"',
         }
     )
 
@@ -1482,37 +1541,28 @@ async def serve_image(
     db: Session = Depends(get_db)
 ):
     """
-    Serve stored image files to frontend.
-    
+    Serve stored image files by filename (e.g. for history thumbnails).
     Security: Verifies batch ownership before serving images.
     """
-    # Extract device fingerprint
     user_agent = request.headers.get("user-agent", "")
     client_host = request.client.host if request.client else None
     device_fingerprint = generate_device_fingerprint(user_agent, client_host)
     
-    # Get user
     user = get_user_by_fingerprint(db, device_fingerprint)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Verify batch ownership
     batch = get_batch_by_id_and_user(db, batch_id, user.id)
     if not batch:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Validate filename (prevent path traversal)
     if '..' in filename or '/' in filename or '\\' in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     
-    # Construct file path - simple lookup by filename in batch directory
     file_path = os.path.join("uploads", "batches", str(batch_id), filename)
-    
-    # Check if file exists
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Image not found")
     
-    # Determine content type
     content_type = "image/jpeg"
     if filename.lower().endswith('.png'):
         content_type = "image/png"
@@ -1521,8 +1571,6 @@ async def serve_image(
     elif filename.lower().endswith('.webp'):
         content_type = "image/webp"
     
-    # Read file and return with explicit CORS headers
-    # FileResponse might bypass CORS middleware, so we use Response
     with open(file_path, "rb") as f:
         file_contents = f.read()
     

@@ -660,28 +660,42 @@ const App = {
     },
 
     generatePDF() {
+        if (!this.state.results || this.state.results.length === 0) {
+            this.showError('No results to export.');
+            return;
+        }
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            this.showError('PDF library not loaded.');
+            return;
+        }
+
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
 
-        this.state.results.forEach((result, index) => {
-            const image = this.state.images[index];
-            const file = this.state.files[index];
-            const stats = result.statistics;
+        try {
+            this.state.results.forEach((result, index) => {
+                const image = this.state.images[index];
+                const file = this.state.files[index];
+                const stats = result.statistics;
 
-            if (index > 0) {
-                doc.addPage();
-            }
+                if (!image || !result) return;
 
-            // Title
-            doc.setFontSize(20);
-            doc.setTextColor(22, 163, 74); // Seed green
-            doc.text("Seed Quality Analysis Report", 20, 20);
+                const fileName = (file && file.name) ? file.name : (result.filename || `image_${index}.jpg`);
 
-            // Date & File
-            doc.setFontSize(10);
-            doc.setTextColor(100);
-            doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
-            doc.text(`File: ${file.name}`, 20, 35);
+                if (index > 0) {
+                    doc.addPage();
+                }
+
+                // Title
+                doc.setFontSize(20);
+                doc.setTextColor(22, 163, 74); // Seed green
+                doc.text("Seed Quality Analysis Report", 20, 20);
+
+                // Date & File
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
+                doc.text(`File: ${fileName}`, 20, 35);
 
             // Stats
             doc.setFontSize(14);
@@ -723,60 +737,73 @@ const App = {
                 });
             }
 
-            const imgData = tempCanvas.toDataURL("image/jpeg", 0.8);
+                let imgData;
+                try {
+                    imgData = tempCanvas.toDataURL("image/jpeg", 0.8);
+                } catch (e) {
+                    console.error('Canvas export failed (tainted?):', e);
+                    this.showError('Export failed: images must be loaded with CORS. Try opening the batch again.');
+                    return;
+                }
 
-            const pdfWidth = doc.internal.pageSize.getWidth();
-            const imgProps = doc.getImageProperties(imgData);
-            const imgHeight = (imgProps.height * (pdfWidth - 40)) / imgProps.width;
+                const pdfWidth = doc.internal.pageSize.getWidth();
+                const imgProps = doc.getImageProperties(imgData);
+                const imgHeight = (imgProps.height * (pdfWidth - 40)) / imgProps.width;
 
-            doc.addImage(imgData, 'JPEG', 20, 95, pdfWidth - 40, imgHeight);
+                doc.addImage(imgData, 'JPEG', 20, 95, pdfWidth - 40, imgHeight);
 
-            // --- Detailed Table with Crops ---
-            const startY = 95 + imgHeight + 10;
+                // --- Detailed Table with Crops ---
+                const startY = 95 + imgHeight + 10;
 
-            doc.text("Detailed Seed List", 20, startY);
+                doc.text("Detailed Seed List", 20, startY);
 
-            // Prepare data and crops
-            const crops = [];
-            const tableData = result.bounding_boxes.map(seed => {
-                crops.push(this.getCroppedSeedDataUrl(image, seed));
-                return [
-                    seed.id,
-                    '',
-                    seed.quality,
-                    `${seed.classification_confidence}%`
-                ];
-            });
+                const crops = [];
+                const tableData = (result.bounding_boxes || []).map(seed => {
+                    try {
+                        crops.push(this.getCroppedSeedDataUrl(image, seed));
+                    } catch (e) {
+                        crops.push(null);
+                    }
+                    return [
+                        seed.id,
+                        '',
+                        seed.quality,
+                        `${seed.classification_confidence}%`
+                    ];
+                });
 
-            doc.autoTable({
-                startY: startY + 5,
-                head: [['ID', 'Image', 'Quality', 'Conf %']],
-                body: tableData,
-                theme: 'grid',
-                headStyles: { fillColor: [22, 163, 74] },
-                columnStyles: {
-                    0: { cellWidth: 20 },
-                    1: { cellWidth: 30, minCellHeight: 20 },
-                    2: { cellWidth: 30 },
-                    3: { cellWidth: 30 }
-                },
-                didDrawCell: (data) => {
-                    if (data.column.index === 1 && data.cell.section === 'body') {
-                        const img = crops[data.row.index];
-                        if (img) {
-                            // Draw image centered in cell
-                            const dim = 12;
-                            const x = data.cell.x + (data.cell.width - dim) / 2;
-                            const y = data.cell.y + (data.cell.height - dim) / 2;
-                            doc.addImage(img, 'JPEG', x, y, dim, dim);
+                doc.autoTable({
+                    startY: startY + 5,
+                    head: [['ID', 'Image', 'Quality', 'Conf %']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [22, 163, 74] },
+                    columnStyles: {
+                        0: { cellWidth: 20 },
+                        1: { cellWidth: 30, minCellHeight: 20 },
+                        2: { cellWidth: 30 },
+                        3: { cellWidth: 30 }
+                    },
+                    didDrawCell: (data) => {
+                        if (data.column.index === 1 && data.cell.section === 'body') {
+                            const img = crops[data.row.index];
+                            if (img) {
+                                const dim = 12;
+                                const x = data.cell.x + (data.cell.width - dim) / 2;
+                                const y = data.cell.y + (data.cell.height - dim) / 2;
+                                doc.addImage(img, 'JPEG', x, y, dim, dim);
+                            }
                         }
                     }
-                }
+                });
             });
-        });
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        doc.save(`seed-analysis-report-${timestamp}.pdf`);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            doc.save(`seed-analysis-report-${timestamp}.pdf`);
+        } catch (err) {
+            console.error('PDF export failed:', err);
+            this.showError(err.message || 'Failed to generate PDF.');
+        }
     },
 
     getCroppedSeedDataUrl(image, box) {
@@ -1159,23 +1186,18 @@ const App = {
             
             console.log('Batch images from API:', images);
             
-            // Load images with error handling - use image ID to ensure uniqueness
+            // Load images with crossOrigin so we can draw them to canvas for PDF export
             this.state.images = await Promise.all(images.map((img, idx) => {
                 return new Promise((resolve, reject) => {
                     const image = new Image();
+                    image.crossOrigin = 'anonymous';
                     const imageUrl = `${this.API_URL}${img.url}`;
-                    console.log(`Loading image ${idx} (ID: ${img.id}):`, imageUrl, 'Original filename:', img.original_filename);
-                    image.onload = () => {
-                        console.log(`✓ Loaded image ${idx} (ID: ${img.id}):`, imageUrl);
-                        resolve(image);
-                    };
+                    image.onload = () => resolve(image);
                     image.onerror = (e) => {
-                        console.error(`✗ Failed to load image ${idx} (ID: ${img.id}):`, imageUrl, e);
-                        // Create a placeholder image instead of rejecting
+                        console.error(`Failed to load image ${idx} (ID: ${img.id}):`, imageUrl, e);
                         const placeholder = new Image();
                         placeholder.width = img.width || 800;
                         placeholder.height = img.height || 600;
-                        // Create a blank canvas as placeholder
                         const canvas = document.createElement('canvas');
                         canvas.width = img.width || 800;
                         canvas.height = img.height || 600;
