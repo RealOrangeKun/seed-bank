@@ -1,0 +1,51 @@
+flowchart TB
+    subgraph Docker["🐳 Docker Compose Environment"]
+        direction TB
+        
+        subgraph WebContainer["web container :8080"]
+            Nginx[Nginx]
+            Frontend[Static Files<br/>index.html<br/>script.js<br/>style.css]
+        end
+
+        subgraph APIContainer["api container :8000"]
+            Python[Python 3.13]
+            FastAPI[FastAPI + Uvicorn]
+            PyTorch[PyTorch + CUDA 11.8]
+            ModelsVol["./models → /app/models"]
+            UploadsVol["./uploads → /app/uploads"]
+        end
+
+        subgraph DBContainer["postgres container :5432"]
+            PostgreSQL[(PostgreSQL 17)]
+            PGData[pgdata volume]
+        end
+
+        subgraph AdminerContainer["adminer container :8081"]
+            Adminer[Adminer UI]
+        end
+    end
+
+    subgraph Host["🖥️ Host Machine"]
+        Browser[Browser]
+        ModelsDir[./models/*.pth]
+        UploadsDir[./uploads/]
+        DataDir[./data/]
+    end
+
+    subgraph GPU["🎮 GPU (Optional)"]
+        CUDA[NVIDIA CUDA]
+    end
+
+    %% Connections
+    Browser -->|:8080| WebContainer
+    Browser -->|:8081| AdminerContainer
+    WebContainer -->|:8000| APIContainer
+    APIContainer -->|:5432| DBContainer
+    AdminerContainer -->|:5432| DBContainer
+
+    %% Volume mounts
+    ModelsDir -.->|volume mount| ModelsVol
+    UploadsDir -.->|volume mount| UploadsVol
+
+    %% GPU
+    CUDA -.->|nvidia-docker| PyTorch

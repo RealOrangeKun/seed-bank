@@ -1,0 +1,64 @@
+flowchart TB
+    subgraph Client["🌐 Client Layer"]
+        FE[Frontend<br/>HTML/JS/Tailwind]
+        ExtAPI[External API Client]
+    end
+
+    subgraph API["⚡ API Layer - FastAPI"]
+        direction TB
+        Endpoints[REST Endpoints<br/>/api/analyze<br/>/api/batches<br/>/api/stats]
+        ImageProc[Image Processing<br/>OpenCV + Albumentations]
+        UserMgmt[User Management<br/>Device Fingerprinting]
+    end
+
+    subgraph ML["🧠 ML Pipeline"]
+        direction LR
+        Detection[Faster R-CNN<br/>Object Detection<br/>ResNet50 Backbone]
+        Classification[ResNet50<br/>Binary Classification<br/>Good/Bad]
+    end
+
+    subgraph Data["💾 Data Layer"]
+        direction TB
+        DB[(PostgreSQL<br/>Users, Batches<br/>Images, Detections)]
+        FS[File Storage<br/>uploads/batches/]
+    end
+
+    subgraph Models["📦 Model Artifacts"]
+        DetModel[FasterRCNN_ResNet50_Final.pth]
+        ClsModel[ResNet50_maize_seeds_NEW.pth]
+    end
+
+    %% ============================================
+    %% FUTURE: Data Warehouse (Not Yet Implemented)
+    %% Planned for analytics, reporting, ML retraining
+    %% ============================================
+    subgraph Future["🔮 Future Implementation"]
+        ETL[ETL Process]:::future
+        DW[(Data Warehouse<br/>Analytics & Reporting)]:::future
+    end
+
+    %% Client to API
+    FE -->|HTTP/REST| Endpoints
+    ExtAPI -->|HTTP/REST| Endpoints
+
+    %% API internal flow
+    Endpoints --> ImageProc
+    Endpoints --> UserMgmt
+    ImageProc --> Detection
+    Detection -->|Bounding Boxes| Classification
+
+    %% ML to Models
+    Detection -.->|loads| DetModel
+    Classification -.->|loads| ClsModel
+
+    %% API to Data
+    UserMgmt --> DB
+    Endpoints --> DB
+    ImageProc --> FS
+
+    %% Future: Data Warehouse ETL
+    DB -.->|Extract| ETL
+    ETL -.->|Load| DW
+
+    %% Styling - using darker borders for visibility
+    classDef future fill:#ffffff,stroke:#9e9e9e,stroke-width:2px,stroke-dasharray: 5 5,color:#616161
