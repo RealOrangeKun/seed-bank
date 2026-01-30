@@ -746,6 +746,7 @@ async def analyze_batch(
             "mode": "accurate",
             "total_images": len(files),
             "total_seeds_all_images": total_seeds,
+            "processing_duration_ms": processing_duration_ms,
             "overall_statistics": {
                 "good_seeds": total_good,
                 "bad_seeds": total_bad,
