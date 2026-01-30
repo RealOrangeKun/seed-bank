@@ -29,7 +29,11 @@
                 </div>
             </div>
             <div class="flex items-center gap-4">
-                <button class="text-gray-500 hover:text-gray-700 transition-colors">
+                <button type="button" id="btn-history" class="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
+                    <i data-lucide="history" class="w-5 h-5"></i>
+                    <span class="text-sm font-medium">History</span>
+                </button>
+                <button type="button" class="text-gray-500 hover:text-gray-700 transition-colors">
                     <i data-lucide="help-circle" class="w-5 h-5"></i>
                 </button>
                 <div class="h-8 w-px bg-gray-200"></div>
@@ -55,12 +59,12 @@
             <!-- Model Selector -->
             <div class="flex justify-center mb-6">
                 <div class="bg-white p-1 rounded-lg border border-gray-200 shadow-sm flex items-center">
-                    <button id="model-accurate"
+                    <button type="button" id="model-accurate"
                         class="px-4 py-2 rounded-md text-sm font-medium bg-seed-green-100 text-seed-green-700 shadow-sm transition-all flex items-center gap-2">
                         <i data-lucide="crosshair" class="w-4 h-4"></i>
                         Accurate Mode
                     </button>
-                    <button id="model-fast"
+                    <button type="button" id="model-fast"
                         class="px-4 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all flex items-center gap-2">
                         <i data-lucide="zap" class="w-4 h-4"></i>
                         Fast Mode
@@ -83,7 +87,7 @@
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">Click to upload or drag and drop</h3>
                 <p class="text-gray-500 mb-6">SVG, PNG or JPG (max. 10MB)</p>
 
-                <button
+                <button type="button"
                     class="bg-seed-green-600 hover:bg-seed-green-700 text-white font-medium py-2.5 px-6 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0">
                     Select Images
                 </button>
@@ -106,13 +110,67 @@
             <p class="text-gray-600 font-medium">Analyzing seeds...</p>
         </section>
 
+        <!-- History Section -->
+        <section id="history-section" class="hidden max-w-7xl mx-auto space-y-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-3xl font-bold text-gray-900">Scan History</h2>
+                <button type="button" id="btn-back-from-history" class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    Back to Upload
+                </button>
+            </div>
+
+            <!-- Statistics Summary -->
+            <div id="history-stats" class="grid grid-cols-2 gap-4 mb-6" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));">
+                <!-- Stats will be loaded here -->
+            </div>
+
+            <!-- Filters -->
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                <div class="flex flex-wrap items-center gap-3">
+                    <label class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        <i data-lucide="filter" class="w-4 h-4"></i>
+                        Filter by Status:
+                    </label>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" id="filter-status-all" class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-900 shadow-sm transition-all hover:bg-gray-200">
+                            All
+                        </button>
+                        <button type="button" id="filter-status-completed" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-green-50 hover:text-green-700 transition-all border border-transparent hover:border-green-200">
+                            Completed
+                        </button>
+                        <button type="button" id="filter-status-failed" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-all border border-transparent hover:border-red-200">
+                            Failed
+                        </button>
+                        <button type="button" id="filter-status-pending" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 transition-all border border-transparent hover:border-yellow-200">
+                            Pending
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batches List -->
+            <div id="batches-list" class="space-y-4">
+                <!-- Batches will be loaded here -->
+                <div class="text-center py-10 text-gray-400">
+                    <i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 animate-spin"></i>
+                    <p>Loading batches...</p>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div id="history-pagination" class="flex items-center justify-center gap-4 py-4">
+                <!-- Pagination will be loaded here -->
+            </div>
+        </section>
+
         <!-- Results Section -->
         <section id="results-section" class="hidden space-y-6">
 
             <!-- Toolbar -->
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div class="flex items-center gap-4">
-                    <button id="btn-new-analysis"
+                    <button type="button" id="btn-new-analysis"
                         class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         New Analysis
@@ -121,21 +179,21 @@
                 </div>
 
                 <div class="flex items-center gap-3 bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
-                    <button id="view-all"
+                    <button type="button" id="view-all"
                         class="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-900 shadow-sm transition-all">
                         All
                     </button>
-                    <button id="view-good"
+                    <button type="button" id="view-good"
                         class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
                         Good
                     </button>
-                    <button id="view-bad"
+                    <button type="button" id="view-bad"
                         class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
                         Bad
                     </button>
                 </div>
 
-                <button id="btn-export"
+                <button type="button" id="btn-export"
                     class="flex items-center gap-2 px-4 py-2 bg-seed-green-600 text-white rounded-lg hover:bg-seed-green-700 transition-colors shadow-sm">
                     <i data-lucide="download" class="w-4 h-4"></i>
                     Export Report
@@ -162,15 +220,15 @@
                             <!-- Zoom Controls Overlay -->
                             <div
                                 class="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <button id="zoom-in"
+                                <button type="button" id="zoom-in"
                                     class="p-2 bg-white rounded-lg shadow-md text-gray-700 hover:text-seed-green-600">
                                     <i data-lucide="zoom-in" class="w-5 h-5"></i>
                                 </button>
-                                <button id="zoom-out"
+                                <button type="button" id="zoom-out"
                                     class="p-2 bg-white rounded-lg shadow-md text-gray-700 hover:text-seed-green-600">
                                     <i data-lucide="zoom-out" class="w-5 h-5"></i>
                                 </button>
-                                <button id="zoom-reset"
+                                <button type="button" id="zoom-reset"
                                     class="p-2 bg-white rounded-lg shadow-md text-gray-700 hover:text-seed-green-600">
                                     <i data-lucide="maximize" class="w-5 h-5"></i>
                                 </button>

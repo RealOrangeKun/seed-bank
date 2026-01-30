@@ -1,4 +1,6 @@
 const App = {
+    API_URL: 'http://localhost:8000', // API base URL
+    
     state: {
         files: [], // Array of uploaded files
         results: [], // Array of analysis results per image
@@ -16,7 +18,13 @@ const App = {
         lastMouseY: 0,
         highlightedSeedId: null,
 
-        mode: 'accurate' // 'accurate' or 'fast'
+        mode: 'accurate', // 'accurate' or 'fast'
+        
+        // History state
+        historyPage: 1,
+        historyLimit: 20,
+        historyStatusFilter: null,
+        historyStats: null
     },
 
     elements: {
@@ -50,7 +58,19 @@ const App = {
         modelAccurate: document.getElementById('model-accurate'),
         modelFast: document.getElementById('model-fast'),
         btnExport: document.getElementById('btn-export'),
-        imageTabs: document.getElementById('image-tabs')
+        imageTabs: document.getElementById('image-tabs'),
+        
+        // History elements
+        historySection: document.getElementById('history-section'),
+        btnHistory: document.getElementById('btn-history'),
+        btnBackFromHistory: document.getElementById('btn-back-from-history'),
+        historyStats: document.getElementById('history-stats'),
+        batchesList: document.getElementById('batches-list'),
+        historyPagination: document.getElementById('history-pagination'),
+        filterStatusAll: document.getElementById('filter-status-all'),
+        filterStatusCompleted: document.getElementById('filter-status-completed'),
+        filterStatusFailed: document.getElementById('filter-status-failed'),
+        filterStatusPending: document.getElementById('filter-status-pending')
     },
 
     init() {
@@ -70,10 +90,9 @@ const App = {
 
     async checkBackendStatus() {
         const { statusDot, statusText } = this.elements;
-        const API_URL = 'http://localhost:8000'; // Define API_URL here or as a global constant
 
         try {
-            const response = await fetch(`${API_URL}/`);
+            const response = await fetch(`${this.API_URL}/`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.status === 'running') {
@@ -94,7 +113,7 @@ const App = {
     },
 
     bindEvents() {
-        const { dropZone, fileInput, btnNewAnalysis, filterAll, filterGood, filterBad, modelAccurate, modelFast, btnExport } = this.elements;
+        const { dropZone, fileInput, btnNewAnalysis, filterAll, filterGood, filterBad, modelAccurate, modelFast, btnExport, btnHistory, btnBackFromHistory, filterStatusAll, filterStatusCompleted, filterStatusFailed, filterStatusPending } = this.elements;
 
         // Drag & Drop
         dropZone.addEventListener('dragover', (e) => {
@@ -116,11 +135,20 @@ const App = {
         });
 
         // File Input
-        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length) {
-                this.handleFiles(e.target.files);
+                // Immediately convert FileList to Array to prevent reference issues
+                const filesArray = Array.from(e.target.files);
+                // Use setTimeout to break out of the event loop and prevent navigation
+                setTimeout(() => {
+                    this.handleFiles(filesArray);
+                }, 0);
             }
+            // Clear the input value to allow re-selection of the same file
+            e.target.value = '';
         });
 
         // New Analysis
@@ -137,6 +165,34 @@ const App = {
 
         // Export
         btnExport.addEventListener('click', () => this.generatePDF());
+        
+        // History navigation - check if elements exist
+        if (btnHistory) {
+            btnHistory.addEventListener('click', () => {
+                console.log('History button clicked');
+                this.showHistory();
+            });
+        }
+        if (btnBackFromHistory) {
+            btnBackFromHistory.addEventListener('click', () => {
+                this.hideHistory();
+                this.elements.uploadSection.classList.remove('hidden');
+            });
+        }
+        
+        // History filters - check if elements exist
+        if (filterStatusAll) {
+            filterStatusAll.addEventListener('click', () => this.setHistoryStatusFilter(null));
+        }
+        if (filterStatusCompleted) {
+            filterStatusCompleted.addEventListener('click', () => this.setHistoryStatusFilter('COMPLETED'));
+        }
+        if (filterStatusFailed) {
+            filterStatusFailed.addEventListener('click', () => this.setHistoryStatusFilter('FAILED'));
+        }
+        if (filterStatusPending) {
+            filterStatusPending.addEventListener('click', () => this.setHistoryStatusFilter('PENDING'));
+        }
     },
 
     setMode(mode) {
@@ -220,11 +276,14 @@ const App = {
     },
 
     async uploadImages(files) {
+        console.log('uploadImages called with', files.length, 'files');
+        
         this.showLoading(true);
         this.hideError();
 
         const formData = new FormData();
         files.forEach(file => {
+            console.log('Appending file:', file.name, file.type, file.size);
             formData.append('files', file);
         });
 
@@ -238,21 +297,30 @@ const App = {
         // I will proceed with /api/analyze-batch.
 
         const endpoint = '/api/analyze-batch';
+        console.log('Sending POST to:', `${this.API_URL}${endpoint}`);
 
         try {
             // Load all images for display
+            console.log('Loading images for display...');
             this.state.images = await Promise.all(files.map(file => this.loadImage(file)));
+            console.log('Images loaded successfully');
 
-            const response = await fetch(`http://localhost:8000${endpoint}`, {
+            console.log('Starting fetch request...');
+            const response = await fetch(`${this.API_URL}${endpoint}`, {
                 method: 'POST',
                 body: formData
             });
+
+            console.log('Fetch completed, status:', response.status);
 
             if (!response.ok) {
                 throw new Error(`Server error: ${response.statusText}`);
             }
 
+            console.log('Parsing JSON response...');
             const data = await response.json();
+            console.log('Response data:', data);
+            
             this.state.results = data.results;
 
             // Initialize view
@@ -296,6 +364,7 @@ const App = {
             btn.textContent = file.name;
 
             btn.addEventListener('click', () => {
+                console.log('Tab clicked:', index);
                 this.state.currentTabIndex = index;
                 // Reset zoom/pan on tab switch
                 this.state.zoomLevel = 1;
@@ -303,6 +372,10 @@ const App = {
                 this.state.offsetY = 0;
                 this.state.highlightedSeedId = null;
 
+                console.log('Current tab index:', this.state.currentTabIndex);
+                console.log('Current image:', this.getImage());
+                console.log('Current result:', this.getCurrentResult());
+                
                 this.renderTabs(); // Re-render to update active state
                 this.updateView();
             });
@@ -634,7 +707,7 @@ const App = {
             doc.text(`Good Seeds: ${stats.good_seeds} (${stats.good_percentage}%)`, 20, 65);
             doc.text(`Bad Seeds: ${stats.bad_seeds} (${stats.bad_percentage}%)`, 20, 75);
 
-            const modeLabel = 'Batch Analysis (Accurate)';
+            const modeLabel = this.state.mode === 'fast' ? 'Fast Mode' : 'Accurate Mode';
             doc.text(`Mode Used: ${modeLabel}`, 20, 85);
 
             // --- Full Image Generation ---
@@ -1267,4 +1340,6 @@ const App = {
 // Start the app
 document.addEventListener('DOMContentLoaded', () => {
     App.init();
+    // Make App available globally for inline onclick handlers
+    window.App = App;
 });

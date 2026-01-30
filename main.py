@@ -1,6 +1,7 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Request, Query, Path
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, Response, StreamingResponse
+from typing import Optional
 import torch
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
@@ -18,11 +19,20 @@ from typing import List, Dict
 import os
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 # Database imports
 from app.database import get_db
 from app.models import User, ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel
-from app.crud import get_or_create_guest_user, generate_device_fingerprint
+from app.crud import (
+    get_or_create_guest_user, 
+    generate_device_fingerprint,
+    get_user_by_fingerprint,
+    get_user_batches,
+    get_batch_by_id_and_user,
+    get_batch_detections,
+    get_user_statistics
+)
 
 app = FastAPI(title="Bank Seed Demo API", version="1.0.0")
 
@@ -733,6 +743,7 @@ async def analyze_batch(
         response_data = {
             "success": True,
             "batch_id": scan_batch.id,
+            "mode": "accurate",
             "total_images": len(files),
             "total_seeds_all_images": total_seeds,
             "overall_statistics": {
@@ -1089,7 +1100,7 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
         return JSONResponse(
             content={
                 "success": True,
-                "mode": "fast-batch",
+                "mode": "fast",
                 "results": all_results,
                 "overall_statistics": {
                     "total_images": len(files),
@@ -1578,4 +1589,9 @@ async def serve_image(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000,
+        timeout_keep_alive=600  # 10 minutes keep-alive timeout for long-running requests
+    )
