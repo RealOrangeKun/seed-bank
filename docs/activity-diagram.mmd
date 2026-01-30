@@ -1,0 +1,25 @@
+flowchart TD
+    A[Start: Receive Batch Request] --> B{Valid files uploaded?}
+    B -->|No| C[Return 400 Error]
+    B -->|Yes| D[Extract Device Fingerprint]
+    D --> E[Get/Create User]
+    E --> F[Create ScanBatch]
+    F --> G[Process Images Loop]
+    
+    subgraph "Process Each Image"
+        G --> H[Save Image to Storage]
+        H --> I[Create ScanImage Record]
+        I --> J[Run Detection Model]
+        J --> K{Seeds Detected?}
+        K -->|No| L[Continue to Next Image]
+        K -->|Yes| M[Classify Each Seed]
+        M --> N[Create SeedDetection Records]
+        N --> L
+    end
+    
+    L --> O{More Images?}
+    O -->|Yes| G
+    O -->|No| P[Aggregate Statistics]
+    P --> Q[Update ScanBatch Status]
+    Q --> R[Return JSON Response]
+    R --> S[End]

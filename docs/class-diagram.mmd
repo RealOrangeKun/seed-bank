@@ -1,0 +1,79 @@
+classDiagram
+    direction TB
+
+    class User {
+        +BigInteger id
+        +String username
+        +String email
+        +String password_hash
+        +String device_fingerprint
+        +Boolean is_guest
+        +DateTime created_at
+    }
+
+    class ScanBatch {
+        +BigInteger id
+        +BigInteger user_id
+        +ProcessingStatus status
+        +Text error_message
+        +DateTime processing_start_at
+        +DateTime processing_end_at
+        +Integer processing_duration_ms
+        +Integer total_seeds
+        +Integer bad_seeds_count
+        +Float avg_confidence_score
+        +DateTime created_at
+    }
+
+    class ScanImage {
+        +BigInteger id
+        +BigInteger batch_id
+        +Text storage_path
+        +String original_filename
+        +Integer width
+        +Integer height
+        +DateTime created_at
+    }
+
+    class SeedDetection {
+        +BigInteger id
+        +BigInteger batch_id
+        +BigInteger image_id
+        +QualityLabel quality_label
+        +Float confidence_score
+        +Float detection_confidence
+        +Float box_x_norm
+        +Float box_y_norm
+        +Float box_w_norm
+        +Float box_h_norm
+        +Float area
+        +Float width
+        +Float height
+        +Float aspect_ratio
+        +Float centroid_x
+        +Float centroid_y
+        +Float good_percentage
+        +Float bad_percentage
+        +DateTime created_at
+    }
+
+    class ProcessingStatus {
+        <<enumeration>>
+        PENDING
+        PROCESSING
+        COMPLETED
+        FAILED
+    }
+
+    class QualityLabel {
+        <<enumeration>>
+        GOOD
+        BAD
+    }
+
+    User "1" --> "*" ScanBatch : owns
+    ScanBatch "1" --> "*" ScanImage : contains
+    ScanBatch "1" --> "*" SeedDetection : has
+    ScanImage "1" --> "*" SeedDetection : has
+    ScanBatch --> ProcessingStatus : status
+    SeedDetection --> QualityLabel : quality_label

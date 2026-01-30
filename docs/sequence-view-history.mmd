@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant U as User
+    participant API as FastAPI
+    participant DB as PostgreSQL
+
+    U->>API: GET /api/batches?page=1&limit=20
+    API->>API: Extract device fingerprint
+    API->>DB: Find User by fingerprint
+    
+    alt User not found
+        DB-->>API: null
+        API-->>U: { batches: [], pagination: {...} }
+    else User found
+        DB-->>API: User record
+        API->>DB: Query ScanBatch WHERE user_id = ?
+        DB-->>API: List of batches
+        API->>API: Calculate pagination
+        API-->>U: { batches: [...], pagination: {...} }
+    end
