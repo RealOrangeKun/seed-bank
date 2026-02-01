@@ -16,19 +16,19 @@ flowchart TB
         UserMgmt[User Management<br/>Device Fingerprinting]
     end
 
-    subgraph ML["🧠 ML Pipeline"]
+    subgraph ML["ML Pipeline"]
         direction LR
         Detection[Faster R-CNN<br/>Object Detection<br/>ResNet50 Backbone]
         Classification[ResNet50<br/>Binary Classification<br/>Good/Bad]
     end
 
-    subgraph Data["💾 Data Layer"]
+    subgraph Data["Data Layer"]
         direction TB
         DB[(PostgreSQL<br/>Users, Batches<br/>Images, Detections)]
         FS[File Storage<br/>uploads/batches/]
     end
 
-    subgraph Models["📦 Model Artifacts"]
+    subgraph Models["Model Artifacts"]
         DetModel[FasterRCNN_ResNet50_Final.pth]
         ClsModel[ResNet50_maize_seeds_NEW.pth]
     end
@@ -37,7 +37,7 @@ flowchart TB
     %% FUTURE: Data Warehouse (Not Yet Implemented)
     %% Planned for analytics, reporting, ML retraining
     %% ============================================
-    subgraph Future["🔮 Future Implementation"]
+    subgraph Future["Future Implementation"]
         ETL[ETL Process]:::future
         DW[(Data Warehouse<br/>Analytics & Reporting)]:::future
     end

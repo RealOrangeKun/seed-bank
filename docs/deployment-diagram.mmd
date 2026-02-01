@@ -30,14 +30,14 @@ flowchart TB
         end
     end
 
-    subgraph Host["🖥️ Host Machine"]
+    subgraph Host["Host Machine"]
         Browser[Browser]
         ModelsDir[./models/*.pth]
         UploadsDir[./uploads/]
         DataDir[./data/]
     end
 
-    subgraph GPU["🎮 GPU (Optional)"]
+    subgraph GPU["GPU (Optional)"]
         CUDA[NVIDIA CUDA]
     end
 
