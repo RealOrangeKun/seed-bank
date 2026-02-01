@@ -67,6 +67,7 @@ const App = {
         historySection: document.getElementById('history-section'),
         btnHistory: document.getElementById('btn-history'),
         btnBackFromHistory: document.getElementById('btn-back-from-history'),
+        logoHome: document.getElementById('logo-home'),
         historyStats: document.getElementById('history-stats'),
         batchesList: document.getElementById('batches-list'),
         historyPagination: document.getElementById('history-pagination'),
@@ -180,6 +181,12 @@ const App = {
             btnBackFromHistory.addEventListener('click', () => {
                 this.hideHistory();
                 this.elements.uploadSection.classList.remove('hidden');
+            });
+        }
+        if (this.elements.logoHome) {
+            this.elements.logoHome.addEventListener('click', () => {
+                this.hideHistory();
+                this.reset();
             });
         }
         
