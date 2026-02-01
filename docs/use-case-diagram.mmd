@@ -1,28 +1,33 @@
+---
+config:
+  theme: dark
+  layout: dagre
+---
 flowchart LR
     %% Actor (Guest or Authenticated - same permissions)
-    User[👤 User<br/>Guest / Authenticated]
+    User["User (Guest/Authenticated)"]
 
     subgraph SeedBank["Seed Bank API"]
         direction TB
         
         subgraph Analysis["Seed Analysis"]
-            UC01([Analyze Single Image])
-            UC02([Analyze Batch Images])
-            UC03([Fast Analyze Single])
-            UC04([Fast Analyze Batch])
+            UC01(["Analyze Single Image"])
+            UC02(["Analyze Batch Images"])
+            UC03(["Fast Analyze Single"])
+            UC04(["Fast Analyze Batch"])
         end
 
-        subgraph History["History & Stats"]
-            UC05([View Scan History])
-            UC06([View Batch Details])
-            UC07([View Detections])
-            UC08([View Statistics])
-            UC09([Retrieve Image])
+        subgraph History["History and Stats"]
+            UC05(["View Scan History"])
+            UC06(["View Batch Details"])
+            UC07(["View Detections"])
+            UC08(["View Statistics"])
+            UC09(["Retrieve Image"])
         end
 
         subgraph System["System"]
-            UC10([Health Check])
-            UC11([Get Config])
+            UC10(["Health Check"])
+            UC11(["Get Config"])
         end
     end
 

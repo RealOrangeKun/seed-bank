@@ -1,3 +1,8 @@
+---
+config:
+  theme: dark
+  layout: dagre
+---
 flowchart TD
     A[Start: Receive Batch Request] --> B{Valid files uploaded?}
     B -->|No| C[Return 400 Error]
