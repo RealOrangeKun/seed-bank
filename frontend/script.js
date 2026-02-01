@@ -685,6 +685,7 @@ const App = {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
         const GREEN = [22, 163, 74];
         const GOOD = [34, 197, 94];
         const BAD = [239, 68, 68];
@@ -719,23 +720,27 @@ const App = {
 
             let y = 46;
 
-            // Execution time callout
+            // Execution time callout (box with padding)
             if (executionMs != null) {
                 const sec = (executionMs / 1000).toFixed(2);
+                const boxX = 20, boxY = y - 2, boxW = 64, boxH = 24;
                 doc.setDrawColor(203, 213, 225);
                 doc.setFillColor(...LIGHT_BG);
-                doc.rect(20, y - 4, 60, 14, 'FD');
-                doc.setFontSize(11);
+                doc.rect(boxX, boxY, boxW, boxH, 'FD');
+                doc.setFontSize(10);
                 doc.setTextColor(30, 64, 175);
-                doc.text("Execution time", 26, y + 2);
+                doc.text("Execution time", boxX + 8, boxY + 9);
                 doc.setFontSize(14);
                 doc.setTextColor(0);
-                doc.text(`${sec} s`, 26, y + 10);
-                y += 22;
+                doc.text(`${sec} s`, boxX + 8, boxY + 19);
+                y += boxH + 8;
             }
 
-            // Overall stats cards (two rows: total, then good/bad)
+            // Overall stats (left) and pie chart (right) on one row
             if (overallStats) {
+                const pieSize = 55;
+                const pieX = pageW - 20 - pieSize;
+
                 doc.setFontSize(11);
                 doc.setTextColor(0);
                 doc.text(`Total seeds: ${overallStats.good_seeds + overallStats.bad_seeds}`, 20, y);
@@ -744,57 +749,68 @@ const App = {
                 doc.setTextColor(...BAD);
                 doc.text(`Bad: ${overallStats.bad_seeds} (${overallStats.bad_percentage}%)`, 20, y + 16);
                 doc.setTextColor(0);
-                y += 28;
+
+                if (totalSeeds > 0) {
+                    const scale = 3;
+                    const pieCanvas = document.createElement('canvas');
+                    pieCanvas.width = 120 * scale;
+                    pieCanvas.height = 120 * scale;
+                    const pCtx = pieCanvas.getContext('2d');
+                    pCtx.scale(scale, scale);
+                    const cx = 60, cy = 60, r = 48;
+                    const goodPct = overallStats.good_seeds / totalSeeds;
+                    const badPct = overallStats.bad_seeds / totalSeeds;
+                    const startAngle = -Math.PI / 2;
+                    const goodPctLabel = Math.round(overallStats.good_percentage);
+                    const badPctLabel = Math.round(overallStats.bad_percentage);
+                    if (goodPct > 0) {
+                        pCtx.beginPath();
+                        pCtx.moveTo(cx, cy);
+                        pCtx.arc(cx, cy, r, startAngle, startAngle + goodPct * 2 * Math.PI);
+                        pCtx.closePath();
+                        pCtx.fillStyle = 'rgb(34, 197, 94)';
+                        pCtx.fill();
+                    }
+                    if (badPct > 0) {
+                        pCtx.beginPath();
+                        pCtx.moveTo(cx, cy);
+                        pCtx.arc(cx, cy, r, startAngle + goodPct * 2 * Math.PI, startAngle + 2 * Math.PI);
+                        pCtx.closePath();
+                        pCtx.fillStyle = 'rgb(239, 68, 68)';
+                        pCtx.fill();
+                    }
+                    pCtx.font = 'bold 12px Arial';
+                    pCtx.textAlign = 'center';
+                    pCtx.textBaseline = 'middle';
+                    const labelR = r * 0.55;
+                    pCtx.shadowColor = 'rgba(0,0,0,0.6)';
+                    pCtx.shadowBlur = 4;
+                    pCtx.shadowOffsetX = 0;
+                    pCtx.shadowOffsetY = 0;
+                    if (goodPct >= 0.08) {
+                        const midAngle = startAngle + goodPct * Math.PI;
+                        const tx = cx + labelR * Math.cos(midAngle);
+                        const ty = cy + labelR * Math.sin(midAngle);
+                        pCtx.fillStyle = '#fff';
+                        pCtx.fillText(goodPctLabel + '%', tx, ty);
+                    }
+                    if (badPct >= 0.08) {
+                        const midAngle = startAngle + goodPct * 2 * Math.PI + badPct * Math.PI;
+                        const tx = cx + labelR * Math.cos(midAngle);
+                        const ty = cy + labelR * Math.sin(midAngle);
+                        pCtx.fillStyle = '#fff';
+                        pCtx.fillText(badPctLabel + '%', tx, ty);
+                    }
+                    pCtx.shadowBlur = 0;
+                    pCtx.shadowColor = 'transparent';
+                    const pieDataUrl = pieCanvas.toDataURL('image/png');
+                    doc.addImage(pieDataUrl, 'PNG', pieX, y, pieSize, pieSize);
+                }
+                y += Math.max(28, pieSize + 5);
             }
 
-            // Quality distribution chart (vertical bars)
-            if (overallStats && totalSeeds > 0) {
-                doc.setFontSize(12);
-                doc.setTextColor(0);
-                doc.text("Quality distribution", 20, y);
-                y += 6;
-                const chartLeft = 35;
-                const chartBottom = y + 38;
-                const maxBarH = 32;
-                const barW = 24;
-                const gap = 20;
-                const goodH = (overallStats.good_seeds / totalSeeds) * maxBarH;
-                const badH = (overallStats.bad_seeds / totalSeeds) * maxBarH;
-
-                doc.setFillColor(...GOOD);
-                doc.rect(chartLeft, chartBottom - goodH, barW, goodH, 'F');
-                doc.setFontSize(9);
-                doc.setTextColor(0);
-                doc.text("Good", chartLeft + barW / 2 - 6, chartBottom + 5);
-                doc.text(String(overallStats.good_seeds), chartLeft + barW / 2 - 4, chartBottom - goodH - 2);
-
-                doc.setFillColor(...BAD);
-                doc.rect(chartLeft + barW + gap, chartBottom - badH, barW, badH, 'F');
-                doc.text("Bad", chartLeft + barW + gap + barW / 2 - 5, chartBottom + 5);
-                doc.text(String(overallStats.bad_seeds), chartLeft + barW + gap + barW / 2 - 4, chartBottom - badH - 2);
-                y = chartBottom + 14;
-            }
-
-            // Per-image breakdown table (multiple images)
-            if (this.state.results.length > 1) {
-                doc.setFontSize(12);
-                doc.text("Per-image breakdown", 20, y);
-                const body = this.state.results.map((r, i) => {
-                    const s = r.statistics || {};
-                    const total = r.total_seeds || 0;
-                    const goodPct = total > 0 ? Math.round((s.good_seeds || 0) / total * 1000) / 10 : 0;
-                    const name = (this.state.files[i]?.name) || r.filename || `Image ${i + 1}`;
-                    return [name.length > 28 ? name.slice(0, 25) + '...' : name, s.good_seeds || 0, s.bad_seeds || 0, total, goodPct + '%'];
-                });
-                doc.autoTable({
-                    startY: y + 5,
-                    head: [['Image', 'Good', 'Bad', 'Total', 'Good %']],
-                    body,
-                    theme: 'grid',
-                    headStyles: { fillColor: GREEN },
-                    columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 22 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 28 } }
-                });
-            }
+            const summaryContentEndY = y;
+            const imageStartPages = [];
 
             // ========== Per-image pages ==========
             this.state.results.forEach((result, index) => {
@@ -803,6 +819,7 @@ const App = {
                 const stats = result.statistics;
                 if (!image || !result) return;
 
+                imageStartPages[index] = doc.internal.getNumberOfPages() + 1;
                 const fileName = (file?.name) || result.filename || `image_${index}.jpg`;
                 doc.addPage();
 
@@ -848,16 +865,29 @@ const App = {
                 const imgH = (imgProps.height * (pageW - 40)) / imgProps.width;
                 doc.addImage(imgData, 'JPEG', 20, 65, pageW - 40, imgH);
 
-                const tableStartY = 65 + imgH + 12;
+                // doc.setFontSize(20);
+                // doc.setTextColor(...GREEN);
+                // doc.text("Seed Quality Analysis Report", 20, 20);
+                // doc.setFontSize(10);
+                // doc.setTextColor(...MUTED);
+                // doc.text("Generated " + new Date().toLocaleString(), 20, 28);
+                // doc.text("File: " + fileName, 20, 34);
+
                 doc.setFontSize(12);
-                doc.text("Detailed Seed List", 20, tableStartY);
+                doc.addPage();
+                doc.setFontSize(14);
+                doc.setTextColor(0);
+                doc.text("Detailed Seed List", 20, 22);
+                doc.setFontSize(10);
+                doc.setTextColor(...MUTED);
+                doc.text("File: " + fileName, 20, 30);
                 const crops = [];
                 const tableData = (result.bounding_boxes || []).map(seed => {
                     try { crops.push(this.getCroppedSeedDataUrl(image, seed)); } catch (_) { crops.push(null); }
-                    return [seed.id, '', seed.quality, `${seed.classification_confidence}%`];
+                    return [seed.id, '', seed.quality, String(seed.classification_confidence) + '%'];
                 });
                 doc.autoTable({
-                    startY: tableStartY + 5,
+                    startY: 36,
                     head: [['ID', 'Image', 'Quality', 'Conf %']],
                     body: tableData,
                     theme: 'grid',
@@ -872,6 +902,59 @@ const App = {
                     }
                 });
             });
+
+            // Per-image breakdown on page 1 (with Page column); table may add pages so we fix refs and redraw
+            if (this.state.results.length > 1) {
+                const pagesBeforeTable = doc.internal.getNumberOfPages();
+                doc.setPage(1);
+                doc.setFontSize(12);
+                doc.setTextColor(0);
+                doc.text("Per-image breakdown", 20, summaryContentEndY);
+                const buildTableBody = (pageRefs) => this.state.results.map((r, i) => {
+                    const s = r.statistics || {};
+                    const total = r.total_seeds || 0;
+                    const goodPct = total > 0 ? Math.round((s.good_seeds || 0) / total * 1000) / 10 : 0;
+                    const name = (this.state.files[i]?.name) || r.filename || `Image ${i + 1}`;
+                    return [name.length > 28 ? name.slice(0, 25) + '...' : name, s.good_seeds || 0, s.bad_seeds || 0, total, goodPct + '%', String(pageRefs[i] ?? '')];
+                });
+                doc.autoTable({
+                    startY: summaryContentEndY + 5,
+                    head: [['Image', 'Good', 'Bad', 'Total', 'Good %', 'Page']],
+                    body: buildTableBody(imageStartPages),
+                    theme: 'grid',
+                    headStyles: { fillColor: GREEN },
+                    columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 18 }, 2: { cellWidth: 18 }, 3: { cellWidth: 18 }, 4: { cellWidth: 22 }, 5: { cellWidth: 18 } }
+                });
+                const pagesAddedByTable = doc.internal.getNumberOfPages() - pagesBeforeTable;
+                for (let i = 0; i < imageStartPages.length; i++) {
+                    imageStartPages[i] += pagesAddedByTable;
+                }
+                doc.setFillColor(255, 255, 255);
+                doc.rect(20, summaryContentEndY + 5, pageW - 40, pageH - (summaryContentEndY + 5) - 12, 'F');
+                for (let p = pagesBeforeTable + 1; p <= doc.internal.getNumberOfPages(); p++) {
+                    doc.setPage(p);
+                    doc.rect(20, 15, pageW - 40, pageH - 25, 'F');
+                }
+                doc.setPage(1);
+                doc.text("Per-image breakdown", 20, summaryContentEndY);
+                doc.autoTable({
+                    startY: summaryContentEndY + 5,
+                    head: [['Image', 'Good', 'Bad', 'Total', 'Good %', 'Page']],
+                    body: buildTableBody(imageStartPages),
+                    theme: 'grid',
+                    headStyles: { fillColor: GREEN },
+                    columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 18 }, 2: { cellWidth: 18 }, 3: { cellWidth: 18 }, 4: { cellWidth: 22 }, 5: { cellWidth: 18 } }
+                });
+            }
+
+            // Page numbers on every page (including those added by autoTable for long seed lists)
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let p = 1; p <= totalPages; p++) {
+                doc.setPage(p);
+                doc.setFontSize(9);
+                doc.setTextColor(128);
+                doc.text('Page ' + p + ' of ' + totalPages, pageW / 2, pageH - 10, { align: 'center' });
+            }
 
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
             doc.save(`seed-analysis-report-${timestamp}.pdf`);
