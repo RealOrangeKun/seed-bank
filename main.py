@@ -1077,6 +1077,7 @@ async def analyze_batch_fast(
                     {
                         "filename": file.filename,
                         "image_index": file_idx,
+                        "total_seeds": len(classified_results),
                         "bounding_boxes": bounding_boxes,
                         "statistics": {
                             "total_seeds": len(classified_results),
@@ -1102,6 +1103,7 @@ async def analyze_batch_fast(
                     {
                         "filename": file.filename,
                         "image_index": file_idx,
+                        "total_seeds": 0,
                         "bounding_boxes": [],
                         "statistics": {
                             "total_seeds": 0,
