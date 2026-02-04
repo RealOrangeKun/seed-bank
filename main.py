@@ -868,8 +868,15 @@ async def analyze_image_fast(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Fast analysis failed: {str(e)}")
 
 
+
+
+
 @app.post("/api/analyze-batch/fast")
-async def analyze_batch_fast(files: List[UploadFile] = File(...)):
+async def analyze_batch_fast(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
     """
     Fast batch analysis endpoint: Multiple images using Roboflow for detection + Local ResNet for classification
     """
@@ -884,6 +891,24 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                     status_code=400, detail=f"File {file.filename} is not an image"
                 )
 
+        # Extract device fingerprint from request headers
+        user_agent = request.headers.get("user-agent", "")
+        client_host = request.client.host if request.client else None
+        device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+
+        # Get or create guest user (will reuse if fingerprint matches)
+        guest_user = get_or_create_guest_user(db, device_fingerprint)
+        
+        # Create scan batch for the entire batch
+        processing_start = datetime.utcnow()
+        scan_batch = ScanBatch(
+            user_id=guest_user.id,
+            status=ProcessingStatus.PROCESSING,
+            processing_start_at=processing_start
+        )
+        db.add(scan_batch)
+        db.flush()
+
         print(f"Processing {len(files)} images in batch (fast mode)...")
 
         # Process each image
@@ -891,6 +916,7 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
         total_good = 0
         total_bad = 0
         total_seeds = 0
+        all_confidences = []
 
         for file_idx, file in enumerate(files):
             # Read and process image
@@ -934,13 +960,38 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                     y1 = max(0, min(y1, orig_h))
                     x2 = max(0, min(x2, orig_w))
                     y2 = max(0, min(y2, orig_h))
+                    
+                    # Get class name and ID
+                    class_name = pred["class"].lower()
+                    seed_type_id = None
+                    if model_manager:
+                        try:
+                            seed_type_id = model_manager.get_seed_type_id(class_name)
+                        except:
+                            pass # Keep None if not found
 
                     detected_seeds.append(
                         {
                             "box": (x1, y1, x2, y2),
                             "detection_confidence": float(pred["confidence"]),
+                            "seed_type_name": class_name, 
+                            "seed_type_id": seed_type_id
                         }
                     )
+
+            # Save image to storage (unique filename per image index)
+            storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or f"image_{file_idx}.jpg", image_index=file_idx)
+            
+            # Create scan image record
+            scan_image = ScanImage(
+                batch_id=scan_batch.id,
+                storage_path=storage_path,
+                original_filename=file.filename,
+                width=orig_w,
+                height=orig_h
+            )
+            db.add(scan_image)
+            db.flush()
 
             # Classify seeds if any detected
             if len(detected_seeds) > 0:
@@ -951,6 +1002,39 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                     1 for s in classified_results if s["quality"] == "Good"
                 )
                 bad_count = sum(1 for s in classified_results if s["quality"] == "Bad")
+
+                # Save seed detections
+                for seed_data in classified_results:
+                    x1, y1, x2, y2 = seed_data["box"]
+                    
+                    # Normalize bounding box coordinates (0.0-1.0)
+                    box_x_norm = x1 / orig_w if orig_w > 0 else 0.0
+                    box_y_norm = y1 / orig_h if orig_h > 0 else 0.0
+                    box_w_norm = (x2 - x1) / orig_w if orig_w > 0 else 0.0
+                    box_h_norm = (y2 - y1) / orig_h if orig_h > 0 else 0.0
+                    
+                    detection = SeedDetection(
+                        batch_id=scan_batch.id,
+                        image_id=scan_image.id,
+                        seed_type_id=seed_data["seed_type_id"],
+                        quality_label=QualityLabel.GOOD if seed_data["quality"] == "Good" else QualityLabel.BAD,
+                        confidence_score=seed_data["classification_confidence"] / 100.0,  # Convert percentage to 0-1
+                        detection_confidence=seed_data["detection_confidence"],
+                        box_x_norm=box_x_norm,
+                        box_y_norm=box_y_norm,
+                        box_w_norm=box_w_norm,
+                        box_h_norm=box_h_norm,
+                        area=seed_data["area"],
+                        width=seed_data["width"],
+                        height=seed_data["height"],
+                        aspect_ratio=seed_data["aspect_ratio"],
+                        centroid_x=seed_data["centroid"]["x"],
+                        centroid_y=seed_data["centroid"]["y"],
+                        good_percentage=seed_data["good_percentage"],
+                        bad_percentage=seed_data["bad_percentage"]
+                    )
+                    db.add(detection)
+                    all_confidences.append(seed_data["classification_confidence"])
 
                 # Update totals
                 total_good += good_count
@@ -992,6 +1076,7 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                 all_results.append(
                     {
                         "filename": file.filename,
+                        "image_index": file_idx,
                         "bounding_boxes": bounding_boxes,
                         "statistics": {
                             "total_seeds": len(classified_results),
@@ -1016,6 +1101,7 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                 all_results.append(
                     {
                         "filename": file.filename,
+                        "image_index": file_idx,
                         "bounding_boxes": [],
                         "statistics": {
                             "total_seeds": 0,
@@ -1032,32 +1118,56 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                 f"  [{file_idx+1}/{len(files)}] {file.filename}: {len(detected_seeds)} seeds detected"
             )
 
+        # Calculate overall statistics
+        overall_good_pct = (
+            round((total_good / total_seeds * 100), 2) if total_seeds > 0 else 0
+        )
+        overall_bad_pct = (
+            round((total_bad / total_seeds * 100), 2) if total_seeds > 0 else 0
+        )
+        
+        # Calculate average confidence
+        avg_confidence = (
+            sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+        )
+
+        # Update batch with final statistics
+        processing_end = datetime.utcnow()
+        processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
+        
+        scan_batch.status = ProcessingStatus.COMPLETED
+        scan_batch.total_seeds = total_seeds
+        scan_batch.bad_seeds_count = total_bad
+        scan_batch.avg_confidence_score = avg_confidence / 100.0  # Convert to 0-1
+        scan_batch.processing_end_at = processing_end
+        scan_batch.processing_duration_ms = processing_duration_ms
+        
+        # Commit all changes
+        db.commit()
+
         # Return batch results
         return JSONResponse(
             content={
                 "success": True,
+                "batch_id": scan_batch.id,
                 "mode": "fast",
-                "results": all_results,
+                "total_images": len(files),
+                "total_seeds_all_images": total_seeds,
+                "processing_duration_ms": processing_duration_ms,
                 "overall_statistics": {
-                    "total_images": len(files),
-                    "total_seeds": total_seeds,
-                    "total_good": total_good,
-                    "total_bad": total_bad,
-                    "overall_good_percentage": (
-                        round((total_good / total_seeds * 100), 2)
-                        if total_seeds > 0
-                        else 0
-                    ),
-                    "overall_bad_percentage": (
-                        round((total_bad / total_seeds * 100), 2)
-                        if total_seeds > 0
-                        else 0
-                    ),
+                    "good_seeds": total_good,
+                    "bad_seeds": total_bad,
+                    "good_percentage": overall_good_pct,
+                    "bad_percentage": overall_bad_pct,
                 },
+                "results": all_results,
+                "thresholds": model_manager.get_config_summary() if model_manager else {},
             }
         )
 
     except Exception as e:
+        if 'db' in locals():
+            db.rollback()
         raise HTTPException(
             status_code=500, detail=f"Fast batch analysis failed: {str(e)}"
         )

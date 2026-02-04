@@ -297,17 +297,10 @@ const App = {
             formData.append('files', file);
         });
 
-        // Note: Batch endpoint is always /api/analyze-batch, but we might want to pass mode?
-        // The current backend /api/analyze-batch doesn't seem to take a mode param, it uses default models.
-        // If we want fast mode for batch, we might need to update backend or just use accurate for now.
-        // Let's assume /api/analyze-batch uses the default (accurate) models for now as per backend code.
-        // Wait, the user asked for batch analysis. The backend has /api/analyze-batch.
-        // Does /api/analyze-batch support fast mode? Looking at main.py... no, it uses detect_seeds (local).
-        // So batch analysis will always be "Accurate" mode for now unless we modify backend.
-        // I will proceed with /api/analyze-batch.
-
-        const endpoint = '/api/analyze-batch';
+        // Determine endpoint based on mode
+        const endpoint = this.state.mode === 'fast' ? '/api/analyze-batch/fast' : '/api/analyze-batch';
         console.log('Sending POST to:', `${this.API_URL}${endpoint}`);
+        console.log('Mode:', this.state.mode);
 
         try {
             // Load all images for display
