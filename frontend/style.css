@@ -1499,3 +1499,34 @@ body {
     padding-right: 2rem;
   }
 }
+
+/* Custom Seed Type Badge Styles */
+.seed-type-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 0.25rem;
+  border-width: 1px;
+  border-style: solid;
+  letter-spacing: 0.05em;
+  display: inline-block;
+}
+
+.seed-type-coffee {
+  color: rgb(180 83 9); /* amber-700 */
+  background-color: rgb(255 251 235); /* amber-50 */
+  border-color: rgb(253 230 138); /* amber-200 */
+}
+
+.seed-type-maize {
+  color: rgb(202 138 4); /* yellow-600 */
+  background-color: rgb(254 252 232); /* yellow-50 */
+  border-color: rgb(254 240 138); /* yellow-200 */
+}
+
+.seed-type-unknown {
+  color: rgb(75 85 99); /* gray-600 */
+  background-color: rgb(243 244 246); /* gray-100 */
+  border-color: rgb(229 231 235); /* gray-200 */
+}

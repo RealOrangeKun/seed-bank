@@ -1,6 +1,6 @@
 const App = {
     API_URL: 'http://localhost:8000', // API base URL
-    
+
     state: {
         files: [], // Array of uploaded files
         results: [], // Array of analysis results per image
@@ -62,7 +62,7 @@ const App = {
         modelFast: document.getElementById('model-fast'),
         btnExport: document.getElementById('btn-export'),
         imageTabs: document.getElementById('image-tabs'),
-        
+
         // History elements
         historySection: document.getElementById('history-section'),
         btnHistory: document.getElementById('btn-history'),
@@ -169,7 +169,7 @@ const App = {
 
         // Export
         btnExport.addEventListener('click', () => this.generatePDF());
-        
+
         // History navigation - check if elements exist
         if (btnHistory) {
             btnHistory.addEventListener('click', () => {
@@ -189,7 +189,7 @@ const App = {
                 this.reset();
             });
         }
-        
+
         // History filters - check if elements exist
         if (filterStatusAll) {
             filterStatusAll.addEventListener('click', () => this.setHistoryStatusFilter(null));
@@ -287,7 +287,7 @@ const App = {
 
     async uploadImages(files) {
         console.log('uploadImages called with', files.length, 'files');
-        
+
         this.showLoading(true);
         this.hideError();
 
@@ -330,7 +330,7 @@ const App = {
             console.log('Parsing JSON response...');
             const data = await response.json();
             console.log('Response data:', data);
-            
+
             this.state.results = data.results;
             this.state.reportMetadata = {
                 processingDurationMs: data.processing_duration_ms ?? null,
@@ -389,7 +389,7 @@ const App = {
                 console.log('Current tab index:', this.state.currentTabIndex);
                 console.log('Current image:', this.getImage());
                 console.log('Current result:', this.getCurrentResult());
-                
+
                 this.renderTabs(); // Re-render to update active state
                 this.updateView();
             });
@@ -531,12 +531,25 @@ const App = {
             const iconColor = seed.quality === 'Good' ? 'text-green-500' : 'text-red-500';
             const icon = seed.quality === 'Good' ? 'check-circle' : 'x-circle';
 
+            const typeColors = {
+                'coffee': 'seed-type-coffee',
+                'maize': 'seed-type-maize'
+            };
+            const seedType = (seed.seed_type || 'Unknown').toLowerCase();
+            const typeClass = typeColors[seedType] || 'seed-type-unknown';
+            const displayType = seed.seed_type ? (seed.seed_type.charAt(0).toUpperCase() + seed.seed_type.slice(1)) : 'Unknown';
+
             // Removed confidence score as requested
             item.innerHTML = `
                 <div class="flex items-center gap-3">
                     <i data-lucide="${icon}" class="w-5 h-5 ${iconColor}"></i>
                     <div>
-                        <p class="font-medium text-gray-900 text-sm">Seed #${seed.id}</p>
+                        <div class="flex items-center gap-2">
+                            <p class="font-medium text-gray-900 text-sm">Seed #${seed.id}</p>
+                            <span class="seed-type-badge ${typeClass}">
+                                ${displayType}
+                            </span>
+                        </div>
                     </div>
                 </div>
                 <div class="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-600 group-hover:bg-white">
@@ -614,6 +627,26 @@ const App = {
 
         // Use classification_confidence as requested
         detailConfidence.textContent = `${seed.classification_confidence}%`;
+
+        // Inject Seed Type if not present or update it
+        let detailTypeRow = document.getElementById('detail-type-row');
+        if (!detailTypeRow) {
+            const container = detailsCard.querySelector('.space-y-3');
+            detailTypeRow = document.createElement('div');
+            detailTypeRow.id = 'detail-type-row';
+            detailTypeRow.className = 'flex justify-between';
+            detailTypeRow.innerHTML = `
+                <span class="text-gray-500">Type</span>
+                <span id="detail-type" class="font-medium">--</span>
+            `;
+            // Insert as first item
+            container.insertBefore(detailTypeRow, container.firstChild);
+        }
+
+        const detailType = document.getElementById('detail-type');
+        if (detailType) {
+            detailType.textContent = seed.seed_type ? (seed.seed_type.charAt(0).toUpperCase() + seed.seed_type.slice(1)) : 'Unknown';
+        }
     },
 
     filterSeeds(filter) {
@@ -841,9 +874,36 @@ const App = {
                 doc.setFontSize(12);
                 doc.setTextColor(0);
                 doc.text("Summary", 20, 44);
+
+                // Calculate seed type stats
+                const typeStats = {};
+                (result.bounding_boxes || []).forEach(seed => {
+                    const type = (seed.seed_type || 'Unknown');
+                    const displayType = type.charAt(0).toUpperCase() + type.slice(1);
+                    if (!typeStats[displayType]) {
+                        typeStats[displayType] = { good: 0, bad: 0, total: 0 };
+                    }
+                    typeStats[displayType].total++;
+                    if (seed.quality === 'Good') typeStats[displayType].good++;
+                    else typeStats[displayType].bad++;
+                });
+
                 doc.setFontSize(11);
                 doc.text(`Total: ${result.total_seeds}  •  Good: ${stats.good_seeds} (${stats.good_percentage}%)  •  Bad: ${stats.bad_seeds} (${stats.bad_percentage}%)`, 20, 52);
-                doc.text(`Mode: ${this.state.mode === 'fast' ? 'Fast' : 'Accurate'}`, 20, 58);
+
+                // Add Type Breakdown
+                let typeY = 58;
+                const typeText = "By Type: " + Object.keys(typeStats).map(type => {
+                    const s = typeStats[type];
+                    return `${type} (${s.good}G / ${s.bad}B)`;
+                }).join("  •  ");
+
+                if (Object.keys(typeStats).length > 0) {
+                    doc.text(typeText, 20, typeY);
+                    typeY += 6;
+                }
+
+                doc.text(`Mode: ${this.state.mode === 'fast' ? 'Fast' : 'Accurate'}`, 20, typeY);
 
                 const tempCanvas = document.createElement('canvas');
                 const tempCtx = tempCanvas.getContext('2d');
@@ -870,7 +930,7 @@ const App = {
                 }
                 const imgProps = doc.getImageProperties(imgData);
                 const imgH = (imgProps.height * (pageW - 40)) / imgProps.width;
-                doc.addImage(imgData, 'JPEG', 20, 65, pageW - 40, imgH);
+                doc.addImage(imgData, 'JPEG', 20, typeY + 8, pageW - 40, imgH);
 
                 // doc.setFontSize(20);
                 // doc.setTextColor(...GREEN);
@@ -891,15 +951,16 @@ const App = {
                 const crops = [];
                 const tableData = (result.bounding_boxes || []).map(seed => {
                     try { crops.push(this.getCroppedSeedDataUrl(image, seed)); } catch (_) { crops.push(null); }
-                    return [seed.id, '', seed.quality, String(seed.classification_confidence) + '%'];
+                    const displayType = seed.seed_type ? (seed.seed_type.charAt(0).toUpperCase() + seed.seed_type.slice(1)) : '-';
+                    return [seed.id, '', displayType, seed.quality, String(seed.classification_confidence) + '%'];
                 });
                 doc.autoTable({
                     startY: 36,
-                    head: [['ID', 'Image', 'Quality', 'Conf %']],
+                    head: [['ID', 'Image', 'Type', 'Quality', 'Conf %']],
                     body: tableData,
                     theme: 'grid',
                     headStyles: { fillColor: GREEN },
-                    columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 30, minCellHeight: 20 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 } },
+                    columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 30, minCellHeight: 20 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 }, 4: { cellWidth: 30 } },
                     didDrawCell: (data) => {
                         if (data.column.index === 1 && data.cell.section === 'body' && crops[data.row.index]) {
                             const img = crops[data.row.index];
@@ -989,32 +1050,32 @@ const App = {
     getImage() {
         return this.state.images[this.state.currentTabIndex];
     },
-    
+
     // ============================================================================
     // History Functions
     // ============================================================================
-    
+
     async showHistory() {
         console.log('showHistory called');
         if (!this.elements.historySection) {
             console.error('History section not found');
             return;
         }
-        
+
         this.elements.uploadSection.classList.add('hidden');
         this.elements.resultsSection.classList.add('hidden');
         this.elements.loadingSection.classList.add('hidden');
         this.elements.historySection.classList.remove('hidden');
-        
+
         await this.loadHistoryStats();
         await this.loadBatches();
     },
-    
+
     hideHistory() {
         this.elements.historySection.classList.add('hidden');
         // Don't automatically show upload - let the caller decide what to show
     },
-    
+
     async loadHistoryStats() {
         try {
             const response = await fetch(`${this.API_URL}/api/stats`);
@@ -1023,7 +1084,7 @@ const App = {
                 console.error('Stats API error:', response.status, errorText);
                 throw new Error(`Failed to load stats: ${response.status}`);
             }
-            
+
             const data = await response.json();
             if (data.success && data.stats) {
                 this.state.historyStats = data.stats;
@@ -1044,7 +1105,7 @@ const App = {
             });
         }
     },
-    
+
     renderHistoryStats(stats) {
         const statsHtml = `
             <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow" style="display: flex; flex-direction: column;">
@@ -1088,19 +1149,19 @@ const App = {
             }
         }, 50);
     },
-    
+
     async loadBatches() {
         const { historyPage, historyLimit, historyStatusFilter } = this.state;
-        
+
         let url = `${this.API_URL}/api/batches?page=${historyPage}&limit=${historyLimit}`;
         if (historyStatusFilter) {
             url += `&status=${historyStatusFilter}`;
         }
-        
+
         try {
             this.elements.batchesList.innerHTML = '<div class="text-center py-10 text-gray-400"><i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 animate-spin"></i><p>Loading batches...</p></div>';
             lucide.createIcons();
-            
+
             const response = await fetch(url);
             if (!response.ok) {
                 if (response.status === 404) {
@@ -1108,19 +1169,19 @@ const App = {
                 }
                 throw new Error('Failed to load batches');
             }
-            
+
             const data = await response.json();
             this.renderBatches(data.batches);
             this.renderPagination(data.pagination);
         } catch (error) {
             console.error('Failed to load batches:', error);
-            const message = error.message === 'No scan history found' 
+            const message = error.message === 'No scan history found'
                 ? '<div class="text-center py-10 text-gray-500">No scan history found</div>'
                 : '<div class="text-center py-10 text-red-500">Failed to load batches</div>';
             this.elements.batchesList.innerHTML = message;
         }
     },
-    
+
     renderBatches(batches) {
         if (batches.length === 0) {
             this.elements.batchesList.innerHTML = `
@@ -1135,7 +1196,7 @@ const App = {
             lucide.createIcons();
             return;
         }
-        
+
         const batchesHtml = batches.map(batch => {
             const statusConfig = {
                 'COMPLETED': {
@@ -1155,25 +1216,25 @@ const App = {
                     icon: 'loader'
                 }
             };
-            
+
             const status = statusConfig[batch.status] || {
                 badge: 'bg-gray-100 text-gray-700 border-gray-200',
                 icon: 'help-circle'
             };
-            
+
             const date = new Date(batch.created_at);
-            const formattedDate = date.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
+            const formattedDate = date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
                 year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
             });
-            
-            const goodPercentage = batch.total_seeds > 0 
+
+            const goodPercentage = batch.total_seeds > 0
                 ? ((batch.good_seeds_count / batch.total_seeds) * 100).toFixed(1)
                 : 0;
-            
+
             return `
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group overflow-hidden" data-batch-id="${batch.id}">
                     <div class="p-5">
@@ -1250,10 +1311,10 @@ const App = {
                 </div>
             `;
         }).join('');
-        
+
         this.elements.batchesList.innerHTML = batchesHtml;
         lucide.createIcons();
-        
+
         // Add click handlers
         this.elements.batchesList.querySelectorAll('[data-batch-id]').forEach(el => {
             el.addEventListener('click', () => {
@@ -1262,21 +1323,20 @@ const App = {
             });
         });
     },
-    
+
     renderPagination(pagination) {
         if (pagination.total_pages <= 1) {
             this.elements.historyPagination.innerHTML = '';
             return;
         }
-        
+
         const paginationHtml = `
             <div class="flex items-center justify-center gap-3 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                 <button ${!pagination.has_prev ? 'disabled' : ''} 
-                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                        pagination.has_prev 
-                            ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm' 
-                            : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-transparent'
-                    }"
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${pagination.has_prev
+                ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-transparent'
+            }"
                     ${pagination.has_prev ? `onclick="App.goToHistoryPage(${pagination.page - 1})"` : ''}>
                     <i data-lucide="chevron-left" class="w-4 h-4"></i>
                     Previous
@@ -1285,11 +1345,10 @@ const App = {
                     Page <span class="font-bold text-gray-900">${pagination.page}</span> of <span class="font-bold text-gray-900">${pagination.total_pages}</span>
                 </div>
                 <button ${!pagination.has_next ? 'disabled' : ''}
-                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                        pagination.has_next 
-                            ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm' 
-                            : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-transparent'
-                    }"
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${pagination.has_next
+                ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-transparent'
+            }"
                     ${pagination.has_next ? `onclick="App.goToHistoryPage(${pagination.page + 1})"` : ''}>
                     Next
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
@@ -1299,16 +1358,16 @@ const App = {
         this.elements.historyPagination.innerHTML = paginationHtml;
         lucide.createIcons();
     },
-    
+
     goToHistoryPage(page) {
         this.state.historyPage = page;
         this.loadBatches();
     },
-    
+
     setHistoryStatusFilter(status) {
         this.state.historyStatusFilter = status;
         this.state.historyPage = 1; // Reset to first page
-        
+
         // Update button styles
         const buttons = {
             null: this.elements.filterStatusAll,
@@ -1316,7 +1375,7 @@ const App = {
             'FAILED': this.elements.filterStatusFailed,
             'PENDING': this.elements.filterStatusPending
         };
-        
+
         Object.keys(buttons).forEach(key => {
             const btn = buttons[key];
             if (key === (status || 'null')) {
@@ -1327,30 +1386,30 @@ const App = {
                 btn.classList.add('text-gray-600', 'hover:bg-gray-50');
             }
         });
-        
+
         this.loadBatches();
     },
-    
+
     async loadBatchDetails(batchId) {
         try {
             this.showLoading(true);
-            
+
             // Fetch batch details
             const batchResponse = await fetch(`${this.API_URL}/api/batches/${batchId}`);
             if (!batchResponse.ok) throw new Error('Failed to load batch details');
             const batchData = await batchResponse.json();
-            
+
             // Fetch detections
             const detectionsResponse = await fetch(`${this.API_URL}/api/batches/${batchId}/detections`);
             if (!detectionsResponse.ok) throw new Error('Failed to load detections');
             const detectionsData = await detectionsResponse.json();
-            
+
             // Process data for display
             const batch = batchData.batch;
             const images = batch.images;
-            
+
             console.log('Batch images from API:', images);
-            
+
             // Load images with crossOrigin so we can draw them to canvas for PDF export
             this.state.images = await Promise.all(images.map((img, idx) => {
                 return new Promise((resolve, reject) => {
@@ -1379,7 +1438,7 @@ const App = {
                     image.src = imageUrl;
                 });
             }));
-            
+
             // Group detections by image
             const detectionsByImage = {};
             detectionsData.detections.forEach(det => {
@@ -1388,28 +1447,28 @@ const App = {
                 }
                 detectionsByImage[det.image_id].push(det);
             });
-            
+
             // Create a map of image ID to loaded Image object
             const imageMap = {};
             images.forEach((img, idx) => {
                 imageMap[img.id] = this.state.images[idx];
             });
-            
+
             console.log('Image map:', Object.keys(imageMap).map(id => ({ id, url: images.find(img => img.id == id)?.url })));
-            
+
             // Format results - ensure we match images by ID, not index
             this.state.results = images.map((img, idx) => {
                 const detections = detectionsByImage[img.id] || [];
                 const goodCount = detections.filter(d => d.quality_label === 'GOOD').length;
                 const badCount = detections.filter(d => d.quality_label === 'BAD').length;
                 const total = detections.length;
-                
+
                 // Get the corresponding loaded image
                 const loadedImage = imageMap[img.id];
                 if (!loadedImage) {
                     console.error(`No loaded image found for image ID ${img.id}`);
                 }
-                
+
                 // Convert detections to bounding boxes format
                 const bounding_boxes = detections.map((det, detIdx) => {
                     // Convert normalized coordinates back to pixel coordinates
@@ -1417,7 +1476,7 @@ const App = {
                     const y1 = det.box_y_norm * img.height;
                     const width = det.box_w_norm * img.width;
                     const height = det.box_h_norm * img.height;
-                    
+
                     return {
                         id: detIdx,
                         x1: x1,
@@ -1438,7 +1497,7 @@ const App = {
                         color: det.quality_label === 'GOOD' ? '#00FF00' : '#FF0000'
                     };
                 });
-                
+
                 return {
                     filename: img.original_filename || `image_${idx}`,
                     image_index: idx,
@@ -1457,16 +1516,16 @@ const App = {
                     }
                 };
             });
-            
+
             // Ensure images array matches results array order
             // Reorder images array to match results order
             this.state.images = images.map(img => imageMap[img.id]);
-            
+
             // Set files for tabs - ensure same length as images
             this.state.files = images.map((img, idx) => ({
                 name: img.original_filename || `image_${idx}.jpg`
             }));
-            
+
             // Ensure arrays are aligned
             if (this.state.images.length !== this.state.results.length) {
                 console.error('Mismatch: images.length =', this.state.images.length, 'results.length =', this.state.results.length);
@@ -1474,12 +1533,12 @@ const App = {
             if (this.state.files.length !== this.state.images.length) {
                 console.error('Mismatch: files.length =', this.state.files.length, 'images.length =', this.state.images.length);
             }
-            
+
             // Show results - hide all other sections first
             this.elements.historySection.classList.add('hidden');
             this.elements.uploadSection.classList.add('hidden');
             this.elements.loadingSection.classList.add('hidden');
-            
+
             this.state.currentTabIndex = 0;
             this.state.zoomLevel = 1;
             this.state.offsetX = 0;
@@ -1494,15 +1553,15 @@ const App = {
                     bad_percentage: batch.bad_percentage ?? 0
                 } : null
             };
-            
+
             this.showResults();
             this.renderTabs();
             this.updateView();
-            
+
             console.log('Batch details loaded. Current tab:', this.state.currentTabIndex);
             console.log('Current image:', this.getImage());
             console.log('Current result:', this.getCurrentResult());
-            
+
         } catch (error) {
             console.error('Failed to load batch details:', error);
             this.showError(error.message || 'Failed to load batch details');

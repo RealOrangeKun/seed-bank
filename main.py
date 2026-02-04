@@ -23,7 +23,9 @@ from sqlalchemy import func
 
 # Database imports
 from app.database import get_db
-from app.models import User, ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel
+from app.models import User, ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel, SeedCatalog, AIModel
+from app.ml.model_manager import ModelManager
+from app.ml.detection_pipeline import detect_seeds_multi, classify_seeds_multi
 from app.crud import (
     get_or_create_guest_user, 
     generate_device_fingerprint,
@@ -46,15 +48,16 @@ app.add_middleware(
 )
 
 # Global variables for models
-detection_model = None
-classification_model = None
+model_manager: Optional[ModelManager] = None
 device = None
 
 # Configuration
-DETECTION_CONF_THRESHOLD = 0.90
-CLASSIFICATION_THRESHOLD = 0.9
 NMS_THRESHOLD = 0.3
 IMAGE_SIZE = 224
+
+# Note: Thresholds are now loaded from database via ModelManager
+# - Detection threshold: from ai_models table (type='detection')
+# - Quality thresholds: from ai_models table per seed type (type='quality')
 
 # Transforms
 detection_transform = A.Compose(
@@ -76,43 +79,34 @@ classification_transform = transforms.Compose(
 
 @app.on_event("startup")
 async def load_models():
-    """Load both models on startup"""
-    global detection_model, classification_model, device
-
+    """Load all models on startup using ModelManager"""
+    global model_manager, device
+    
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print(f"Using device: {device}")
-
-    # Load Faster R-CNN detection model
-    detection_model_path = "models/FasterRCNN_ResNet50_Final.pth"
-    if not os.path.exists(detection_model_path):
-        raise Exception(f"Detection model not found at {detection_model_path}")
-
-    detection_model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights=None)
-    num_ftrs = detection_model.roi_heads.box_predictor.cls_score.in_features
-    detection_model.roi_heads.box_predictor = FastRCNNPredictor(num_ftrs, 2)
-    detection_model.load_state_dict(
-        torch.load(detection_model_path, map_location=device)
-    )
-    detection_model.to(device)
-    detection_model.eval()
-    print("✓ Detection model loaded successfully")
-
-    # Load ResNet50 classification model
-    classification_model_path = "models/ResNet50_maize_seeds_NEW.pth"
-    if not os.path.exists(classification_model_path):
-        raise Exception(
-            f"Classification model not found at {classification_model_path}"
-        )
-
-    classification_model = models.resnet50(weights=None)
-    num_ftrs = classification_model.fc.in_features
-    classification_model.fc = nn.Sequential(nn.Linear(num_ftrs, 1), nn.Sigmoid())
-    classification_model.load_state_dict(
-        torch.load(classification_model_path, map_location=device)
-    )
-    classification_model.to(device)
-    classification_model.eval()
-    print("✓ Classification model loaded successfully")
+    
+    # Import here to avoid circular dependencies
+    from app.database import SessionLocal
+    
+    # Create database session
+    db = SessionLocal()
+    
+    try:
+        # Initialize model manager (loads all active models from database)
+        model_manager = ModelManager(db, device)
+        
+        print("\n" + "="*50)
+        print("MODEL CONFIGURATION")
+        print("="*50)
+        config = model_manager.get_config_summary()
+        print(f"Detection: {config['detection_model']['name']} (v{config['detection_model']['version']})")
+        print(f"Quality Models:")
+        for seed_type, model_info in config['quality_models'].items():
+            print(f"  - {seed_type}: {model_info['name']} (threshold={model_info['threshold']})")
+        print("="*50 + "\n")
+        
+    finally:
+        db.close()
 
 
 def save_image_to_storage(file_contents: bytes, batch_id: int, filename: str, image_index: int = 0) -> str:
@@ -155,50 +149,18 @@ def process_uploaded_image(file_bytes: bytes) -> np.ndarray:
 
 
 def detect_seeds(rgb_img: np.ndarray) -> tuple:
-    """Run object detection and return boxes with scores"""
-    orig_h, orig_w, _ = rgb_img.shape
-
-    # Prepare image for detection
-    transformed = detection_transform(image=rgb_img)
-    img_tensor = transformed["image"].unsqueeze(0).to(device)
-
-    # Run detection
-    with torch.no_grad():
-        prediction = detection_model(img_tensor)[0]
-
-    boxes = prediction["boxes"]
-    scores = prediction["scores"]
-
-    # Apply NMS
-    keep = nms(boxes, scores, NMS_THRESHOLD)
-    boxes = boxes[keep].cpu().numpy()
-    scores = scores[keep].cpu().numpy()
-
-    # Filter by confidence and scale to original dimensions
-    detected_seeds = []
-    for box, score in zip(boxes, scores):
-        if score > DETECTION_CONF_THRESHOLD:
-            x1, y1, x2, y2 = box
-            # Scale from 224x224 back to original dimensions
-            x1_orig = int(x1 * (orig_w / IMAGE_SIZE))
-            y1_orig = int(y1 * (orig_h / IMAGE_SIZE))
-            x2_orig = int(x2 * (orig_w / IMAGE_SIZE))
-            y2_orig = int(y2 * (orig_h / IMAGE_SIZE))
-
-            # Clip to image boundaries
-            x1_orig = max(0, min(x1_orig, orig_w))
-            y1_orig = max(0, min(y1_orig, orig_h))
-            x2_orig = max(0, min(x2_orig, orig_w))
-            y2_orig = max(0, min(y2_orig, orig_h))
-
-            detected_seeds.append(
-                {
-                    "box": (x1_orig, y1_orig, x2_orig, y2_orig),
-                    "detection_confidence": float(score),
-                }
-            )
-
-    return detected_seeds, (orig_h, orig_w)
+    """
+    Run object detection with 3-class output (background, coffee, maize).
+    Returns detected seeds with seed type information.
+    """
+    return detect_seeds_multi(
+        rgb_img, 
+        model_manager, 
+        device, 
+        detection_transform, 
+        NMS_THRESHOLD, 
+        IMAGE_SIZE
+    )
 
 
 def calculate_confidence_score(
@@ -240,69 +202,21 @@ def calculate_confidence_score(
         "classification_confidence": round(
             confidence, 2
         ),  # How confident we are in the classification
-        "raw_probability": round(prob, 4),  # Keep raw value for reference
     }
 
 
 def classify_seeds(rgb_img: np.ndarray, detected_seeds: List[Dict]) -> List[Dict]:
-    """Classify each detected seed as Good or Bad with detailed confidence metrics"""
-    classified_results = []
-
-    for seed_data in detected_seeds:
-        x1, y1, x2, y2 = seed_data["box"]
-
-        # Crop the seed region
-        seed_crop = rgb_img[y1:y2, x1:x2]
-
-        # Skip invalid crops
-        if seed_crop.size == 0:
-            continue
-
-        # Calculate seed metrics
-        width = x2 - x1
-        height = y2 - y1
-        area = width * height
-        aspect_ratio = width / height if height > 0 else 1.0
-        centroid_x = (x1 + x2) // 2
-        centroid_y = (y1 + y2) // 2
-
-        # Convert to PIL for torchvision transforms
-        pil_crop = Image.fromarray(seed_crop)
-        crop_tensor = classification_transform(pil_crop).unsqueeze(0).to(device)
-
-        # Classify
-        with torch.no_grad():
-            output = classification_model(crop_tensor)
-            prob = output[0].item()
-
-        # Determine label (based on your notebook logic)
-        label = "Bad" if prob > CLASSIFICATION_THRESHOLD else "Good"
-
-        # Calculate confidence scores
-        confidence_metrics = calculate_confidence_score(prob, CLASSIFICATION_THRESHOLD)
-
-        classified_results.append(
-            {
-                "box": seed_data["box"],
-                "detection_confidence": seed_data["detection_confidence"],
-                "quality": label,
-                # New detailed metrics
-                "good_percentage": confidence_metrics["good_percentage"],
-                "bad_percentage": confidence_metrics["bad_percentage"],
-                "classification_confidence": confidence_metrics[
-                    "classification_confidence"
-                ],
-                "raw_probability": confidence_metrics["raw_probability"],
-                # Seed physical metrics
-                "area": area,
-                "width": width,
-                "height": height,
-                "aspect_ratio": round(aspect_ratio, 2),
-                "centroid": {"x": centroid_x, "y": centroid_y},
-            }
-        )
-
-    return classified_results
+    """
+    Classify each detected seed using the appropriate quality model based on seed type.
+    Routes to coffee or maize model automatically.
+    """
+    return classify_seeds_multi(
+        rgb_img, 
+        detected_seeds, 
+        model_manager, 
+        device, 
+        classification_transform
+    )
 
 
 @app.get("/")
@@ -311,8 +225,7 @@ async def root():
     return {
         "status": "running",
         "message": "Seed Quality Detection API",
-        "models_loaded": detection_model is not None
-        and classification_model is not None,
+        "models_loaded": model_manager is not None,
         "device": str(device),
     }
 
@@ -438,6 +351,7 @@ async def analyze_image(
             detection = SeedDetection(
                 batch_id=scan_batch.id,
                 image_id=scan_image.id,
+                seed_type_id=seed_data["seed_type_id"],
                 quality_label=QualityLabel.GOOD if seed_data["quality"] == "Good" else QualityLabel.BAD,
                 confidence_score=seed_data["classification_confidence"] / 100.0,  # Convert percentage to 0-1
                 detection_confidence=seed_data["detection_confidence"],
@@ -477,6 +391,8 @@ async def analyze_image(
             bounding_boxes.append(
                 {
                     "id": idx,
+                            "seed_type": seed["seed_type_name"],
+                    "seed_type": seed["seed_type_name"],
                     "x1": x1,
                     "y1": y1,
                     "x2": x2,
@@ -491,7 +407,6 @@ async def analyze_image(
                     "good_percentage": seed["good_percentage"],
                     "bad_percentage": seed["bad_percentage"],
                     "classification_confidence": seed["classification_confidence"],
-                    "raw_probability": seed["raw_probability"],
                     "color": (
                         "#FF0000" if seed["quality"] == "Bad" else "#00FF00"
                     ),  # Red or Green
@@ -514,10 +429,7 @@ async def analyze_image(
                 ),
             },
             "image_dimensions": {"width": img_width, "height": img_height},
-            "thresholds": {
-                "detection_confidence": DETECTION_CONF_THRESHOLD,
-                "classification_threshold": CLASSIFICATION_THRESHOLD,
-            },
+            "thresholds": model_manager.get_config_summary() if model_manager else {},
         }
 
         return JSONResponse(content=response_data)
@@ -630,6 +542,7 @@ async def analyze_batch(
                     detection = SeedDetection(
                         batch_id=scan_batch.id,
                         image_id=scan_image.id,
+                seed_type_id=seed_data["seed_type_id"],
                         quality_label=QualityLabel.GOOD if seed_data["quality"] == "Good" else QualityLabel.BAD,
                         confidence_score=seed_data["classification_confidence"] / 100.0,  # Convert percentage to 0-1
                         detection_confidence=seed_data["detection_confidence"],
@@ -656,6 +569,7 @@ async def analyze_batch(
                     bounding_boxes.append(
                         {
                             "id": idx,
+                            "seed_type": seed["seed_type_name"],
                             "x1": x1,
                             "y1": y1,
                             "x2": x2,
@@ -674,7 +588,6 @@ async def analyze_batch(
                             "classification_confidence": seed[
                                 "classification_confidence"
                             ],
-                            "raw_probability": seed["raw_probability"],
                             "color": (
                                 "#FF0000" if seed["quality"] == "Bad" else "#00FF00"
                             ),
@@ -754,10 +667,7 @@ async def analyze_batch(
                 "bad_percentage": overall_bad_pct,
             },
             "results": all_results,
-            "thresholds": {
-                "detection_confidence": DETECTION_CONF_THRESHOLD,
-                "classification_threshold": CLASSIFICATION_THRESHOLD,
-            },
+            "thresholds": model_manager.get_config_summary() if model_manager else {},
         }
 
         return JSONResponse(content=response_data)
@@ -775,15 +685,29 @@ async def analyze_batch(
 @app.get("/api/config")
 async def get_config():
     """Get current configuration parameters"""
+    if model_manager is None:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    config = model_manager.get_config_summary()
+    
     return {
-        "detection_confidence_threshold": DETECTION_CONF_THRESHOLD,
-        "classification_threshold": CLASSIFICATION_THRESHOLD,
+        "detection_model": config["detection_model"],
+        "quality_models": config["quality_models"],
         "nms_threshold": NMS_THRESHOLD,
         "image_size": IMAGE_SIZE,
         "device": str(device),
     }
 
 
+
+
+@app.get("/api/models/config")
+async def get_models_config():
+    """Get active model configurations from database"""
+    if model_manager is None:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    return model_manager.get_config_summary()
 # Roboflow Client (Using requests due to Python 3.13 incompatibility with inference-sdk)
 import requests
 import base64
@@ -848,10 +772,21 @@ async def analyze_image_fast(file: UploadFile = File(...)):
                 x2 = max(0, min(x2, orig_w))
                 y2 = max(0, min(y2, orig_h))
 
+                # Get class name and ID
+                class_name = pred["class"].lower()
+                seed_type_id = None
+                if model_manager:
+                    try:
+                        seed_type_id = model_manager.get_seed_type_id(class_name)
+                    except:
+                        pass # Keep None if not found
+
                 detected_seeds.append(
                     {
                         "box": (x1, y1, x2, y2),
                         "detection_confidence": float(pred["confidence"]),
+                        "seed_type_name": class_name, 
+                        "seed_type_id": seed_type_id
                     }
                 )
         if len(detected_seeds) == 0:
@@ -886,6 +821,7 @@ async def analyze_image_fast(file: UploadFile = File(...)):
             bounding_boxes.append(
                 {
                     "id": idx,
+                            "seed_type": seed["seed_type_name"],
                     "x1": x1,
                     "y1": y1,
                     "x2": x2,
@@ -900,7 +836,6 @@ async def analyze_image_fast(file: UploadFile = File(...)):
                     "good_percentage": seed["good_percentage"],
                     "bad_percentage": seed["bad_percentage"],
                     "classification_confidence": seed["classification_confidence"],
-                    "raw_probability": seed["raw_probability"],
                     "color": "#FF0000" if seed["quality"] == "Bad" else "#00FF00",
                 }
             )
@@ -1029,6 +964,7 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                     bounding_boxes.append(
                         {
                             "id": idx,
+                            "seed_type": seed["seed_type_name"],
                             "x1": x1,
                             "y1": y1,
                             "x2": x2,
@@ -1047,7 +983,6 @@ async def analyze_batch_fast(files: List[UploadFile] = File(...)):
                             "classification_confidence": seed[
                                 "classification_confidence"
                             ],
-                            "raw_probability": seed["raw_probability"],
                             "color": (
                                 "#FF0000" if seed["quality"] == "Bad" else "#00FF00"
                             ),

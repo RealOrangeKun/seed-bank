@@ -20,6 +20,45 @@ class QualityLabel(str, enum.Enum):
     BAD = "BAD"
 
 
+class SeedCatalog(Base):
+    """Seed type catalog (maize, coffee, etc.)."""
+    __tablename__ = "seed_catalog"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    ai_models = relationship("AIModel", back_populates="seed_type")
+    detections = relationship("SeedDetection", back_populates="seed_type")
+
+
+class AIModel(Base):
+    """AI model configurations (detection and quality models)."""
+    __tablename__ = "ai_models"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    type = Column(String(50), nullable=False)  # 'detection' or 'quality'
+    version = Column(String(50), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    default_threshold = Column(Float, nullable=False)
+    seed_type_id = Column(BigInteger, ForeignKey("seed_catalog.id"), nullable=True, index=True)  # NULL for detection models
+    model_path = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Constraints
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('detection', 'quality')",
+            name='valid_model_type'
+        ),
+    )
+
+    # Relationships
+    seed_type = relationship("SeedCatalog", back_populates="ai_models")
+
+
 class User(Base):
     """User model - supports both registered users and guests."""
     __tablename__ = "users"
@@ -104,6 +143,7 @@ class SeedDetection(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     batch_id = Column(BigInteger, ForeignKey("scan_batches.id", ondelete="CASCADE"), nullable=False, index=True)
     image_id = Column(BigInteger, ForeignKey("scan_images.id", ondelete="CASCADE"), nullable=False, index=True)
+    seed_type_id = Column(BigInteger, ForeignKey("seed_catalog.id"), nullable=True, index=True)  # Track detected seed type
     
     # Classification
     quality_label = Column(Enum(QualityLabel), nullable=False)
@@ -136,4 +176,5 @@ class SeedDetection(Base):
     # Relationships
     batch = relationship("ScanBatch", back_populates="detections")
     image = relationship("ScanImage", back_populates="detections")
+    seed_type = relationship("SeedCatalog", back_populates="detections")
 
