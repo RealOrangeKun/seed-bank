@@ -1487,7 +1487,8 @@ const App = {
                         bad_percentage: det.bad_percentage,
                         classification_confidence: (det.confidence_score * 100).toFixed(2),
                         raw_probability: det.confidence_score,
-                        color: det.quality_label === 'GOOD' ? '#00FF00' : '#FF0000'
+                        color: det.quality_label === 'GOOD' ? '#00FF00' : '#FF0000',
+                        seed_type: det.seed_type_name || 'Unknown'
                     };
                 });
 

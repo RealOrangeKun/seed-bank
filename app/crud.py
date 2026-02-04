@@ -257,7 +257,8 @@ def get_batch_detections(
             "centroid_x": det.centroid_x,
             "centroid_y": det.centroid_y,
             "good_percentage": det.good_percentage,
-            "bad_percentage": det.bad_percentage
+            "bad_percentage": det.bad_percentage,
+            "seed_type_name": det.seed_type.name if det.seed_type else "unknown"
         })
     
     return formatted_detections
