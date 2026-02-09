@@ -1,0 +1,52 @@
+---
+config:
+  theme: dark
+  layout: dagre
+---
+classDiagram
+    direction TB
+
+    class ScanBatch
+
+    class ScanImage {
+        +BigInteger id
+        +BigInteger batch_id
+        +Text storage_path
+        +String original_filename
+        +Integer width
+        +Integer height
+        +DateTime created_at
+    }
+
+    class SeedDetection {
+        +BigInteger id
+        +BigInteger batch_id
+        +BigInteger image_id
+        +QualityLabel quality_label
+        +Float confidence_score
+        +Float detection_confidence
+        +Float box_x_norm
+        +Float box_y_norm
+        +Float box_w_norm
+        +Float box_h_norm
+        +Float area
+        +Float width
+        +Float height
+        +Float aspect_ratio
+        +Float centroid_x
+        +Float centroid_y
+        +Float good_percentage
+        +Float bad_percentage
+        +DateTime created_at
+    }
+
+    class QualityLabel {
+        <<enumeration>>
+        GOOD
+        BAD
+    }
+
+    ScanBatch "1" --> "*" ScanImage : contains
+    ScanBatch "1" --> "*" SeedDetection : has
+    ScanImage "1" --> "*" SeedDetection : has
+    SeedDetection --> QualityLabel : quality_label

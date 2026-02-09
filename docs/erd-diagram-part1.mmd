@@ -1,0 +1,38 @@
+---
+config:
+  theme: base
+  background: '#f1f8D9'
+  themeVariables:
+    primaryColor: '#F1f5fe'
+    primaryBorderColor: '#F1579b'
+    lineColor: '#2e7d3F'
+    clusterBkg: '#f1f8D9'
+    clusterBorder: '#5F8b2f'
+  layout: dagre
+---
+erDiagram
+    USER ||--o{ SCAN_BATCH : owns
+
+    USER {
+        bigint id PK
+        string username UK "nullable"
+        string email UK "nullable"
+        string password_hash "nullable"
+        string device_fingerprint UK "nullable"
+        boolean is_guest "default: true"
+        timestamp created_at
+    }
+
+    SCAN_BATCH {
+        bigint id PK
+        bigint user_id FK
+        enum status "PENDING, PROCESSING, COMPLETED, FAILED"
+        text error_message "nullable"
+        timestamp processing_start_at "nullable"
+        timestamp processing_end_at "nullable"
+        integer processing_duration_ms "nullable"
+        integer total_seeds "default: 0"
+        integer bad_seeds_count "default: 0"
+        float avg_confidence_score "default: 0.0"
+        timestamp created_at
+    }

@@ -1,0 +1,52 @@
+---
+config:
+  theme: base
+  background: '#f1f8D9'
+  themeVariables:
+    primaryColor: '#F1f5fe'
+    primaryBorderColor: '#F1579b'
+    lineColor: '#2e7d3F'
+    clusterBkg: '#f1f8D9'
+    clusterBorder: '#5F8b2f'
+  layout: dagre
+---
+erDiagram
+    SCAN_BATCH ||--o{ SCAN_IMAGE : contains
+    SCAN_BATCH ||--o{ SEED_DETECTION : has
+    SCAN_IMAGE ||--o{ SEED_DETECTION : has
+
+    SCAN_BATCH {
+        bigint id PK
+    }
+
+    SCAN_IMAGE {
+        bigint id PK
+        bigint batch_id FK
+        text storage_path
+        string original_filename "nullable"
+        integer width "nullable"
+        integer height "nullable"
+        timestamp created_at
+    }
+
+    SEED_DETECTION {
+        bigint id PK
+        bigint batch_id FK
+        bigint image_id FK
+        enum quality_label "GOOD, BAD"
+        float confidence_score
+        float detection_confidence
+        float box_x_norm "0.0-1.0"
+        float box_y_norm "0.0-1.0"
+        float box_w_norm "0.0-1.0"
+        float box_h_norm "0.0-1.0"
+        float area "nullable"
+        float width "nullable"
+        float height "nullable"
+        float aspect_ratio "nullable"
+        float centroid_x "nullable"
+        float centroid_y "nullable"
+        float good_percentage "nullable"
+        float bad_percentage "nullable"
+        timestamp created_at
+    }
