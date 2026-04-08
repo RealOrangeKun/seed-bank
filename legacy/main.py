@@ -868,9 +868,6 @@ async def analyze_image_fast(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Fast analysis failed: {str(e)}")
 
 
-
-
-
 @app.post("/api/analyze-batch/fast")
 async def analyze_batch_fast(
     request: Request,
