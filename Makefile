@@ -1,0 +1,114 @@
+# Seed-Bank dev workflow.
+# Usage: `make help` for the full list.
+
+SHELL := /usr/bin/env bash
+.SHELLFLAGS := -eu -o pipefail -c
+.DEFAULT_GOAL := help
+
+PYTHON ?= python3.12
+VENV   ?= .venv
+PIP    := $(VENV)/bin/pip
+PY     := $(VENV)/bin/python
+COMPOSE ?= docker compose
+
+.PHONY: help
+help: ## Show this help.
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+
+# ── Local Python env ────────────────────────────────────────────────────────
+.PHONY: venv install install-inference
+venv: ## Create a local virtualenv.
+	$(PYTHON) -m venv $(VENV)
+	$(PIP) install --upgrade pip uv
+
+install: venv ## Install runtime + dev deps locally.
+	$(VENV)/bin/uv pip install -e ".[dev]"
+
+install-inference: venv ## Install ML deps locally (heavy).
+	$(VENV)/bin/uv pip install -e ".[dev,inference]"
+
+# ── Compose lifecycle ───────────────────────────────────────────────────────
+.PHONY: up down restart logs ps
+up: ## Start the lean stack (no GPU worker).
+	$(COMPOSE) up -d --build
+	@$(MAKE) wait
+
+up-gpu: ## Start including the GPU inference worker.
+	$(COMPOSE) --profile gpu up -d --build
+	@$(MAKE) wait
+
+up-dev: ## Start with adminer for quick DB poking.
+	$(COMPOSE) --profile dev up -d --build
+	@$(MAKE) wait
+
+down: ## Stop and remove containers.
+	$(COMPOSE) down
+
+restart: down up ## Restart everything cleanly.
+
+logs: ## Follow logs for all services.
+	$(COMPOSE) logs -f --tail=200
+
+ps: ## Show service status.
+	$(COMPOSE) ps
+
+wait: ## Wait until api becomes healthy.
+	@echo "waiting for api /readyz ..."
+	@for i in $$(seq 1 60); do \
+	  if curl -fsS http://localhost:8000/readyz >/dev/null 2>&1; then \
+	    echo "api ready"; exit 0; \
+	  fi; sleep 2; \
+	done; echo "api did not become ready"; $(COMPOSE) ps; exit 1
+
+# ── Migrations / seed ────────────────────────────────────────────────────────
+.PHONY: migrate migrate-down seed
+migrate: ## Apply Alembic migrations against the dev DB.
+	$(COMPOSE) exec api alembic upgrade head
+
+migrate-down: ## Roll back one Alembic revision.
+	$(COMPOSE) exec api alembic downgrade -1
+
+seed: ## Seed catalog, register models, create demo users.
+	$(COMPOSE) exec api python -m scripts.seed_dev
+
+# ── Quality gates ────────────────────────────────────────────────────────────
+.PHONY: fmt lint typecheck check test test-unit test-integration test-e2e cov
+fmt: ## Auto-format with ruff.
+	$(VENV)/bin/ruff format .
+	$(VENV)/bin/ruff check --fix .
+
+lint: ## Lint without auto-fix.
+	$(VENV)/bin/ruff format --check .
+	$(VENV)/bin/ruff check .
+
+typecheck: ## Strict mypy.
+	$(VENV)/bin/mypy
+
+check: lint typecheck test-unit ## Fast pre-commit gate.
+
+test: ## Full test pyramid (unit + integration + e2e).
+	$(VENV)/bin/pytest
+
+test-unit: ## Unit tests only.
+	$(VENV)/bin/pytest -m "unit or not integration and not e2e" tests/unit
+
+test-integration: ## Integration tests (testcontainers).
+	$(VENV)/bin/pytest -m integration tests/integration
+
+test-e2e: ## Full e2e suite.
+	$(VENV)/bin/pytest -m e2e tests/e2e
+
+cov: ## Open coverage report (xml in CI, html locally).
+	$(VENV)/bin/pytest --cov-report=html
+	@echo "htmlcov/index.html"
+
+# ── Image hygiene ────────────────────────────────────────────────────────────
+.PHONY: image-bloat
+image-bloat: ## Print top 30 largest files in the api image.
+	docker run --rm seedbank/api:0.1.0 sh -c "du -ah /opt/venv /app 2>/dev/null | sort -rh | head -30"
+
+# ── Cleanup ──────────────────────────────────────────────────────────────────
+.PHONY: clean
+clean: ## Remove caches, coverage, build artifacts.
+	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov coverage.xml dist build *.egg-info
+	find . -type d -name __pycache__ -prune -exec rm -rf {} +

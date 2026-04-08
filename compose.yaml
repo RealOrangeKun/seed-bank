@@ -1,0 +1,247 @@
+# Lean dev stack. Healthchecks everywhere, named volumes, no `latest` for
+# first-party images, no secrets in plain env (uses `${VAR}` references that
+# resolve from `.env`). The GPU worker is opt-in via the `gpu` profile so a
+# laptop without CUDA can still bring up the rest.
+
+name: seedbank
+
+x-app-env: &app-env
+  ENV: ${ENV:-dev}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-seedbank}:${POSTGRES_PASSWORD:-seedbank}@postgres:5432/${POSTGRES_DB:-seedbank}
+  REDIS_DSN: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-seedbank}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-seedbank-dev-secret}
+  CLICKHOUSE_HOST: clickhouse
+  CLICKHOUSE_PORT: 8123
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-seedbank-dev-secret}
+  CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB:-seedbank}
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+  ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-cpu
+    image: seedbank/api:0.1.0
+    container_name: seedbank-api
+    environment:
+      <<: *app-env
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.5", memory: 768M}
+
+  worker-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-cpu
+    image: seedbank/worker-cpu:0.1.0
+    container_name: seedbank-worker-cpu
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping"]
+    environment:
+      <<: *app-env
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A seedbank.workers.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  worker-inference:
+    profiles: ["gpu"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-gpu
+    image: seedbank/worker-inference:0.1.0
+    container_name: seedbank-worker-inference
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference,evaluation"]
+    environment:
+      <<: *app-env
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+        limits: {memory: 8G}
+    depends_on:
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: seedbank-postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=4"
+      - "-c"
+      - "max_wal_senders=4"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-seedbank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seedbank}
+      POSTGRES_DB: ${POSTGRES_DB:-seedbank}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./ops/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  redis:
+    image: redis:7-alpine
+    container_name: seedbank-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 320M}
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: seedbank-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-seedbank}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-seedbank-dev-secret}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.10-alpine
+    container_name: seedbank-clickhouse
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-seedbank}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-seedbank-dev-secret}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ports:
+      - "127.0.0.1:8123:8123"
+    ulimits:
+      nofile: {soft: 262144, hard: 262144}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 1G}
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.18.0
+    container_name: seedbank-mlflow
+    command:
+      - "mlflow"
+      - "server"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "5000"
+      - "--backend-store-uri"
+      - "postgresql://${POSTGRES_USER:-seedbank}:${POSTGRES_PASSWORD:-seedbank}@postgres:5432/mlflow"
+      - "--artifacts-destination"
+      - "s3://seedbank-experiments/mlflow"
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-seedbank}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-seedbank-dev-secret}
+    ports:
+      - "127.0.0.1:5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  adminer:
+    profiles: ["dev"]
+    image: adminer:4.8.1
+    container_name: seedbank-adminer
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  clickhouse-data:
+
+networks:
+  default:
+    name: seedbank-net
