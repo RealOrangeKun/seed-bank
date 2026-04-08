@@ -22,8 +22,11 @@ if config.config_file_name is not None:
 settings = get_settings()
 config.set_main_option("sqlalchemy.url", str(settings.postgres_dsn))
 
-# Phase 3 will replace this with `from seedbank.infrastructure.db.base import Base`.
-target_metadata = None
+# Import models so they register with Base.metadata.
+from seedbank.infrastructure.db import models  # noqa: F401, E402
+from seedbank.infrastructure.db.base import Base  # noqa: E402
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
