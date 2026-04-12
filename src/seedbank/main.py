@@ -12,9 +12,12 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from starlette.middleware.sessions import SessionMiddleware
 
 from seedbank.api.errors import install_error_handlers
 from seedbank.api.middleware import RequestIdMiddleware
+from seedbank.api.rate_limit import install_rate_limiter
+from seedbank.api.v1 import api_router as api_v1_router
 from seedbank.core.config import Settings, get_settings
 from seedbank.core.logging import configure_logging, get_logger
 from seedbank.infrastructure.analytics import close_clickhouse, get_clickhouse
@@ -69,8 +72,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+    # SessionMiddleware is required by authlib's OAuth flow to round-trip the
+    # `state` parameter across the redirect to the provider.
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.jwt_secret.get_secret_value(),
+        same_site="lax",
+        https_only=settings.env == "prod",
+    )
 
     install_error_handlers(app)
+    install_rate_limiter(app)
+    app.include_router(api_v1_router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

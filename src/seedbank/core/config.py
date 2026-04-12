@@ -103,6 +103,12 @@ class Settings(BaseSettings):
 
     # ── Rate limiting ────────────────────────────────────────────────────────
     rate_limit_per_minute: int = 120
+    rate_limit_login_per_minute: int = 10
+    rate_limit_register_per_minute: int = 5
+    rate_limit_refresh_per_minute: int = 60
+
+    # ── Email verification ───────────────────────────────────────────────────
+    email_verification_ttl_seconds: int = 60 * 60 * 24  # 24h
 
 
 @lru_cache(maxsize=1)

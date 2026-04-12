@@ -36,15 +36,18 @@ def postgres_container() -> Iterator[Any]:
         yield pg
 
 
-@pytest_asyncio.fixture
-async def async_engine(postgres_container: Any) -> AsyncIterator[AsyncEngine]:
-    """Async engine pointing at the testcontainer; baseline migration applied."""
-    from sqlalchemy import create_engine
+def _migrate_to_head(sync_dsn: str) -> None:
+    """Apply alembic migrations using sync drivers.
 
-    sync_dsn = postgres_container.get_connection_url().replace(
-        "postgresql+psycopg2://", "postgresql+psycopg://"
-    )
-    async_dsn = sync_dsn.replace("postgresql+psycopg://", "postgresql+asyncpg://")
+    `alembic/env.py` calls `asyncio.run` in online mode, so this MUST NOT be
+    invoked from a running event loop. Callers in async fixtures must wrap
+    this in `asyncio.to_thread(...)`.
+    """
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine
 
     sync_engine = create_engine(sync_dsn, future=True)
     with sync_engine.begin() as conn:
@@ -52,21 +55,31 @@ async def async_engine(postgres_container: Any) -> AsyncIterator[AsyncEngine]:
         conn.exec_driver_sql('CREATE EXTENSION IF NOT EXISTS "pg_trgm"')
     sync_engine.dispose()
 
-    os.environ["POSTGRES_DSN"] = async_dsn
-    from seedbank.core.config import get_settings
-
-    get_settings.cache_clear()
-
-    # Apply the baseline migration up to head.
-    from alembic import command
-    from alembic.config import Config
-    from pathlib import Path
-
     repo_root = Path(__file__).resolve().parents[1]
     cfg = Config(str(repo_root / "alembic.ini"))
     cfg.set_main_option("script_location", str(repo_root / "alembic"))
     cfg.set_main_option("sqlalchemy.url", sync_dsn)
     command.upgrade(cfg, "head")
+
+
+@pytest_asyncio.fixture
+async def async_engine(postgres_container: Any) -> AsyncIterator[AsyncEngine]:
+    """Async engine pointing at the testcontainer; baseline migration applied."""
+    import asyncio
+
+    sync_dsn = postgres_container.get_connection_url().replace(
+        "postgresql+psycopg2://", "postgresql+psycopg://"
+    )
+    async_dsn = sync_dsn.replace("postgresql+psycopg://", "postgresql+asyncpg://")
+
+    os.environ["POSTGRES_DSN"] = async_dsn
+    from seedbank.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    # Migrate in a worker thread so alembic's `asyncio.run(...)` can spin
+    # up its own loop without colliding with our test loop.
+    await asyncio.to_thread(_migrate_to_head, sync_dsn)
 
     engine = create_async_engine(async_dsn, future=True)
     try:
