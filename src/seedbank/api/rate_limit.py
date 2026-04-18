@@ -35,7 +35,14 @@ def _redis_uri_for_limits() -> str:
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=_redis_uri_for_limits(),
-    headers_enabled=True,
+    # `headers_enabled=True` requires every rate-limited route to declare an
+    # explicit `response: Response` parameter so slowapi can attach
+    # X-RateLimit-* headers. Without that param it raises "parameter
+    # `response` must be an instance of starlette.responses.Response" on
+    # the success path. We instead emit `Retry-After` ourselves from the
+    # 429 handler in `install_rate_limiter`, which is the header that
+    # actually matters for clients.
+    headers_enabled=False,
 )
 
 

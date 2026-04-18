@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from uuid7 import uuid7 as _uuid7
+# The PyPI package `uuid7` installs the module as `uuid_extensions`.
+from uuid_extensions import uuid7 as _uuid7
 
 
 def uuid7() -> UUID:

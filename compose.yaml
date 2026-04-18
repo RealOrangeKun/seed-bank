@@ -183,7 +183,9 @@ services:
     ulimits:
       nofile: {soft: 262144, hard: 262144}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
+      # Use 127.0.0.1 not localhost — the alpine image resolves localhost to
+      # ::1 first and clickhouse-server binds IPv4 only.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
       interval: 10s
       timeout: 5s
       retries: 10

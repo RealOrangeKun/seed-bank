@@ -58,3 +58,4 @@ uploads/
 
 # Frontend
 node_modules/
+compose.override.yaml

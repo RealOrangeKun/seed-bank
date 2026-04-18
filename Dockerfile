@@ -27,7 +27,11 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir "uv==${UV_VERSION}"
 WORKDIR /app
-COPY pyproject.toml ./
+# Hatchling reads the readme path from pyproject.toml at metadata time, so
+# README.md must be in the context. The package layout (src/seedbank) is
+# also required because hatchling resolves it during editable install.
+COPY pyproject.toml README.md ./
+COPY src ./src
 RUN uv venv /opt/venv \
  && . /opt/venv/bin/activate \
  && uv pip install --no-cache-dir -e .
@@ -65,7 +69,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir "uv==${UV_VERSION}"
 WORKDIR /app
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
+COPY src ./src
 RUN uv venv /opt/venv \
  && . /opt/venv/bin/activate \
  && uv pip install --no-cache-dir -e ".[inference]"

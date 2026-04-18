@@ -11,6 +11,10 @@ PIP    := $(VENV)/bin/pip
 PY     := $(VENV)/bin/python
 COMPOSE ?= docker compose
 
+# Host port the api publishes on. compose.override.yaml may shift this;
+# `make up` reads it via this variable so wait/curl hit the right address.
+API_PORT ?= 58080
+
 .PHONY: help
 help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
@@ -28,21 +32,33 @@ install-inference: venv ## Install ML deps locally (heavy).
 	$(VENV)/bin/uv pip install -e ".[dev,inference]"
 
 # ── Compose lifecycle ───────────────────────────────────────────────────────
-.PHONY: up down restart logs ps
-up: ## Start the lean stack (no GPU worker).
-	$(COMPOSE) up -d --build
+.PHONY: env up up-infra up-gpu up-dev down restart logs ps wait
+env: ## Create .env from .env.example if missing. Idempotent.
+	@if [ ! -f .env ]; then cp .env.example .env && echo "created .env from .env.example"; \
+	 else echo ".env already present"; fi
+
+up-infra: env ## Start ONLY infra (postgres, redis, minio, clickhouse). No build, fast smoke.
+	$(COMPOSE) up -d postgres redis minio clickhouse
+	@echo "infra up. host ports follow compose.override.yaml if present."
+	@$(COMPOSE) ps --format "table {{.Service}}\t{{.Health}}\t{{.Ports}}"
+
+up: env ## Start the full lean stack (api + infra). Builds the api image first time (slow once, fast after).
+	$(COMPOSE) up -d --build api postgres redis minio clickhouse mlflow
 	@$(MAKE) wait
 
-up-gpu: ## Start including the GPU inference worker.
+up-gpu: env ## Start including the GPU inference worker.
 	$(COMPOSE) --profile gpu up -d --build
 	@$(MAKE) wait
 
-up-dev: ## Start with adminer for quick DB poking.
-	$(COMPOSE) --profile dev up -d --build
+up-dev: env ## Start with adminer for quick DB poking.
+	$(COMPOSE) --profile dev up -d --build api postgres redis minio clickhouse mlflow adminer
 	@$(MAKE) wait
 
-down: ## Stop and remove containers.
+down: ## Stop and remove containers (keeps volumes).
 	$(COMPOSE) down
+
+down-volumes: ## Stop everything AND wipe volumes — total reset.
+	$(COMPOSE) down -v
 
 restart: down up ## Restart everything cleanly.
 
@@ -53,9 +69,9 @@ ps: ## Show service status.
 	$(COMPOSE) ps
 
 wait: ## Wait until api becomes healthy.
-	@echo "waiting for api /readyz ..."
+	@echo "waiting for api /readyz on http://localhost:$(API_PORT) ..."
 	@for i in $$(seq 1 60); do \
-	  if curl -fsS http://localhost:8000/readyz >/dev/null 2>&1; then \
+	  if curl -fsS http://localhost:$(API_PORT)/readyz >/dev/null 2>&1; then \
 	    echo "api ready"; exit 0; \
 	  fi; sleep 2; \
 	done; echo "api did not become ready"; $(COMPOSE) ps; exit 1

@@ -85,6 +85,16 @@ class ModelManager:
         cache = self._cache if kind == "torch" else self._yolo_cache
         while len(cache) > self._max_models:
             evicted_id, _ = cache.popitem(last=False)
+            # Drop the per-id lock once the id is no longer in either cache
+            # so ``_locks`` stays bounded by *current* cardinality rather
+            # than all-time cardinality. Tasks that already hold a reference
+            # to the old Lock complete on it; new tasks lazily allocate a
+            # fresh one in ``_lock_for`` — safe under the GIL/asyncio loop.
+            if (
+                evicted_id not in self._cache
+                and evicted_id not in self._yolo_cache
+            ):
+                self._locks.pop(evicted_id, None)
             log.info("ml.manager.evict", model_id=str(evicted_id), kind=kind)
 
     @staticmethod
