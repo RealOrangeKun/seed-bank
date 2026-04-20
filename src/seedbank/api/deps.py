@@ -231,12 +231,19 @@ def require_role(*roles: Role):
     """
     role_set = frozenset(roles)
 
+    # Pre-compute the message: "admin"-only routes already say it; everything
+    # else mentions that admin satisfies the check too, since admins
+    # implicitly pass any `require_role(...)` gate.
+    non_admin = sorted(r.value for r in role_set if r is not Role.ADMIN)
+    if not non_admin:
+        _msg = "Requires admin."
+    else:
+        _msg = f"Requires admin or one of roles: {', '.join(non_admin)}."
+
     async def _checker(actor: CurrentUser) -> AuthenticatedUser:
         if actor.is_admin or actor.role in role_set:
             return actor
-        raise ForbiddenError(
-            f"Requires one of roles: {', '.join(r.value for r in role_set)}."
-        )
+        raise ForbiddenError(_msg)
 
     return _checker
 
