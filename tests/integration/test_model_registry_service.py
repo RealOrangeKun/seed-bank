@@ -12,13 +12,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.core.exceptions import ConflictError, ValidationError
+from seedbank.core.ids import uuid7
 from seedbank.infrastructure.db.enums import (
     ModelBackend,
     ModelKind,
     ModelStatus,
     UserRole,
 )
-from seedbank.infrastructure.db.models import ModelArtifact, User
+from seedbank.infrastructure.db.models import ModelArtifact, SeedType, User
 from seedbank.infrastructure.db.repositories import ModelArtifactRepository
 from seedbank.services.model_registry_service import (
     ModelRegistryService,
@@ -36,8 +37,14 @@ class _StubStorage:
 
 
 async def _seed_user(db_session: AsyncSession) -> User:
+    """Create one ai_developer user with a UUID-derived email.
+
+    Uses ``uuid7()`` rather than ``id(db_session)`` because tests that call
+    this helper twice within a single test (e.g. duplicate-rejection
+    coverage) would otherwise collide on ``uq_users_email``.
+    """
     user = User(
-        email=f"dev-{id(db_session)}@example.com",
+        email=f"dev-{uuid7()}@example.com",
         hashed_password="bcrypt$irrelevant",
         role=UserRole.AI_DEVELOPER.value,
     )
@@ -54,8 +61,18 @@ def _service(db_session: AsyncSession) -> ModelRegistryService:
     )
 
 
-async def _register(db_session: AsyncSession, *, name: str, version: str) -> ModelArtifact:
-    user = await _seed_user(db_session)
+async def _register(
+    db_session: AsyncSession,
+    *,
+    name: str,
+    version: str,
+    user: User | None = None,
+) -> ModelArtifact:
+    """Register a model. Pass ``user`` to share one actor across calls
+    (avoiding the unique-email constraint when the test issues multiple
+    registrations); otherwise a fresh user is seeded."""
+    if user is None:
+        user = await _seed_user(db_session)
     svc = _service(db_session)
     return await svc.register(
         actor_id=user.id,
@@ -152,33 +169,37 @@ async def test_promotion_archives_incumbent(db_session: AsyncSession) -> None:
 
 
 async def test_duplicate_name_version_rejected(db_session: AsyncSession) -> None:
-    await _register(db_session, name="dup-model", version="v1")
+    user = await _seed_user(db_session)
+    await _register(db_session, name="dup-model", version="v1", user=user)
     with pytest.raises(ConflictError):
-        await _register(db_session, name="dup-model", version="v1")
+        await _register(db_session, name="dup-model", version="v1", user=user)
 
 
 async def test_partial_unique_blocks_two_productions(db_session: AsyncSession) -> None:
     """The DB partial-unique index is the safety net if the service skipped
-    the auto-archive step. We simulate by inserting raw rows."""
+    the auto-archive step. We simulate by inserting raw rows.
+
+    Both rows share the same ``(kind, seed_type_id)`` pair — a real
+    ``seed_type_id`` (not NULL), because Postgres treats NULLs in a unique
+    index as distinct by default, and the partial index this test pins is
+    meant to catch the duplicate-production-per-segment case where the
+    segment is fully specified.
+    """
     user = await _seed_user(db_session)
-    a = ModelArtifact(
-        name="raw-a",
+    seed_type = SeedType(code="maize-test", display_name="Maize (test)")
+    db_session.add(seed_type)
+    await db_session.flush()
+
+    common = dict(
         version="v1",
         kind=ModelKind.DETECTION.value,
         backend=ModelBackend.TORCH_LOCAL.value,
-        artifact_uri="raw-a/v1/weights.pth",
         status=ModelStatus.PRODUCTION.value,
+        seed_type_id=seed_type.id,
         created_by=user.id,
     )
-    b = ModelArtifact(
-        name="raw-b",
-        version="v1",
-        kind=ModelKind.DETECTION.value,
-        backend=ModelBackend.TORCH_LOCAL.value,
-        artifact_uri="raw-b/v1/weights.pth",
-        status=ModelStatus.PRODUCTION.value,
-        created_by=user.id,
-    )
+    a = ModelArtifact(name="raw-a", artifact_uri="raw-a/v1/weights.pth", **common)
+    b = ModelArtifact(name="raw-b", artifact_uri="raw-b/v1/weights.pth", **common)
     db_session.add(a)
     await db_session.flush()
     db_session.add(b)

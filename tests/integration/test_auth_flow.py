@@ -43,7 +43,7 @@ async def test_register_login_me_refresh_replay_logout(
         "/api/v1/auth/login", json={"email": "flow@e.com", "password": pwd}
     )
     assert r.status_code == 200, r.text
-    body = r.json()
+    body = r.json()["data"]
     access_a = body["access_token"]
     refresh_a = body["refresh_token"]
 
@@ -52,14 +52,14 @@ async def test_register_login_me_refresh_replay_logout(
         "/api/v1/users/me", headers={"Authorization": f"Bearer {access_a}"}
     )
     assert r.status_code == 200
-    assert r.json()["email"] == "flow@e.com"
+    assert r.json()["data"]["email"] == "flow@e.com"
 
     # Refresh — should get a new pair
     r = await app_client.post(
         "/api/v1/auth/refresh", json={"refresh_token": refresh_a}
     )
     assert r.status_code == 200
-    body = r.json()
+    body = r.json()["data"]
     access_b = body["access_token"]
     refresh_b = body["refresh_token"]
     assert refresh_b != refresh_a

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from seedbank.infrastructure.db.models import User
 
@@ -64,3 +64,20 @@ class UserRepository(Repository[User]):
             .offset(offset)
         )
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def count_active(self) -> int:
+        stmt = select(func.count()).select_from(User).where(User.deleted_at.is_(None))
+        return int((await self.session.execute(stmt)).scalar_one())
+
+    async def exists_with_role(self, role: str) -> bool:
+        """Truthy iff at least one non-deleted user holds ``role``.
+
+        Used by the bootstrap-admin path to enforce the "exactly one
+        first admin" rule without loading any rows.
+        """
+        stmt = (
+            select(User.id)
+            .where(User.role == role, User.deleted_at.is_(None))
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none() is not None

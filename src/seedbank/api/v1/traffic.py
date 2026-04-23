@@ -22,6 +22,7 @@ from seedbank.domain.user import AuthenticatedUser, Role
 from seedbank.infrastructure.db.enums import ModelKind, ModelStatus
 from seedbank.infrastructure.db.models import AuditLog, ModelArtifact, TrafficSplit
 from seedbank.infrastructure.db.repositories import ModelArtifactRepository
+from seedbank.schemas.common import Envelope
 from seedbank.schemas.model import TrafficSplitOut, TrafficSplitReplaceIn
 from seedbank.services.traffic_router import TrafficRouter
 
@@ -32,13 +33,18 @@ router = APIRouter(prefix="/traffic-splits", tags=["traffic-splits"])
 AdminUser = Annotated[AuthenticatedUser, Depends(require_role(Role.ADMIN))]
 
 
-@router.get("", response_model=list[TrafficSplitOut])
+# Traffic splits are a small bounded segment per ``(kind, seed_type_id)`` —
+# never a paginated collection — so the GET/PATCH responses use
+# ``Envelope[list[TrafficSplitOut]]`` instead of ``Page``.
+
+
+@router.get("", response_model=Envelope[list[TrafficSplitOut]])
 async def list_splits(
     session: DbSession,
     _admin: AdminUser,
     kind: ModelKind | None = Query(default=None),
     seed_type_id: UUID | None = Query(default=None),
-) -> list[TrafficSplitOut]:
+) -> Envelope[list[TrafficSplitOut]]:
     stmt = select(TrafficSplit).where(TrafficSplit.is_active.is_(True))
     if kind is not None:
         stmt = stmt.where(TrafficSplit.kind == kind.value)
@@ -46,17 +52,19 @@ async def list_splits(
         stmt = stmt.where(TrafficSplit.seed_type_id == seed_type_id)
     stmt = stmt.order_by(TrafficSplit.kind, TrafficSplit.seed_type_id, TrafficSplit.created_at)
     rows = list((await session.execute(stmt)).scalars().all())
-    return [TrafficSplitOut.model_validate(r) for r in rows]
+    return Envelope[list[TrafficSplitOut]](
+        data=[TrafficSplitOut.model_validate(r) for r in rows]
+    )
 
 
-@router.patch("", response_model=list[TrafficSplitOut])
+@router.patch("", response_model=Envelope[list[TrafficSplitOut]])
 async def replace_splits(
     payload: TrafficSplitReplaceIn,
     request: Request,
     session: DbSession,
     redis: RedisDep,
     actor: AdminUser,
-) -> list[TrafficSplitOut]:
+) -> Envelope[list[TrafficSplitOut]]:
     """Atomically replace the traffic splits for one segment."""
     total = sum(e.weight for e in payload.entries)
     if total > 100:
@@ -152,7 +160,9 @@ async def replace_splits(
     )
     for r in new_rows:
         await session.refresh(r)
-    return [TrafficSplitOut.model_validate(r) for r in new_rows]
+    return Envelope[list[TrafficSplitOut]](
+        data=[TrafficSplitOut.model_validate(r) for r in new_rows]
+    )
 
 
 __all__ = ["router"]

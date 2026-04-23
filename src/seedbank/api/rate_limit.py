@@ -15,6 +15,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
+from seedbank.api.errors import build_problem
 from seedbank.core.config import get_settings
 
 if TYPE_CHECKING:
@@ -47,18 +48,42 @@ limiter = Limiter(
 
 
 def install_rate_limiter(app: "FastAPI") -> None:
-    """Mount the limiter on the app and register the 429 handler."""
+    """Mount the limiter on the app and register the 429 handler.
+
+    The 429 response shares the RFC 9457 Problem Details shape with every
+    other error in the pipeline (see ``api/errors.py``). Only the
+    ``Retry-After`` header is custom — clients look for the seconds-to-wait
+    there, not inside the JSON body.
+    """
     app.state.limiter = limiter
 
-    async def _handler(_request: Request, exc: RateLimitExceeded):
-        from fastapi.responses import JSONResponse
+    async def _handler(request: Request, exc: RateLimitExceeded):
+        # Compute Retry-After from the limit's window. slowapi's
+        # RateLimitExceeded does not expose an `exc.retry_after`; the
+        # underlying `limits.RateLimitItem.get_expiry()` returns the
+        # window length in seconds (60 for `/minute`, 1 for `/second`),
+        # which is the upper bound on how long a client must back off.
+        retry_after_seconds: int | None = None
+        limit = getattr(exc, "limit", None)
+        inner = getattr(limit, "limit", None)
+        if inner is not None and hasattr(inner, "get_expiry"):
+            try:
+                retry_after_seconds = int(inner.get_expiry())
+            except (TypeError, ValueError):
+                retry_after_seconds = None
 
-        retry_after = getattr(exc, "retry_after", None)
-        headers = {"Retry-After": str(int(retry_after))} if retry_after else {}
-        return JSONResponse(
+        extra_headers = (
+            {"Retry-After": str(retry_after_seconds)}
+            if retry_after_seconds is not None
+            else None
+        )
+        return build_problem(
+            request=request,
             status_code=429,
-            content={"error": "RateLimitError", "detail": str(exc.detail)},
-            headers=headers,
+            code="rate_limited",
+            title="Too Many Requests",
+            detail=str(exc.detail) if exc.detail else "Rate limit exceeded.",
+            extra_headers=extra_headers,
         )
 
     app.add_exception_handler(RateLimitExceeded, _handler)

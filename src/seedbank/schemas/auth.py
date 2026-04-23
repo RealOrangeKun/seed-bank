@@ -22,6 +22,22 @@ class RegisterIn(BaseModel):
     full_name: Annotated[str | None, Field(default=None, max_length=255)] = None
 
 
+class BootstrapAdminIn(BaseModel):
+    """Payload for ``POST /auth/bootstrap-admin``.
+
+    The ``bootstrap_token`` field is a shared secret rotated out of the
+    environment after first-admin creation; the password rules match
+    ``RegisterIn`` so the resulting admin can immediately log in.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    password: Annotated[str, Field(min_length=12, max_length=128)]
+    full_name: Annotated[str | None, Field(default=None, max_length=255)] = None
+    bootstrap_token: Annotated[str, Field(min_length=1, max_length=512)]
+
+
 class LoginIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

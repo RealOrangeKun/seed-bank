@@ -84,6 +84,124 @@ def _build_service(
     return svc, session, users, refresh_tokens, oauth_accounts, redis
 
 
+class TestBootstrapAdmin:
+    """Service-layer behaviour for ``POST /auth/bootstrap-admin``.
+
+    Repos are mocked so each branch of the gate logic — token unset,
+    token mismatch, admin-exists, email-exists, happy path — can be
+    pinned independently of HTTP plumbing.
+    """
+
+    _TOKEN = "first-admin-secret"
+
+    def _settings(self, *, token: str | None) -> Any:
+        from pydantic import SecretStr
+
+        from seedbank.core.config import Settings
+
+        return Settings(bootstrap_token=SecretStr(token) if token is not None else None)
+
+    @pytest.mark.asyncio
+    async def test_happy_path_creates_admin_and_audits(self) -> None:
+        svc, session, users, *_ = _build_service(user_lookup=None)
+        users.exists_with_role = AsyncMock(return_value=False)
+        svc.settings = self._settings(token=self._TOKEN)
+
+        user = await svc.bootstrap_admin(
+            email="root@example.com",
+            password="StrongPasswd1A",
+            full_name="Root",
+            bootstrap_token=self._TOKEN,
+        )
+
+        assert user.role == "admin"
+        assert user.is_active is True
+        assert user.is_verified is True
+        users.add.assert_awaited_once()
+        # audit-log row + the user → at least one .add() on the session.
+        assert any(getattr(o, "action", None) == "user.bootstrap_admin"
+                   for o in session.added)
+        assert session.commits == 1
+
+    @pytest.mark.asyncio
+    async def test_rejects_when_token_unset(self) -> None:
+        svc, _, users, *_ = _build_service(user_lookup=None)
+        users.exists_with_role = AsyncMock(return_value=False)
+        svc.settings = self._settings(token=None)
+
+        with pytest.raises(AuthError):
+            await svc.bootstrap_admin(
+                email="root@example.com",
+                password="StrongPasswd1A",
+                full_name=None,
+                bootstrap_token="anything",
+            )
+        users.add.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_token_mismatch(self) -> None:
+        svc, _, users, *_ = _build_service(user_lookup=None)
+        users.exists_with_role = AsyncMock(return_value=False)
+        svc.settings = self._settings(token=self._TOKEN)
+
+        with pytest.raises(AuthError):
+            await svc.bootstrap_admin(
+                email="root@example.com",
+                password="StrongPasswd1A",
+                full_name=None,
+                bootstrap_token="wrong-token",
+            )
+        users.add.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_when_admin_already_exists(self) -> None:
+        svc, _, users, *_ = _build_service(user_lookup=None)
+        users.exists_with_role = AsyncMock(return_value=True)
+        svc.settings = self._settings(token=self._TOKEN)
+
+        with pytest.raises(ConflictError):
+            await svc.bootstrap_admin(
+                email="root@example.com",
+                password="StrongPasswd1A",
+                full_name=None,
+                bootstrap_token=self._TOKEN,
+            )
+        users.add.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_existing_email(self) -> None:
+        from uuid import uuid4
+
+        existing = MagicMock(id=uuid4(), email="root@example.com")
+        svc, _, users, *_ = _build_service(user_lookup=existing)
+        users.exists_with_role = AsyncMock(return_value=False)
+        svc.settings = self._settings(token=self._TOKEN)
+
+        with pytest.raises(ConflictError):
+            await svc.bootstrap_admin(
+                email="root@example.com",
+                password="StrongPasswd1A",
+                full_name=None,
+                bootstrap_token=self._TOKEN,
+            )
+        users.add.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_weak_password(self) -> None:
+        svc, _, users, *_ = _build_service(user_lookup=None)
+        users.exists_with_role = AsyncMock(return_value=False)
+        svc.settings = self._settings(token=self._TOKEN)
+
+        with pytest.raises(ValidationError):
+            await svc.bootstrap_admin(
+                email="root@example.com",
+                password="weak",
+                full_name=None,
+                bootstrap_token=self._TOKEN,
+            )
+        users.add.assert_not_awaited()
+
+
 class TestRegister:
     @pytest.mark.asyncio
     async def test_happy_path(self) -> None:

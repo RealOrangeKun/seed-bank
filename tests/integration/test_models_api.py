@@ -48,7 +48,7 @@ async def _login(client: AsyncClient, email: str) -> str:
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["access_token"]
+    return r.json()["data"]["access_token"]
 
 
 @pytest.fixture
@@ -98,16 +98,18 @@ async def test_ai_developer_can_register_and_list(
     }
     r = await app_client.post("/api/v1/models", headers=auth, json=payload)
     assert r.status_code == 201, r.text
-    created = r.json()
+    created = r.json()["data"]
     assert created["status"] == "registered"
     model_id = created["id"]
 
-    # list filtered by status
+    # list filtered by status (paginated envelope)
     r = await app_client.get(
         "/api/v1/models?status=registered", headers=auth
     )
     assert r.status_code == 200
-    assert any(m["id"] == model_id for m in r.json())
+    body = r.json()
+    assert body["meta"]["total"] >= 1
+    assert any(m["id"] == model_id for m in body["data"])
 
     # promote to staging
     r = await app_client.patch(
@@ -116,7 +118,7 @@ async def test_ai_developer_can_register_and_list(
         json={"status": "staging"},
     )
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "staging"
+    assert r.json()["data"]["status"] == "staging"
 
     # illegal transition: registered already left, can't go back
     r = await app_client.patch(

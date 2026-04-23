@@ -33,7 +33,7 @@ async def _seed_and_login(
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["access_token"]
+    return r.json()["data"]["access_token"]
 
 
 async def test_create_use_revoke_api_key(
@@ -48,7 +48,7 @@ async def test_create_use_revoke_api_key(
         json={"name": "Laptop", "scopes": ["analyze:write"]},
     )
     assert r.status_code == 201, r.text
-    body = r.json()
+    body = r.json()["data"]
     plaintext = body["key"]
     key_id = body["id"]
     assert plaintext.startswith("seedbank_")
@@ -57,7 +57,7 @@ async def test_create_use_revoke_api_key(
     # /me via X-API-Key
     r = await app_client.get("/api/v1/users/me", headers={"X-API-Key": plaintext})
     assert r.status_code == 200, r.text
-    assert r.json()["email"] == "k@e.com"
+    assert r.json()["data"]["email"] == "k@e.com"
 
     # Subsequent list does NOT expose the plaintext (the schema field defaults
     # to None and we only set it on creation).
@@ -65,7 +65,9 @@ async def test_create_use_revoke_api_key(
         "/api/v1/api-keys", headers={"Authorization": f"Bearer {bearer}"}
     )
     assert r.status_code == 200
-    rows = r.json()
+    body = r.json()
+    rows = body["data"]
+    assert body["meta"]["total"] >= 1
     assert any(row["id"] == key_id and row.get("key") is None for row in rows)
 
     # Revoke

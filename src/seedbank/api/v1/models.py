@@ -22,6 +22,7 @@ from seedbank.core.exceptions import ExternalServiceError
 from seedbank.domain.user import AuthenticatedUser, Role
 from seedbank.infrastructure.db.enums import ModelKind, ModelStatus
 from seedbank.infrastructure.db.repositories import ModelArtifactRepository
+from seedbank.schemas.common import Envelope, Page, paginate
 from seedbank.schemas.model import (
     ModelOut,
     ModelPerformanceOut,
@@ -46,7 +47,7 @@ def _service(session: DbSession, storage: StorageDep) -> ModelRegistryService:
     )
 
 
-@router.get("", response_model=list[ModelOut])
+@router.get("", response_model=Page[ModelOut])
 async def list_models(
     session: DbSession,
     storage: StorageDep,
@@ -54,28 +55,34 @@ async def list_models(
     kind: ModelKind | None = Query(default=None),
     status_: Annotated[ModelStatus | None, Query(alias="status")] = None,
     seed_type_id: UUID | None = Query(default=None),
-    limit: Annotated[int, Query(ge=1, le=200)] = 100,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[ModelOut]:
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> Page[ModelOut]:
     svc = _service(session, storage)
-    rows = await svc.list(
+    offset = (page - 1) * page_size
+    rows, total = await svc.list(
         kind=kind,
         status=status_,
         seed_type_id=seed_type_id,
-        limit=limit,
+        limit=page_size,
         offset=offset,
     )
-    return [ModelOut.model_validate(r) for r in rows]
+    items = [ModelOut.model_validate(r) for r in rows]
+    return paginate(items, total=total, page=page, page_size=page_size)
 
 
-@router.post("", response_model=ModelOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=Envelope[ModelOut],
+    status_code=status.HTTP_201_CREATED,
+)
 async def register_model(
     payload: ModelRegisterIn,
     request: Request,
     session: DbSession,
     storage: StorageDep,
     actor: DevUser,
-) -> ModelOut:
+) -> Envelope[ModelOut]:
     svc = _service(session, storage)
     row = await svc.register(
         actor_id=actor.id,
@@ -92,22 +99,22 @@ async def register_model(
         ),
         ip=request.client.host if request.client else None,
     )
-    return ModelOut.model_validate(row)
+    return Envelope[ModelOut](data=ModelOut.model_validate(row))
 
 
-@router.get("/{model_id}", response_model=ModelOut)
+@router.get("/{model_id}", response_model=Envelope[ModelOut])
 async def get_model(
     model_id: UUID,
     session: DbSession,
     storage: StorageDep,
     _dev: DevUser,
-) -> ModelOut:
+) -> Envelope[ModelOut]:
     svc = _service(session, storage)
     row = await svc.get(model_id)
-    return ModelOut.model_validate(row)
+    return Envelope[ModelOut](data=ModelOut.model_validate(row))
 
 
-@router.patch("/{model_id}", response_model=ModelOut)
+@router.patch("/{model_id}", response_model=Envelope[ModelOut])
 async def update_model_status(
     model_id: UUID,
     payload: ModelStatusUpdateIn,
@@ -115,7 +122,7 @@ async def update_model_status(
     session: DbSession,
     storage: StorageDep,
     actor: DevUser,
-) -> ModelOut:
+) -> Envelope[ModelOut]:
     svc = _service(session, storage)
     row = await svc.change_status(
         actor_id=actor.id,
@@ -123,17 +130,17 @@ async def update_model_status(
         new_status=payload.status,
         ip=request.client.host if request.client else None,
     )
-    return ModelOut.model_validate(row)
+    return Envelope[ModelOut](data=ModelOut.model_validate(row))
 
 
-@router.get("/{model_id}/performance", response_model=ModelPerformanceOut)
+@router.get("/{model_id}/performance", response_model=Envelope[ModelPerformanceOut])
 async def model_performance(
     model_id: UUID,
     session: DbSession,
     storage: StorageDep,
     clickhouse: ClickHouseDep,
     _dev: DevUser,
-) -> ModelPerformanceOut:
+) -> Envelope[ModelPerformanceOut]:
     """Aggregated metrics from ClickHouse. Phase 8 wires up the real schema;
     this endpoint returns an empty payload (or a degraded note) until then.
     """
@@ -146,14 +153,18 @@ async def model_performance(
             "FROM fact_inference WHERE model_id = {model_id:UUID} GROUP BY model_id",
             parameters={"model_id": str(model_id)},
         )
-        return ModelPerformanceOut(model_id=model_id, rows=rows)
+        return Envelope[ModelPerformanceOut](
+            data=ModelPerformanceOut(model_id=model_id, rows=rows)
+        )
     except ExternalServiceError as exc:
         # ClickHouse / fact_inference may not exist yet (Phase 8). Degrade
         # gracefully rather than 500 on the AI dev's first call.
-        return ModelPerformanceOut(
-            model_id=model_id,
-            rows=[],
-            note=f"clickhouse unavailable: {exc}",
+        return Envelope[ModelPerformanceOut](
+            data=ModelPerformanceOut(
+                model_id=model_id,
+                rows=[],
+                note=f"clickhouse unavailable: {exc}",
+            )
         )
 
 

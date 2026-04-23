@@ -95,6 +95,72 @@ class AuthService:
         self.redis = redis
         self.settings = settings
 
+    # ── First-admin bootstrap ────────────────────────────────────────────────
+
+    async def bootstrap_admin(
+        self,
+        *,
+        email: str,
+        password: str,
+        full_name: str | None,
+        bootstrap_token: str,
+        ip: str | None = None,
+    ) -> User:
+        """Create the very first admin user.
+
+        Idempotent in spirit: rejects with ``ConflictError`` once any
+        admin exists, so calling it twice can never produce two admins.
+        Gated by ``Settings.bootstrap_token`` — the endpoint is disabled
+        unless the operator has set the env var, and the request must
+        present the matching value. A constant-time comparison avoids
+        leaking the token through timing side-channels.
+
+        Returns the persisted ``User`` row (already verified + active so
+        the operator can immediately log in via ``/auth/login``).
+        """
+        import hmac
+
+        configured = (
+            self.settings.bootstrap_token.get_secret_value()
+            if self.settings.bootstrap_token is not None
+            else None
+        )
+        if not configured or not hmac.compare_digest(configured, bootstrap_token):
+            log.warning("auth.bootstrap_admin_rejected", reason="invalid_token", ip=ip)
+            raise AuthError("Invalid bootstrap token.")
+
+        if await self.users.exists_with_role(Role.ADMIN.value):
+            raise ConflictError("An admin user already exists.")
+
+        enforce_password_policy(password)
+
+        # Email-uniqueness still applies — guard explicitly so the caller
+        # gets a 409 instead of a generic IntegrityError.
+        if await self.users.get_by_email(email) is not None:
+            raise ConflictError("Email already registered.")
+
+        user = User(
+            email=email,
+            hashed_password=hash_password(password),
+            full_name=full_name,
+            role=Role.ADMIN.value,
+            is_active=True,
+            is_verified=True,
+        )
+        await self.users.add(user)
+
+        await self._audit(
+            actor_id=user.id,
+            action="user.bootstrap_admin",
+            target=user,
+            ip=ip,
+            metadata={"email": email},
+        )
+
+        await self.session.commit()
+        log.info("auth.bootstrap_admin_created", user_id=str(user.id), email=email)
+        return user
+
     # ── Registration ─────────────────────────────────────────────────────────
 
     async def register(

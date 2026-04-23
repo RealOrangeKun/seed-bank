@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from seedbank.infrastructure.db.models import ApiKey
 
@@ -28,13 +28,21 @@ class ApiKeyRepository(Repository[ApiKey]):
             return None
         return key
 
-    async def list_for_user(self, user_id: UUID) -> list[ApiKey]:
+    async def list_for_user(
+        self, user_id: UUID, *, limit: int = 50, offset: int = 0
+    ) -> list[ApiKey]:
         stmt = (
             select(ApiKey)
             .where(ApiKey.user_id == user_id)
             .order_by(ApiKey.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def count_for_user(self, user_id: UUID) -> int:
+        stmt = select(func.count()).select_from(ApiKey).where(ApiKey.user_id == user_id)
+        return int((await self.session.execute(stmt)).scalar_one())
 
     async def revoke(self, key_id: UUID, user_id: UUID) -> bool:
         """Revoke a key the user owns. Returns True if a row was updated."""

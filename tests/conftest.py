@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
@@ -18,6 +18,9 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 
 @pytest.fixture(scope="session")
@@ -88,9 +91,80 @@ async def async_engine(postgres_container: Any) -> AsyncIterator[AsyncEngine]:
         await engine.dispose()
 
 
+async def _truncate_all_tables(engine: AsyncEngine) -> None:
+    """TRUNCATE every user table in the public schema (preserves
+    ``alembic_version`` so migrations are not re-run).
+
+    Called from the function-scoped autouse fixtures in
+    ``tests/integration/conftest.py`` and ``tests/e2e/conftest.py``. Lives
+    here because both tiers need the same SQL and the same exclusion list.
+
+    Why TRUNCATE instead of session-rollback: integration/e2e helpers call
+    ``await session.commit()`` (the production code paths they exercise
+    commit). A rollback at fixture teardown can't undo what another
+    connection has already committed; TRUNCATE on the engine can.
+    """
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        rows = await conn.execute(
+            text(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' AND tablename != 'alembic_version'"
+            )
+        )
+        tables = [r[0] for r in rows]
+        if tables:
+            quoted = ", ".join(f'"{t}"' for t in tables)
+            await conn.execute(
+                text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE")
+            )
+
+
 @pytest_asyncio.fixture
 async def db_session(async_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
     sm = async_sessionmaker(bind=async_engine, expire_on_commit=False, class_=AsyncSession)
     async with sm() as session:
         yield session
         await session.rollback()
+
+
+@pytest_asyncio.fixture
+async def app_client(async_engine: AsyncEngine) -> AsyncIterator["AsyncClient"]:
+    """FastAPI app wired to the testcontainer Postgres + a fake Redis.
+
+    Lives at the top-level conftest so both ``tests/integration/`` (HTTP
+    contract tests) and ``tests/e2e/`` (full flows) can depend on it.
+    """
+    from fakeredis import aioredis as fakeredis_aio
+    from httpx import ASGITransport, AsyncClient
+
+    fake_redis = fakeredis_aio.FakeRedis(decode_responses=True)
+
+    sm: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        bind=async_engine, expire_on_commit=False, class_=AsyncSession,
+    )
+
+    async def _override_db() -> AsyncIterator[AsyncSession]:
+        async with sm() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+
+    def _override_redis():
+        return fake_redis
+
+    from seedbank.api.deps import db_session as db_session_dep, redis_dep
+    from seedbank.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[db_session_dep] = _override_db
+    app.dependency_overrides[redis_dep] = _override_redis
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+    await fake_redis.aclose()

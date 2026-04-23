@@ -71,8 +71,12 @@ class ApiKeyService:
         await self.session.commit()
         return record, plaintext
 
-    async def list_for_user(self, user_id: UUID) -> list[ApiKey]:
-        return await self.api_keys.list_for_user(user_id)
+    async def list_for_user(
+        self, user_id: UUID, *, limit: int = 50, offset: int = 0
+    ) -> tuple[list[ApiKey], int]:
+        rows = await self.api_keys.list_for_user(user_id, limit=limit, offset=offset)
+        total = await self.api_keys.count_for_user(user_id)
+        return rows, total
 
     async def revoke(
         self, *, user_id: UUID, key_id: UUID, ip: str | None = None

@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.core.config import Settings, get_settings
@@ -96,20 +96,33 @@ class ModelRegistryService:
         seed_type_id: UUID | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[ModelArtifact]:
-        stmt = select(ModelArtifact)
+    ) -> tuple[list[ModelArtifact], int]:
+        """Filtered, paginated registry listing. Returns ``(rows, total)`` so
+        the router can build a ``Page[T]`` envelope without a second round-trip
+        from a count helper."""
+        filters = []
         if kind is not None:
-            stmt = stmt.where(ModelArtifact.kind == kind.value)
+            filters.append(ModelArtifact.kind == kind.value)
         if status is not None:
-            stmt = stmt.where(ModelArtifact.status == status.value)
+            filters.append(ModelArtifact.status == status.value)
         if seed_type_id is not None:
-            stmt = stmt.where(ModelArtifact.seed_type_id == seed_type_id)
+            filters.append(ModelArtifact.seed_type_id == seed_type_id)
+
+        stmt = select(ModelArtifact)
+        for f in filters:
+            stmt = stmt.where(f)
         stmt = (
             stmt.order_by(ModelArtifact.kind, ModelArtifact.name, ModelArtifact.version)
             .limit(limit)
             .offset(offset)
         )
-        return list((await self.session.execute(stmt)).scalars().all())
+        rows = list((await self.session.execute(stmt)).scalars().all())
+
+        count_stmt = select(func.count()).select_from(ModelArtifact)
+        for f in filters:
+            count_stmt = count_stmt.where(f)
+        total = int((await self.session.execute(count_stmt)).scalar_one())
+        return rows, total
 
     # ── Write ────────────────────────────────────────────────────────────────
 
@@ -241,6 +254,14 @@ class ModelRegistryService:
         except Exception:
             await self.session.rollback()
             raise
+
+        # ``updated_at`` is server-managed via ``onupdate=func.now()`` —
+        # SQLAlchemy marks the column as needing re-fetch after UPDATE, and
+        # without an explicit refresh the next access (e.g. Pydantic
+        # serialization at the router boundary) triggers a lazy load
+        # outside the await context, raising ``MissingGreenlet``. Refresh
+        # synchronously here so callers get a fully-loaded row back.
+        await self.session.refresh(row)
 
         log.info(
             "model.status_changed",

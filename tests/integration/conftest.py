@@ -1,52 +1,49 @@
-"""Integration-test fixtures: app TestClient bound to the testcontainer DB.
+"""Integration-tier fixtures.
 
-Uses `fakeredis.aioredis.FakeRedis` to stand in for the real Redis client —
-auth flows don't exercise atomic Redis ops beyond `set`/`get`/`delete`, so
-fakeredis is faithful enough.
+The ``app_client`` fixture lives in the top-level ``tests/conftest.py`` so
+e2e tests inherit it without re-import. Tier-specific hygiene (slowapi
+limiter reset, DB truncation) lives here so the unit tier — which has no
+Redis or Postgres access — is not forced to wait on connection retries.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+from tests.conftest import _truncate_all_tables
 
 
-@pytest_asyncio.fixture
-async def app_client(async_engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
-    """Build a fresh FastAPI app wired to the testcontainer Postgres + a fake
-    Redis."""
-    from fakeredis import aioredis as fakeredis_aio
+@pytest_asyncio.fixture(autouse=True)
+async def _truncate_db(async_engine: AsyncEngine) -> None:
+    """TRUNCATE every user table before every integration test.
 
-    fake_redis = fakeredis_aio.FakeRedis(decode_responses=True)
+    Per the testing skill: "Containers are session-scoped, not per-test.
+    State is reset by truncating tables in a function-scoped fixture."
+    """
+    await _truncate_all_tables(async_engine)
 
-    sm: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        bind=async_engine, expire_on_commit=False, class_=AsyncSession,
-    )
 
-    async def _override_db() -> AsyncIterator[AsyncSession]:
-        async with sm() as session:
-            try:
-                yield session
-            except Exception:
-                await session.rollback()
-                raise
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_rate_limiter() -> None:
+    """Clear the slowapi Limiter singleton's storage before every test.
 
-    def _override_redis():
-        return fake_redis
+    The Limiter is constructed at module import time and points at the
+    process-wide Redis configured by ``Settings.redis_dsn``. Without a
+    reset, the auth/login bucket (10/min) accumulates counts across tests
+    and produces spurious 429s on tests that legitimately call ``/login``.
 
-    # Build app *after* engine override so lifespan startup uses the test DB.
-    from seedbank.api.deps import db_session, redis_dep
-    from seedbank.main import create_app
+    Narrow excepts: ``StorageError`` covers "limits backend rejected the
+    op", ``RedisConnectionError`` covers "Redis container unreachable" —
+    both are tolerable when the suite runs without infra. Any other
+    exception is a real bug and surfaces.
+    """
+    from limits.errors import StorageError
+    from redis.exceptions import ConnectionError as RedisConnectionError
 
-    app = create_app()
-    app.dependency_overrides[db_session] = _override_db
-    app.dependency_overrides[redis_dep] = _override_redis
+    from seedbank.api.rate_limit import limiter
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        yield client
-
-    await fake_redis.aclose()
+    try:
+        limiter.reset()
+    except (StorageError, RedisConnectionError):
+        pass

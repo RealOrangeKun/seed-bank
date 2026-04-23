@@ -36,7 +36,7 @@ async def _login(client: AsyncClient, email: str) -> str:
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["access_token"]
+    return r.json()["data"]["access_token"]
 
 
 async def test_end_user_cannot_list_users(
@@ -62,8 +62,9 @@ async def test_admin_can_list_users(
     )
     assert r.status_code == 200
     body = r.json()
-    assert isinstance(body, list)
-    assert any(u["email"] == "admin@e.com" for u in body)
+    assert isinstance(body["data"], list)
+    assert body["meta"]["total"] >= 1
+    assert any(u["email"] == "admin@e.com" for u in body["data"])
 
 
 async def test_ai_developer_cannot_list_users(

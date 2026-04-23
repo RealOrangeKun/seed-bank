@@ -110,6 +110,14 @@ class Settings(BaseSettings):
     # ── Email verification ───────────────────────────────────────────────────
     email_verification_ttl_seconds: int = 60 * 60 * 24  # 24h
 
+    # ── First-admin bootstrap ────────────────────────────────────────────────
+    # Shared-secret token required by ``POST /api/v1/auth/bootstrap-admin``.
+    # The endpoint is idempotent (409 if any admin already exists), but the
+    # token is the production tripwire — operators set it once at deploy
+    # time, run the bootstrap, then unset it. Unset means the endpoint is
+    # disabled (every request is a 503).
+    bootstrap_token: SecretStr | None = None
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
