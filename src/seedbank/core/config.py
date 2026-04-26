@@ -96,6 +96,17 @@ class Settings(BaseSettings):
     inference_max_image_bytes: int = 10 * 1024 * 1024
     inference_max_image_pixels: int = 4096 * 4096
 
+    # ── Analyze endpoint ─────────────────────────────────────────────────────
+    rate_limit_analyze_per_minute: int = 30
+    analyze_max_files_per_request: int = 16
+    analyze_max_image_bytes: int = 10 * 1024 * 1024
+    analyze_allowed_mime_types: list[str] = Field(
+        default_factory=lambda: ["image/jpeg", "image/png", "image/webp"]
+    )
+    # Test-only: when true, Celery tasks run inline in the calling process
+    # (instead of being sent to a broker). Must remain False in prod.
+    celery_task_always_eager: bool = False
+
     # ── Observability ────────────────────────────────────────────────────────
     otel_exporter_otlp_endpoint: str | None = None
     sentry_dsn: SecretStr | None = None

@@ -537,6 +537,10 @@ class ScanBatch(Base, TimestampMixin, SoftDeleteMixin):
     geo_city: Mapped[str | None] = mapped_column(String(120), nullable=True)
     geo_country_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
+    images: Mapped[list[ScanImage]] = relationship(
+        back_populates="batch", cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         # Both lat/long present, or both NULL — never half a coordinate.
         CheckConstraint(
@@ -585,6 +589,11 @@ class ScanImage(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
+    batch: Mapped[ScanBatch] = relationship(back_populates="images")
+    inferences: Mapped[list[Inference]] = relationship(
+        back_populates="image", cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         Index("ix_scan_images_batch_id", "batch_id"),
         Index("ix_scan_images_sha256", "sha256"),
@@ -618,6 +627,11 @@ class Inference(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    image: Mapped[ScanImage] = relationship(back_populates="inferences")
+    detections: Mapped[list[SeedDetection]] = relationship(
+        back_populates="inference", cascade="all, delete-orphan",
     )
 
     __table_args__ = (
@@ -655,6 +669,8 @@ class SeedDetection(Base):
     width_px: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height_px: Mapped[int | None] = mapped_column(Integer, nullable=True)
     aspect_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
+
+    inference: Mapped[Inference] = relationship(back_populates="detections")
 
     __table_args__ = (
         CheckConstraint(

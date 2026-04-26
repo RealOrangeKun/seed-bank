@@ -31,12 +31,16 @@ from seedbank.infrastructure.db.repositories import (
     ApiKeyRepository,
     OAuthAccountRepository,
     RefreshTokenRepository,
+    ScanBatchRepository,
+    ScanImageRepository,
     UserRepository,
 )
 from seedbank.infrastructure.db.session import get_db as _get_db
 from seedbank.infrastructure.storage import MinioStorage, get_storage
+from seedbank.services.analysis_service import AnalysisService
 from seedbank.services.api_key_service import ApiKeyService
 from seedbank.services.auth_service import AuthService
+from seedbank.services.batch_service import BatchService
 
 log = structlog.get_logger(__name__)
 
@@ -90,10 +94,20 @@ def api_key_repo(session: DbSession) -> ApiKeyRepository:
     return ApiKeyRepository(session)
 
 
+def scan_batch_repo(session: DbSession) -> ScanBatchRepository:
+    return ScanBatchRepository(session)
+
+
+def scan_image_repo(session: DbSession) -> ScanImageRepository:
+    return ScanImageRepository(session)
+
+
 UserRepoDep = Annotated[UserRepository, Depends(user_repo)]
 RefreshTokenRepoDep = Annotated[RefreshTokenRepository, Depends(refresh_token_repo)]
 OAuthAccountRepoDep = Annotated[OAuthAccountRepository, Depends(oauth_account_repo)]
 ApiKeyRepoDep = Annotated[ApiKeyRepository, Depends(api_key_repo)]
+ScanBatchRepoDep = Annotated[ScanBatchRepository, Depends(scan_batch_repo)]
+ScanImageRepoDep = Annotated[ScanImageRepository, Depends(scan_image_repo)]
 
 
 # ── Service factories ────────────────────────────────────────────────────────
@@ -125,8 +139,33 @@ def api_key_service(
     return ApiKeyService(session=session, api_keys=api_keys, settings=settings)
 
 
+def analysis_service(
+    session: DbSession,
+    batches: ScanBatchRepoDep,
+    images: ScanImageRepoDep,
+    settings: SettingsDep,
+    storage: StorageDep,
+) -> AnalysisService:
+    return AnalysisService(
+        session=session,
+        batches=batches,
+        images=images,
+        settings=settings,
+        storage=storage,
+    )
+
+
+def batch_service(
+    session: DbSession,
+    batches: ScanBatchRepoDep,
+) -> BatchService:
+    return BatchService(session=session, batches=batches)
+
+
 AuthServiceDep = Annotated[AuthService, Depends(auth_service)]
 ApiKeyServiceDep = Annotated[ApiKeyService, Depends(api_key_service)]
+AnalysisServiceDep = Annotated[AnalysisService, Depends(analysis_service)]
+BatchServiceDep = Annotated[BatchService, Depends(batch_service)]
 
 
 # ── Authentication ───────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from seedbank.core.config import get_settings
 
-from . import api_keys, auth, models, traffic, users
+from . import analyze, api_keys, auth, batches, models, traffic, users
 
 api_router = APIRouter(prefix=get_settings().api_v1_prefix)
 api_router.include_router(auth.router)
@@ -14,5 +14,7 @@ api_router.include_router(users.router)
 api_router.include_router(api_keys.router)
 api_router.include_router(models.router)
 api_router.include_router(traffic.router)
+api_router.include_router(analyze.router)
+api_router.include_router(batches.router)
 
 __all__ = ["api_router"]

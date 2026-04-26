@@ -3,12 +3,12 @@ joined under each."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.orm import selectinload
 
+from seedbank.core.logging import get_logger
 from seedbank.infrastructure.db.models import (
     Inference,
     ScanBatch,
@@ -17,6 +17,14 @@ from seedbank.infrastructure.db.models import (
 )
 
 from .base import Repository
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
+    from seedbank.infrastructure.db.enums import BatchStatus
+
+log = get_logger(__name__)
 
 
 class ScanBatchRepository(Repository[ScanBatch]):
@@ -58,6 +66,31 @@ class ScanBatchRepository(Repository[ScanBatch]):
         stmt = stmt.order_by(desc(ScanBatch.submitted_at)).limit(limit).offset(offset)
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def count_for_user(
+        self,
+        user_id: UUID,
+        *,
+        supplier_id: UUID | None = None,
+        country_code: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> int:
+        """Total batches the user owns, filtered the same way as
+        :meth:`list_for_user`. Used to populate the ``Page.meta.total``."""
+        stmt = select(func.count()).select_from(ScanBatch).where(
+            ScanBatch.user_id == user_id,
+            ScanBatch.deleted_at.is_(None),
+        )
+        if supplier_id is not None:
+            stmt = stmt.where(ScanBatch.supplier_id == supplier_id)
+        if country_code is not None:
+            stmt = stmt.where(ScanBatch.geo_country_code == country_code)
+        if since is not None:
+            stmt = stmt.where(ScanBatch.submitted_at >= since)
+        if until is not None:
+            stmt = stmt.where(ScanBatch.submitted_at <= until)
+        return int((await self.session.execute(stmt)).scalar_one())
+
     async def get_with_images_and_detections(
         self, batch_id: UUID, user_id: UUID
     ) -> ScanBatch | None:
@@ -77,6 +110,64 @@ class ScanBatchRepository(Repository[ScanBatch]):
             )
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def get_with_full_graph(self, batch_id: UUID) -> ScanBatch | None:
+        """Same as ``get_with_images_and_detections`` but without the
+        ``user_id`` filter. Caller (admin paths, worker) is responsible for
+        ownership checks. Soft-deleted rows are still excluded."""
+        stmt = (
+            select(ScanBatch)
+            .where(
+                ScanBatch.id == batch_id,
+                ScanBatch.deleted_at.is_(None),
+            )
+            .options(
+                selectinload(ScanBatch.images)
+                .selectinload(ScanImage.inferences)
+                .selectinload(Inference.detections)
+            )
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def cas_status(
+        self,
+        batch_id: UUID,
+        *,
+        expected: BatchStatus,
+        new: BatchStatus,
+        set_started_at: bool = False,
+        set_finished_at: bool = False,
+    ) -> bool:
+        """Compare-and-set ``status`` from ``expected`` to ``new``.
+
+        Returns ``True`` iff exactly one row was updated. Concurrent workers
+        racing on the same batch get ``False`` for every loser — caller
+        treats that as "not first, no-op". ``func.now()`` is used for any
+        timestamp set so the DB owns the clock.
+        """
+        values: dict[str, object] = {"status": new.value}
+        if set_started_at:
+            values["started_at"] = func.now()
+        if set_finished_at:
+            values["finished_at"] = func.now()
+
+        stmt = (
+            update(ScanBatch)
+            .where(
+                ScanBatch.id == batch_id,
+                ScanBatch.status == expected.value,
+            )
+            .values(**values)
+        )
+        result = await self.session.execute(stmt)
+        won = (result.rowcount or 0) == 1
+        log.info(
+            "scan_batch.cas_status",
+            batch_id=str(batch_id),
+            **{"from": expected.value, "to": new.value},
+            won=won,
+        )
+        return won
 
     async def list_detections_for_batch(
         self, batch_id: UUID, user_id: UUID
