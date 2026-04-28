@@ -383,6 +383,10 @@ class Dataset(Base, TimestampMixin, SoftDeleteMixin):
 
     __table_args__ = (Index("ix_datasets_created_by", "created_by"),)
 
+    items: Mapped[list[DatasetItem]] = relationship(
+        back_populates="dataset", cascade="all, delete-orphan",
+    )
+
 
 class DatasetItem(Base):
     __tablename__ = "dataset_items"
@@ -405,6 +409,8 @@ class DatasetItem(Base):
             name="uq_dataset_items_dataset_storage_key",
         ),
     )
+
+    dataset: Mapped[Dataset] = relationship(back_populates="items")
 
 
 class TrafficSplit(Base, TimestampMixin):
@@ -474,6 +480,10 @@ class Experiment(Base, TimestampMixin):
         Index("ix_experiments_status", "status"),
     )
 
+    results: Mapped[list[ExperimentResult]] = relationship(
+        back_populates="experiment", cascade="all, delete-orphan",
+    )
+
 
 class ExperimentResult(Base):
     __tablename__ = "experiment_results"
@@ -497,6 +507,8 @@ class ExperimentResult(Base):
         Index("ix_experiment_results_experiment_id", "experiment_id"),
         Index("ix_experiment_results_dataset_item_id", "dataset_item_id"),
     )
+
+    experiment: Mapped[Experiment] = relationship(back_populates="results")
 
 
 # ── Inference data ──────────────────────────────────────────────────────────

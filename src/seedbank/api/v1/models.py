@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from seedbank.api.deps import (
     ClickHouseDep,
     DbSession,
+    ModelMetricRepoDep,
     StorageDep,
     require_role,
 )
@@ -28,6 +29,7 @@ from seedbank.schemas.model import (
     ModelPerformanceOut,
     ModelRegisterIn,
     ModelStatusUpdateIn,
+    OfflineMetricOut,
 )
 from seedbank.services.model_registry_service import (
     ModelRegistryService,
@@ -139,33 +141,46 @@ async def model_performance(
     session: DbSession,
     storage: StorageDep,
     clickhouse: ClickHouseDep,
+    metrics: ModelMetricRepoDep,
     _dev: DevUser,
 ) -> Envelope[ModelPerformanceOut]:
-    """Aggregated metrics from ClickHouse. Phase 8 wires up the real schema;
-    this endpoint returns an empty payload (or a degraded note) until then.
+    """Aggregated performance for one model.
+
+    Two sources merged into one envelope:
+
+    * ``offline_metrics`` — Phase 7 ``model_metrics`` rows written by the
+      experiment runner (always available).
+    * ``rows`` — Phase 8 ClickHouse ``fact_inference`` aggregates
+      (returns empty + a degradation ``note`` until that table exists).
     """
     # Make sure the model actually exists so we don't return empty silently
     # on a typo'd ID.
     await _service(session, storage).get(model_id)
+
+    offline_rows = await metrics.list_for_model(model_id)
+    offline = [OfflineMetricOut.model_validate(r) for r in offline_rows]
+
+    note: str | None = None
+    rows: list[dict[str, object]] = []
     try:
         rows = await clickhouse.query(
             "SELECT model_id, count() AS n, avg(latency_ms) AS avg_latency_ms "
             "FROM fact_inference WHERE model_id = {model_id:UUID} GROUP BY model_id",
             parameters={"model_id": str(model_id)},
         )
-        return Envelope[ModelPerformanceOut](
-            data=ModelPerformanceOut(model_id=model_id, rows=rows)
-        )
     except ExternalServiceError as exc:
         # ClickHouse / fact_inference may not exist yet (Phase 8). Degrade
         # gracefully rather than 500 on the AI dev's first call.
-        return Envelope[ModelPerformanceOut](
-            data=ModelPerformanceOut(
-                model_id=model_id,
-                rows=[],
-                note=f"clickhouse unavailable: {exc}",
-            )
+        note = f"clickhouse unavailable: {exc}"
+
+    return Envelope[ModelPerformanceOut](
+        data=ModelPerformanceOut(
+            model_id=model_id,
+            offline_metrics=offline,
+            rows=rows,
+            note=note,
         )
+    )
 
 
 __all__ = ["router"]

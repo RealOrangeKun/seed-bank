@@ -53,8 +53,30 @@ class ModelStatusUpdateIn(BaseModel):
     status: ModelStatus
 
 
+class OfflineMetricOut(BaseModel):
+    """One row from ``model_metrics`` — an offline-eval summary metric."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    metric_name: str
+    metric_value: float
+    dataset_id: UUID | None = None
+    computed_at: datetime
+
+
 class ModelPerformanceOut(BaseModel):
+    """Aggregated performance for one model.
+
+    ``offline_metrics`` come from Postgres ``model_metrics`` (Phase 7
+    experiment runner upserts them). ``rows`` come from ClickHouse fact
+    tables (Phase 8); until that table exists the field is empty and
+    ``note`` carries a human-readable degradation reason.
+    """
+
+    model_config = ConfigDict(protected_namespaces=())
+
     model_id: UUID
+    offline_metrics: list[OfflineMetricOut] = Field(default_factory=list)
     rows: list[dict[str, Any]] = Field(default_factory=list)
     note: str | None = None
 
@@ -101,6 +123,7 @@ __all__ = [
     "ModelPerformanceOut",
     "ModelRegisterIn",
     "ModelStatusUpdateIn",
+    "OfflineMetricOut",
     "TrafficSplitEntryIn",
     "TrafficSplitOut",
     "TrafficSplitReplaceIn",

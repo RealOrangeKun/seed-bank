@@ -7,6 +7,12 @@ themselves.
 
 from .api_key import ApiKeyRepository
 from .base import Repository
+from .dataset import DatasetItemRepository, DatasetRepository
+from .experiment import (
+    ExperimentRepository,
+    ExperimentResultRepository,
+    ModelMetricRepository,
+)
 from .inference import InferenceRepository
 from .model_artifact import ModelArtifactRepository
 from .oauth_account import OAuthAccountRepository
@@ -19,8 +25,13 @@ from .user import UserRepository
 
 __all__ = [
     "ApiKeyRepository",
+    "DatasetItemRepository",
+    "DatasetRepository",
+    "ExperimentRepository",
+    "ExperimentResultRepository",
     "InferenceRepository",
     "ModelArtifactRepository",
+    "ModelMetricRepository",
     "OAuthAccountRepository",
     "RefreshTokenRepository",
     "Repository",

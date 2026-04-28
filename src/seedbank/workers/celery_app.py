@@ -42,6 +42,7 @@ def _make_celery_app(settings: Settings) -> Celery:
         task_eager_propagates=settings.celery_task_always_eager,
         task_routes={
             "seedbank.analyze_image": {"queue": "inference"},
+            "seedbank.run_experiment": {"queue": "experiments"},
         },
     )
     app.autodiscover_tasks(["seedbank.workers.tasks"])

@@ -29,6 +29,12 @@ from seedbank.infrastructure.analytics import ClickHouseClient, get_clickhouse
 from seedbank.infrastructure.cache import get_redis
 from seedbank.infrastructure.db.repositories import (
     ApiKeyRepository,
+    DatasetItemRepository,
+    DatasetRepository,
+    ExperimentRepository,
+    ExperimentResultRepository,
+    ModelArtifactRepository,
+    ModelMetricRepository,
     OAuthAccountRepository,
     RefreshTokenRepository,
     ScanBatchRepository,
@@ -41,6 +47,8 @@ from seedbank.services.analysis_service import AnalysisService
 from seedbank.services.api_key_service import ApiKeyService
 from seedbank.services.auth_service import AuthService
 from seedbank.services.batch_service import BatchService
+from seedbank.services.dataset_service import DatasetService
+from seedbank.services.experiment_service import ExperimentService
 
 log = structlog.get_logger(__name__)
 
@@ -102,12 +110,46 @@ def scan_image_repo(session: DbSession) -> ScanImageRepository:
     return ScanImageRepository(session)
 
 
+def dataset_repo(session: DbSession) -> DatasetRepository:
+    return DatasetRepository(session)
+
+
+def dataset_item_repo(session: DbSession) -> DatasetItemRepository:
+    return DatasetItemRepository(session)
+
+
+def experiment_repo(session: DbSession) -> ExperimentRepository:
+    return ExperimentRepository(session)
+
+
+def experiment_result_repo(session: DbSession) -> ExperimentResultRepository:
+    return ExperimentResultRepository(session)
+
+
+def model_artifact_repo(session: DbSession) -> ModelArtifactRepository:
+    return ModelArtifactRepository(session)
+
+
+def model_metric_repo(session: DbSession) -> ModelMetricRepository:
+    return ModelMetricRepository(session)
+
+
 UserRepoDep = Annotated[UserRepository, Depends(user_repo)]
 RefreshTokenRepoDep = Annotated[RefreshTokenRepository, Depends(refresh_token_repo)]
 OAuthAccountRepoDep = Annotated[OAuthAccountRepository, Depends(oauth_account_repo)]
 ApiKeyRepoDep = Annotated[ApiKeyRepository, Depends(api_key_repo)]
 ScanBatchRepoDep = Annotated[ScanBatchRepository, Depends(scan_batch_repo)]
 ScanImageRepoDep = Annotated[ScanImageRepository, Depends(scan_image_repo)]
+DatasetRepoDep = Annotated[DatasetRepository, Depends(dataset_repo)]
+DatasetItemRepoDep = Annotated[DatasetItemRepository, Depends(dataset_item_repo)]
+ExperimentRepoDep = Annotated[ExperimentRepository, Depends(experiment_repo)]
+ExperimentResultRepoDep = Annotated[
+    ExperimentResultRepository, Depends(experiment_result_repo)
+]
+ModelArtifactRepoDep = Annotated[
+    ModelArtifactRepository, Depends(model_artifact_repo)
+]
+ModelMetricRepoDep = Annotated[ModelMetricRepository, Depends(model_metric_repo)]
 
 
 # ── Service factories ────────────────────────────────────────────────────────
@@ -162,10 +204,36 @@ def batch_service(
     return BatchService(session=session, batches=batches)
 
 
+def dataset_service(
+    session: DbSession,
+    datasets: DatasetRepoDep,
+    items: DatasetItemRepoDep,
+) -> DatasetService:
+    return DatasetService(session=session, datasets=datasets, items=items)
+
+
+def experiment_service(
+    session: DbSession,
+    experiments: ExperimentRepoDep,
+    results: ExperimentResultRepoDep,
+    models: ModelArtifactRepoDep,
+    datasets: DatasetRepoDep,
+) -> ExperimentService:
+    return ExperimentService(
+        session=session,
+        experiments=experiments,
+        results=results,
+        models=models,
+        datasets=datasets,
+    )
+
+
 AuthServiceDep = Annotated[AuthService, Depends(auth_service)]
 ApiKeyServiceDep = Annotated[ApiKeyService, Depends(api_key_service)]
 AnalysisServiceDep = Annotated[AnalysisService, Depends(analysis_service)]
 BatchServiceDep = Annotated[BatchService, Depends(batch_service)]
+DatasetServiceDep = Annotated[DatasetService, Depends(dataset_service)]
+ExperimentServiceDep = Annotated[ExperimentService, Depends(experiment_service)]
 
 
 # ── Authentication ───────────────────────────────────────────────────────────
