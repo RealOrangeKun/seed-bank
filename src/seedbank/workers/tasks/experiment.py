@@ -294,6 +294,13 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
             items_failed=items_failed,
             duration_ms=duration_ms,
         )
+        # DWH dual-write — fan out per-result fact rows + the model dim.
+        from seedbank.workers.tasks.dwh import (  # local import keeps the module discoverable lazily
+            SYNC_EXPERIMENT_RESULTS,
+            dispatch_after_commit,
+        )
+
+        dispatch_after_commit(SYNC_EXPERIMENT_RESULTS, str(experiment.id))
 
 
 # ── Eval flows ────────────────────────────────────────────────────────────────

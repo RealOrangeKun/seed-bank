@@ -27,6 +27,9 @@ import os
 # Settings has no env_prefix, so the env var is just ``BOOTSTRAP_TOKEN``.
 TEST_BOOTSTRAP_TOKEN = "test-bootstrap-secret-do-not-ship"  # noqa: S105 — fixture
 os.environ.setdefault("BOOTSTRAP_TOKEN", TEST_BOOTSTRAP_TOKEN)
+# Phase 8 — keep the warehouse dual-write off in e2e; we don't spin up a
+# ClickHouse testcontainer in this tier. Unit + integration cover that.
+os.environ.setdefault("DWH_ENABLED", "false")
 
 
 from collections.abc import Awaitable, Callable

@@ -82,6 +82,12 @@ from seedbank.infrastructure.storage import get_storage
 from seedbank.services.traffic_router import TrafficRouter
 from seedbank.workers.celery_app import celery_app
 from seedbank.workers.session import worker_session_scope
+from seedbank.workers.tasks.dwh import (
+    SYNC_DETECTIONS,
+    SYNC_INFERENCE,
+    SYNC_SCAN_BATCH,
+    dispatch_after_commit,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -179,6 +185,9 @@ async def _async_analyze_image(
             image_id=str(image.id),
             won_cas=won,
         )
+        # First task to win the CAS owns the running-state DWH refresh.
+        if won:
+            dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
 
         # 3. Pull image bytes from MinIO. Failure here -> ExternalServiceError
         # which Celery retries via ``autoretry_for``.
@@ -201,6 +210,7 @@ async def _async_analyze_image(
         except Exception:
             await _mark_batch_failed(repos=repos, batch_id=batch.id, started_at=batch.started_at)
             await session.commit()
+            dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
             raise
 
         detect_inference = await _run_detect_and_persist(
@@ -393,6 +403,7 @@ async def _run_detect_and_persist(
             await session.commit()
         await _mark_batch_failed(repos=repos, batch_id=batch_id, started_at=started_at)
         await session.commit()
+        dispatch_after_commit(SYNC_SCAN_BATCH, str(batch_id))
         raise
 
     # Update latency now that we have it.
@@ -420,6 +431,8 @@ async def _run_detect_and_persist(
         n_detections=len(rows),
         latency_ms=outcome.latency_ms,
     )
+    dispatch_after_commit(SYNC_INFERENCE, str(inference.id))
+    dispatch_after_commit(SYNC_DETECTIONS, str(inference.id))
     return inference
 
 
@@ -559,6 +572,10 @@ async def _run_classify_for_detections(
         n_total=len(detections),
         latency_ms_sum=total_latency_ms,
     )
+    # Detect inference's detections now have ``quality`` populated; resync
+    # so fact_detection rows reflect the labels.
+    dispatch_after_commit(SYNC_INFERENCE, str(classify_inference.id))
+    dispatch_after_commit(SYNC_DETECTIONS, str(detect_inference.id))
 
 
 def _crop_to_jpeg(base_img: Image.Image, det: SeedDetection, width: int, height: int) -> bytes:
@@ -629,6 +646,8 @@ async def _finalize_batch_if_done(
         duration_ms=duration_ms,
         flipped=flipped,
     )
+    if flipped:
+        dispatch_after_commit(SYNC_SCAN_BATCH, str(batch_id))
 
 
 async def _detect_progress(session: AsyncSession, batch_id: UUID) -> tuple[int, bool]:

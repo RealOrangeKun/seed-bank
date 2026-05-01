@@ -195,6 +195,15 @@ class AnalysisService:
                 queue=_ANALYZE_TASK_QUEUE,
             )
 
+        # Phase 6 — DWH dual-write. Best-effort; broker failures are logged
+        # but never break the API response (the OLTP commit already won).
+        from seedbank.workers.tasks.dwh import (  # local import: workers package may not be importable in test contexts
+            SYNC_SCAN_BATCH,
+            dispatch_after_commit,
+        )
+
+        dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
+
         log.info(
             "analyze.created",
             batch_id=str(batch.id),

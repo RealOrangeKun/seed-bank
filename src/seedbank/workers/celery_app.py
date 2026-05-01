@@ -43,6 +43,13 @@ def _make_celery_app(settings: Settings) -> Celery:
         task_routes={
             "seedbank.analyze_image": {"queue": "inference"},
             "seedbank.run_experiment": {"queue": "experiments"},
+            # DWH dual-write tasks (Phase 8). All routed to a single ``dwh``
+            # queue so a separate light worker can drain them without
+            # contending with inference compute.
+            "seedbank.dwh.sync_inference": {"queue": "dwh"},
+            "seedbank.dwh.sync_detections": {"queue": "dwh"},
+            "seedbank.dwh.sync_experiment_results": {"queue": "dwh"},
+            "seedbank.dwh.sync_scan_batch": {"queue": "dwh"},
         },
     )
     app.autodiscover_tasks(["seedbank.workers.tasks"])

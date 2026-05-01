@@ -63,6 +63,30 @@ class ClickHouseClient:
         except Exception as exc:
             raise ExternalServiceError(f"clickhouse execute failed: {exc}") from exc
 
+    async def insert(
+        self,
+        table: str,
+        rows: list[list[Any]],
+        column_names: list[str],
+    ) -> None:
+        """Bulk insert rows. Empty ``rows`` is a no-op so callers can use
+        the same code path for empty result sets.
+
+        Wrapping :class:`Exception` here because ``clickhouse-connect``
+        raises a small zoo of driver-specific subclasses we don't want to
+        catch individually in every dual-write task.
+        """
+        if not rows:
+            return
+        try:
+            await self._client.insert(
+                table=table,
+                data=rows,
+                column_names=column_names,
+            )
+        except Exception as exc:
+            raise ExternalServiceError(f"clickhouse insert into {table!r} failed: {exc}") from exc
+
     async def close(self) -> None:
         await self._client.close()
 

@@ -241,11 +241,12 @@ class TestHappyPath:
         # Ordering invariants.
         storage.put_object.assert_awaited_once()
         assert session.commits == 1
-        send.assert_called_once()
-        # The dispatched payload mirrors the contract the worker reads.
-        args, kwargs = send.call_args
-        assert args[0] == "seedbank.analyze_image"
-        assert kwargs["queue"] == "inference"
+        # Two dispatches per batch: one analyze_image (per image) plus a DWH
+        # ``sync_scan_batch`` so the warehouse picks up the pending row.
+        assert send.call_count == 2
+        task_names = [call.args[0] for call in send.call_args_list]
+        assert "seedbank.analyze_image" in task_names
+        assert "seedbank.dwh.sync_scan_batch" in task_names
 
     @pytest.mark.asyncio
     async def test_three_files_dispatch_three_tasks(self) -> None:
@@ -261,7 +262,11 @@ class TestHappyPath:
                 gps_lat=None, gps_long=None, country_code=None, ip=None,
             )
         assert storage.put_object.await_count == 3
-        assert send.call_count == 3
+        # 3 analyze_image dispatches + 1 sync_scan_batch dispatch
+        assert send.call_count == 4
+        task_names = [call.args[0] for call in send.call_args_list]
+        assert task_names.count("seedbank.analyze_image") == 3
+        assert task_names.count("seedbank.dwh.sync_scan_batch") == 1
         assert session.commits == 1  # one commit covers all three images
 
     @pytest.mark.asyncio

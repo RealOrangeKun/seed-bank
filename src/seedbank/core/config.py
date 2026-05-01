@@ -107,6 +107,13 @@ class Settings(BaseSettings):
     # (instead of being sent to a broker). Must remain False in prod.
     celery_task_always_eager: bool = False
 
+    # ── Data warehouse ───────────────────────────────────────────────────────
+    # Master switch for the OLTP→ClickHouse dual-write pipeline (Phase 8).
+    # When false, the API + workers skip every DWH dispatch — useful for
+    # local stacks without ClickHouse and for unit/e2e tests that don't
+    # spin one up. Defaults to true so production gets warehouse data.
+    dwh_enabled: bool = True
+
     # ── Observability ────────────────────────────────────────────────────────
     otel_exporter_otlp_endpoint: str | None = None
     sentry_dsn: SecretStr | None = None

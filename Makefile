@@ -77,14 +77,17 @@ wait: ## Wait until api becomes healthy.
 	done; echo "api did not become ready"; $(COMPOSE) ps; exit 1
 
 # ── Migrations / seed ────────────────────────────────────────────────────────
-.PHONY: migrate migrate-down seed
+.PHONY: migrate migrate-down migrate-clickhouse seed
 migrate: ## Apply Alembic migrations against the dev DB.
 	$(COMPOSE) exec api alembic upgrade head
 
 migrate-down: ## Roll back one Alembic revision.
 	$(COMPOSE) exec api alembic downgrade -1
 
-seed: ## Seed catalog, register models, create demo users.
+migrate-clickhouse: ## Apply ClickHouse star-schema DDL (idempotent).
+	$(COMPOSE) exec api python -m scripts.init_clickhouse
+
+seed: migrate-clickhouse ## Seed catalog, register models, create demo users.
 	$(COMPOSE) exec api python -m scripts.seed_dev
 
 # ── Quality gates ────────────────────────────────────────────────────────────

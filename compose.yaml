@@ -60,7 +60,7 @@ services:
       target: runtime-cpu
     image: seedbank/worker-cpu:0.1.0
     container_name: seedbank-worker-cpu
-    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping"]
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,inference,experiments,dwh"]
     environment:
       <<: *app-env
     healthcheck:
