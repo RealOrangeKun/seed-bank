@@ -39,6 +39,30 @@ def postgres_container() -> Iterator[Any]:
         yield pg
 
 
+@pytest.fixture(scope="session")
+def clickhouse_container() -> Iterator[Any]:
+    """Session-scoped ClickHouse container for the DWH integration tier.
+
+    Pinned to 24.10-alpine to match what compose runs in dev/prod —
+    keeps the test surface honest. Skipped automatically when the
+    integration extras aren't installed (so the unit + e2e tiers, which
+    don't import this fixture, never pay the spin-up cost).
+    """
+    pytest.importorskip("testcontainers.clickhouse")
+    from testcontainers.clickhouse import ClickHouseContainer
+
+    # Username/password/dbname default to "test" inside the container; we
+    # override CLICKHOUSE_DB explicitly so the dim/fact DDL has somewhere
+    # to land on first apply.
+    with ClickHouseContainer(
+        "clickhouse/clickhouse-server:24.10-alpine",
+        username="test",
+        password="test",
+        dbname="seedbank_test",
+    ) as ch:
+        yield ch
+
+
 def _migrate_to_head(sync_dsn: str) -> None:
     """Apply alembic migrations using sync drivers.
 
@@ -116,9 +140,7 @@ async def _truncate_all_tables(engine: AsyncEngine) -> None:
         tables = [r[0] for r in rows]
         if tables:
             quoted = ", ".join(f'"{t}"' for t in tables)
-            await conn.execute(
-                text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE")
-            )
+            await conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
 
 
 @pytest_asyncio.fixture
@@ -142,7 +164,9 @@ async def app_client(async_engine: AsyncEngine) -> AsyncIterator["AsyncClient"]:
     fake_redis = fakeredis_aio.FakeRedis(decode_responses=True)
 
     sm: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        bind=async_engine, expire_on_commit=False, class_=AsyncSession,
+        bind=async_engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
     )
 
     async def _override_db() -> AsyncIterator[AsyncSession]:

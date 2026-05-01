@@ -1,13 +1,16 @@
 """Unit tests for :class:`AnalyticsRepository`.
 
-These verify the row-tuple shape and column ordering passed to
-``ClickHouseClient.insert``. The CH client itself is mocked — the
-repo's job is purely serialization, so a unit test is enough; the
-integration suite covers the round-trip against a real CH container.
+These verify the row-tuple shape and column ordering passed to the
+ClickHouse driver. We mock at the driver layer (``ClickHouseClient._client``)
+rather than at the wrapper, so the wrapper's empty-rows short-circuit is
+observable in tests — tests that assert "no insert happens when there are
+no rows" actually pin the wire-level invariant. Integration tier covers
+the round-trip against a real CH container.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -16,6 +19,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from seedbank.infrastructure.analytics.clickhouse_client import ClickHouseClient
 from seedbank.infrastructure.analytics.repository import (
     AnalyticsRepository,
     DimModelRow,
@@ -33,10 +37,24 @@ pytestmark = pytest.mark.unit
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 
-def _client() -> Any:
-    fake = AsyncMock()
-    fake.insert = AsyncMock()
-    return fake
+def _client() -> ClickHouseClient:
+    """Real wrapper around a mocked driver. Lets the wrapper's
+    empty-rows guard execute, so assertions on ``client._client.insert``
+    pin the actual wire-level invariant rather than the wrapper API."""
+    driver = AsyncMock()
+    driver.insert = AsyncMock()
+    return ClickHouseClient(driver)
+
+
+def _driver_insert(client: ClickHouseClient) -> AsyncMock:
+    """Convenience: the mocked driver's ``insert`` method."""
+    return client._client.insert  # type: ignore[no-any-return]
+
+
+def _await_kwargs(mock: AsyncMock) -> Mapping[str, Any]:
+    """Narrow ``await_args`` (typed ``_Call | None``) to its kwargs map."""
+    assert mock.await_args is not None, "mock was not awaited"
+    return mock.await_args.kwargs
 
 
 def _utc(year: int = 2026, month: int = 5, day: int = 1) -> datetime:
@@ -62,8 +80,9 @@ async def test_upsert_user_writes_seven_columns() -> None:
         )
     )
 
-    client.insert.assert_awaited_once()
-    kwargs = client.insert.await_args.kwargs
+    insert = _driver_insert(client)
+    insert.assert_awaited_once()
+    kwargs = _await_kwargs(insert)
     assert kwargs["table"] == "dim_user"
     assert kwargs["column_names"] == [
         "user_id",
@@ -74,7 +93,7 @@ async def test_upsert_user_writes_seven_columns() -> None:
         "created_at",
         "updated_at",
     ]
-    [row] = kwargs["rows"]
+    [row] = kwargs["data"]
     assert row[0] == user_id
     assert row[1] == "u@example.com"
     assert row[2] == "ai_developer"
@@ -95,7 +114,7 @@ async def test_upsert_seed_type_passes_threshold_as_decimal() -> None:
             updated_at=_utc(),
         )
     )
-    [row] = client.insert.await_args.kwargs["rows"]
+    [row] = _await_kwargs(client._client.insert)["data"]
     assert isinstance(row[3], Decimal)
 
 
@@ -115,7 +134,7 @@ async def test_upsert_model_serializes_seed_type_id_nullable() -> None:
             updated_at=_utc(),
         )
     )
-    [row] = client.insert.await_args.kwargs["rows"]
+    [row] = _await_kwargs(client._client.insert)["data"]
     # seed_type_id is index 5
     assert row[5] is None
 
@@ -142,9 +161,9 @@ async def test_insert_inference_row_shape() -> None:
             occurred_at=_utc(),
         )
     )
-    kwargs = client.insert.await_args.kwargs
+    kwargs = _await_kwargs(client._client.insert)
     assert kwargs["table"] == "fact_inference"
-    [row] = kwargs["rows"]
+    [row] = kwargs["data"]
     assert row[0] == inf_id
     assert row[6] == "torch_local"
     assert row[7] == "detection"
@@ -174,7 +193,7 @@ async def test_insert_inference_naive_datetime_promotes_to_utc() -> None:
             occurred_at=naive,
         )
     )
-    [row] = client.insert.await_args.kwargs["rows"]
+    [row] = _await_kwargs(client._client.insert)["data"]
     assert row[8] is None
     assert row[9] == 1  # has_error
     assert row[10].tzinfo is timezone.utc
@@ -184,7 +203,7 @@ async def test_insert_detections_empty_skips_call() -> None:
     client = _client()
     repo = AnalyticsRepository(client)
     await repo.insert_detections([])
-    client.insert.assert_not_awaited()
+    client._client.insert.assert_not_awaited()
 
 
 async def test_insert_detections_serializes_quality_and_decimals() -> None:
@@ -212,9 +231,25 @@ async def test_insert_detections_serializes_quality_and_decimals() -> None:
         occurred_at=_utc(),
     )
     await repo.insert_detections([det])
-    [row] = client.insert.await_args.kwargs["rows"]
+    [row] = _await_kwargs(client._client.insert)["data"]
     assert row[7] == "good"  # quality
     assert row[8] == Decimal("0.9123")  # confidence
+
+
+async def test_upsert_seed_types_empty_skips_call() -> None:
+    """Repo-level guard: bulk dim writes short-circuit on empty input."""
+    client = _client()
+    repo = AnalyticsRepository(client)
+    await repo.upsert_seed_types([])
+    client._client.insert.assert_not_awaited()
+
+
+async def test_insert_experiment_results_empty_skips_call() -> None:
+    """Repo-level guard: bulk fact writes short-circuit on empty input."""
+    client = _client()
+    repo = AnalyticsRepository(client)
+    await repo.insert_experiment_results([])
+    client._client.insert.assert_not_awaited()
 
 
 async def test_insert_experiment_results_writes_has_error_flag() -> None:
@@ -245,7 +280,7 @@ async def test_insert_experiment_results_writes_has_error_flag() -> None:
         ),
     ]
     await repo.insert_experiment_results(rows)
-    payload = client.insert.await_args.kwargs["rows"]
+    payload = _await_kwargs(client._client.insert)["data"]
     assert [r[6] for r in payload] == [1, 0]
     assert [r[7] for r in payload] == [None, 42]
 
@@ -269,7 +304,7 @@ async def test_upsert_scan_batch_passes_geo_and_status() -> None:
             geo_country_code="EG",
         )
     )
-    [row] = client.insert.await_args.kwargs["rows"]
+    [row] = _await_kwargs(client._client.insert)["data"]
     assert row[0] == bid
     assert row[3] == "succeeded"
     assert row[10] == "EG"
@@ -293,6 +328,6 @@ async def test_upsert_scan_batch_handles_pending_with_no_started_at() -> None:
             geo_country_code="",
         )
     )
-    [row] = client.insert.await_args.kwargs["rows"]
+    [row] = _await_kwargs(client._client.insert)["data"]
     assert row[8] is None  # started_at
     assert row[9] is None  # finished_at

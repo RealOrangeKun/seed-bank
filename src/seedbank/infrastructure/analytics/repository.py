@@ -85,7 +85,7 @@ class FactDetectionRow:
     user_id: UUID
     model_id: UUID
     seed_type_id: UUID | None
-    quality: str  # '' when null at source — LowCardinality(String) can't be Nullable
+    quality: str | None
     confidence: Decimal
     detection_confidence: Decimal
     box_x_norm: Decimal
@@ -106,7 +106,7 @@ class FactExperimentResultRow:
     dataset_id: UUID
     dataset_item_id: UUID
     model_id: UUID
-    user_id: UUID
+    user_id: UUID | None
     has_error: bool
     latency_ms: int | None
     occurred_at: datetime
@@ -291,9 +291,9 @@ class AnalyticsRepository:
             ]
             for r in rows
         ]
-        await self._ch.insert(
-            table="dim_seed_type", rows=payload, column_names=_DIM_SEED_TYPE_COLS
-        )
+        if not payload:
+            return
+        await self._ch.insert(table="dim_seed_type", rows=payload, column_names=_DIM_SEED_TYPE_COLS)
 
     async def upsert_model(self, row: DimModelRow) -> None:
         await self._ch.insert(
@@ -362,13 +362,13 @@ class AnalyticsRepository:
             ]
             for r in rows
         ]
+        if not payload:
+            return
         await self._ch.insert(
             table="fact_detection", rows=payload, column_names=_FACT_DETECTION_COLS
         )
 
-    async def insert_experiment_results(
-        self, rows: Iterable[FactExperimentResultRow]
-    ) -> None:
+    async def insert_experiment_results(self, rows: Iterable[FactExperimentResultRow]) -> None:
         payload: list[list[Any]] = [
             [
                 r.result_id,
@@ -383,6 +383,8 @@ class AnalyticsRepository:
             ]
             for r in rows
         ]
+        if not payload:
+            return
         await self._ch.insert(
             table="fact_experiment_result",
             rows=payload,

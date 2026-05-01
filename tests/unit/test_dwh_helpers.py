@@ -50,6 +50,20 @@ def test_dispatch_after_commit_swallows_broker_failures() -> None:
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))  # must not raise
 
 
+def test_dispatch_after_commit_short_circuits_when_dwh_disabled() -> None:
+    """When ``dwh_enabled=False`` the helper is a no-op: ``send_task`` must
+    NEVER be invoked. This is the kill-switch the e2e test path relies on
+    so eager-Celery doesn't inline-invoke a sync task against an absent
+    ClickHouse container."""
+    fake_settings = SimpleNamespace(dwh_enabled=False)
+    with (
+        patch.object(dwh_module, "get_settings", return_value=fake_settings),
+        patch.object(dwh_module.celery_app, "send_task") as send,
+    ):
+        dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
+    send.assert_not_called()
+
+
 # ── ORM → DimRow builders ──────────────────────────────────────────────────
 
 

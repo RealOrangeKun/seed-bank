@@ -21,17 +21,45 @@ log = get_logger(__name__)
 
 def _load_schema_sql() -> str:
     """Read the bundled ``schema.sql`` so the package works inside a wheel."""
-    return files("seedbank.infrastructure.analytics").joinpath("schema.sql").read_text(
-        encoding="utf-8",
+    return (
+        files("seedbank.infrastructure.analytics")
+        .joinpath("schema.sql")
+        .read_text(
+            encoding="utf-8",
+        )
     )
 
 
+def _strip_line_comments(sql: str) -> str:
+    """Drop every ``--`` line comment from the SQL.
+
+    Done before splitting on ``;`` because semicolons inside comments
+    (e.g. an English sentence in the file's header block) would
+    otherwise become spurious statement boundaries. This is a
+    line-oriented strip — block comments and string literals would need
+    real tokenisation, but the schema file uses neither.
+    """
+    out: list[str] = []
+    for line in sql.splitlines():
+        # ``rstrip`` first so a trailing comment on a code line ('FOO; -- x')
+        # is dropped; then drop full-line comments.
+        cut = line.split("--", 1)[0].rstrip()
+        if cut:
+            out.append(cut)
+    return "\n".join(out)
+
+
 def _split_statements(sql: str) -> list[str]:
-    """Naive ``;``-split. The schema file deliberately avoids semicolons in
-    string literals so this is enough — extending it later (e.g. for
-    materialized views with embedded SELECTs) is fine because each
-    ``CREATE`` here is one statement that ends on ``;``."""
-    return [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+    """Strip line comments, then split on ``;`` and drop empty chunks.
+
+    Naive ``;``-split would be enough on its own except that the schema
+    file's header comment contains an English sentence with a semicolon
+    in it. Stripping line comments first sidesteps that without needing
+    a full SQL tokeniser. The schema file deliberately avoids
+    semicolons in string literals so this remains sufficient.
+    """
+    cleaned = _strip_line_comments(sql)
+    return [stmt.strip() for stmt in cleaned.split(";") if stmt.strip()]
 
 
 async def apply_schema(client: ClickHouseClient) -> int:

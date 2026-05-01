@@ -14,6 +14,14 @@
 -- Time columns are ``DateTime64(3, 'UTC')`` end-to-end; queries should
 -- always pass UTC. ``occurred_date`` materialised columns power partition
 -- pruning and "by day" rollups without needing a separate calendar table.
+--
+-- Schema evolution note: ``IF NOT EXISTS`` only protects creation; column
+-- type changes are NOT picked up automatically. To re-apply nullable-column
+-- corrections on a live cluster:
+--   ALTER TABLE fact_detection MODIFY COLUMN quality LowCardinality(Nullable(String));
+--   ALTER TABLE fact_experiment_result MODIFY COLUMN user_id Nullable(UUID);
+-- On dev clusters with no meaningful data, the simplest path is
+-- ``DROP TABLE`` + re-run ``scripts/init_clickhouse.py``.
 
 -- ── Dimensions ──────────────────────────────────────────────────────────
 
@@ -87,7 +95,7 @@ CREATE TABLE IF NOT EXISTS fact_detection (
     user_id               UUID,
     model_id              UUID,
     seed_type_id          Nullable(UUID),
-    quality               LowCardinality(String),
+    quality               LowCardinality(Nullable(String)),
     confidence            Decimal(5, 4),
     detection_confidence  Decimal(5, 4),
     box_x_norm            Decimal(7, 6),
@@ -114,7 +122,7 @@ CREATE TABLE IF NOT EXISTS fact_experiment_result (
     dataset_id       UUID,
     dataset_item_id  UUID,
     model_id         UUID,
-    user_id          UUID,
+    user_id          Nullable(UUID),
     has_error        UInt8,
     latency_ms       Nullable(UInt32),
     occurred_at      DateTime64(3, 'UTC'),

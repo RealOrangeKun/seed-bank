@@ -191,7 +191,7 @@ async def _async_sync_detections(inference_id: UUID) -> None:
                 user_id=batch.user_id,
                 model_id=model.id,
                 seed_type_id=d.seed_type_id,
-                quality=(d.quality or ""),
+                quality=d.quality,
                 confidence=d.confidence,
                 detection_confidence=d.detection_confidence or d.confidence,
                 box_x_norm=d.box_x_norm,
@@ -243,7 +243,7 @@ async def _async_sync_experiment_results(experiment_id: UUID) -> None:
         return
 
     occurred_at = experiment.finished_at or experiment.started_at or datetime.now(timezone.utc)
-    user_id = user.id if user is not None else _ZERO_UUID
+    user_id = user.id if user is not None else None
 
     client = await _open_clickhouse()
     try:
@@ -383,13 +383,6 @@ def _dim_model(model: ModelArtifact) -> DimModelRow:
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
-
-
-# Sentinel for fact_experiment_result rows whose Experiment.created_by has
-# been NULL'd by an account deletion. ClickHouse UUID can't be Nullable in
-# the dim/fact join column without complicating queries; we pin to the
-# all-zero UUID and let analytics queries filter it out.
-_ZERO_UUID = UUID(int=0)
 
 
 # ── Dispatch helper for callers ────────────────────────────────────────────
