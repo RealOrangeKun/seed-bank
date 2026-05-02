@@ -15,11 +15,14 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from seedbank.api.errors import install_error_handlers
-from seedbank.api.middleware import RequestIdMiddleware
+from seedbank.api.middleware import PrometheusMiddleware, RequestIdMiddleware
 from seedbank.api.rate_limit import install_rate_limiter
 from seedbank.api.v1 import api_router as api_v1_router
 from seedbank.core.config import Settings, get_settings
 from seedbank.core.logging import configure_logging, get_logger
+from seedbank.core.metrics import metrics_response
+from seedbank.core.sentry import init_sentry
+from seedbank.core.tracing import init_tracing_for_api
 from seedbank.infrastructure.analytics import close_clickhouse, get_clickhouse
 from seedbank.infrastructure.cache import close_redis, get_redis
 from seedbank.infrastructure.db.session import dispose_engine, get_sessionmaker
@@ -51,6 +54,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings)
+    # Sentry init before app creation so the SDK's request-context middleware
+    # wraps our routes from the very first request.
+    init_sentry(settings)
 
     app = FastAPI(
         title="Seed-Bank API",
@@ -62,8 +68,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
 
-    # Order matters: RequestId first so CORS/error-handler logs already have a request_id.
+    # Order matters: RequestId first so CORS/error-handler logs already have
+    # a request_id; PrometheusMiddleware wraps the rest so timings include
+    # downstream middleware overhead but exclude RequestId itself (sub-µs).
     app.add_middleware(RequestIdMiddleware)
+    if settings.enable_metrics:
+        app.add_middleware(PrometheusMiddleware)
     if settings.cors_allow_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -84,6 +94,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     install_rate_limiter(app)
     app.include_router(api_v1_router)
+
+    # OTel must instrument FastAPI **after** routers are included; the
+    # instrumentor walks the route table once and would miss anything
+    # added later. No-op when ``OTEL_EXPORTER_OTLP_ENDPOINT`` is unset.
+    init_tracing_for_api(app, settings)
+
+    if settings.enable_metrics:
+
+        @app.get("/metrics", tags=["health"], include_in_schema=False)
+        async def metrics() -> object:
+            return metrics_response()
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

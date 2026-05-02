@@ -238,11 +238,71 @@ services:
       postgres: {condition: service_healthy}
     restart: unless-stopped
 
+  # ── Observability (opt-in, Phase 9) ────────────────────────────────────
+  # Bring up with ``docker compose --profile obs up`` (or
+  # ``COMPOSE_PROFILES=obs make up``). Default ``make up`` stays lean.
+  # Prometheus scrapes ``api:8000/metrics``; Grafana auto-loads the
+  # provisioned datasource + Seed-Bank Overview dashboard.
+  prometheus:
+    profiles: ["obs"]
+    image: prom/prometheus:v2.55.1
+    container_name: seedbank-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  grafana:
+    profiles: ["obs"]
+    image: grafana/grafana:11.3.0
+    container_name: seedbank-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      prometheus: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
 volumes:
   postgres-data:
   redis-data:
   minio-data:
   clickhouse-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   default:

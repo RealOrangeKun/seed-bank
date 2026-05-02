@@ -1,0 +1,17 @@
+# Dashboard provisioning. Loads everything in /var/lib/grafana/dashboards
+# (mounted from ops/grafana/dashboards/). Editing is disabled because
+# changes there would not survive a container recreate — edit the JSON
+# in-repo instead.
+
+apiVersion: 1
+
+providers:
+  - name: seedbank
+    orgId: 1
+    folder: Seed-Bank
+    type: file
+    disableDeletion: true
+    editable: false
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

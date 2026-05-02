@@ -15,8 +15,11 @@ a fresh engine via :mod:`seedbank.workers.session`.
 from __future__ import annotations
 
 from celery import Celery
+from celery.signals import worker_process_init
 
 from seedbank.core.config import Settings, get_settings
+from seedbank.core.sentry import init_sentry
+from seedbank.core.tracing import init_tracing_for_celery
 
 
 def _make_celery_app(settings: Settings) -> Celery:
@@ -63,6 +66,22 @@ def make_celery_app() -> Celery:
 
 
 celery_app: Celery = make_celery_app()
+
+
+@worker_process_init.connect  # type: ignore[misc]
+def _init_obs_per_worker(**_: object) -> None:
+    """Initialise tracing + Sentry **after** Celery's prefork.
+
+    Installing the OTel TracerProvider before fork shares a gRPC channel
+    across children and the exporter silently drops spans. Sentry has
+    similar fork-safety constraints. This signal fires once per worker
+    process post-fork — exactly the right place. Both initialisers are
+    no-ops when their respective env vars are unset, so the dev compose
+    stack stays clean.
+    """
+    settings = get_settings()
+    init_sentry(settings)
+    init_tracing_for_celery(settings)
 
 
 __all__ = ["celery_app", "make_celery_app"]

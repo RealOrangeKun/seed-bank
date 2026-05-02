@@ -21,7 +21,9 @@ to be eventually consistent on hard deletes.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any
 from uuid import UUID
 
@@ -31,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from seedbank.core.config import get_settings
 from seedbank.core.exceptions import ExternalServiceError, NotFoundError
 from seedbank.core.logging import get_logger
+from seedbank.core.metrics import DWH_DISPATCH, DWH_TASK_DURATION
 from seedbank.infrastructure.analytics import (
     AnalyticsRepository,
     DimModelRow,
@@ -73,6 +76,32 @@ SYNC_SCAN_BATCH = "seedbank.dwh.sync_scan_batch"
 # ── Celery wrappers (sync) ─────────────────────────────────────────────────
 
 
+def _run_timed(
+    task_name: str, fn: Callable[[UUID], Awaitable[None]], arg_id: str
+) -> None:
+    """Run an async sync-task body and observe its duration + outcome.
+
+    The label ``result`` lets dashboards split healthy throughput
+    (``ok``) from retry-driving failures (``error``) and from genuine
+    "the source row was deleted" non-retryables (``not_found``).
+    Re-raises so Celery's retry/ack semantics are unchanged.
+    """
+    start = perf_counter()
+    result = "ok"
+    try:
+        asyncio.run(fn(UUID(arg_id)))
+    except NotFoundError:
+        result = "not_found"
+        raise
+    except Exception:
+        result = "error"
+        raise
+    finally:
+        DWH_TASK_DURATION.labels(task=task_name, result=result).observe(
+            perf_counter() - start
+        )
+
+
 @celery_app.task(  # type: ignore[untyped-decorator]
     name=SYNC_INFERENCE,
     bind=True,
@@ -82,7 +111,7 @@ SYNC_SCAN_BATCH = "seedbank.dwh.sync_scan_batch"
     retry_backoff=True,
 )
 def sync_inference(self: object, inference_id: str) -> None:  # noqa: ARG001
-    asyncio.run(_async_sync_inference(UUID(inference_id)))
+    _run_timed(SYNC_INFERENCE, _async_sync_inference, inference_id)
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -94,7 +123,7 @@ def sync_inference(self: object, inference_id: str) -> None:  # noqa: ARG001
     retry_backoff=True,
 )
 def sync_detections(self: object, inference_id: str) -> None:  # noqa: ARG001
-    asyncio.run(_async_sync_detections(UUID(inference_id)))
+    _run_timed(SYNC_DETECTIONS, _async_sync_detections, inference_id)
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -106,7 +135,7 @@ def sync_detections(self: object, inference_id: str) -> None:  # noqa: ARG001
     retry_backoff=True,
 )
 def sync_experiment_results(self: object, experiment_id: str) -> None:  # noqa: ARG001
-    asyncio.run(_async_sync_experiment_results(UUID(experiment_id)))
+    _run_timed(SYNC_EXPERIMENT_RESULTS, _async_sync_experiment_results, experiment_id)
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -118,7 +147,7 @@ def sync_experiment_results(self: object, experiment_id: str) -> None:  # noqa: 
     retry_backoff=True,
 )
 def sync_scan_batch(self: object, batch_id: str) -> None:  # noqa: ARG001
-    asyncio.run(_async_sync_scan_batch(UUID(batch_id)))
+    _run_timed(SYNC_SCAN_BATCH, _async_sync_scan_batch, batch_id)
 
 
 # ── Async cores ────────────────────────────────────────────────────────────
@@ -390,13 +419,21 @@ def dispatch_after_commit(task_name: str, *args: Any) -> None:
     Honors the ``dwh_enabled`` setting — when false, dispatches are
     no-ops. This keeps the eager test path from inline-invoking the
     sync tasks against an absent ClickHouse container.
+
+    Increments :data:`seedbank.core.metrics.DWH_DISPATCH` so operators can
+    alert on dispatch failure rate (Finding #5). The label ``result`` is
+    one of ``ok`` / ``disabled`` / ``error``.
     """
     if not get_settings().dwh_enabled:
+        DWH_DISPATCH.labels(task=task_name, result="disabled").inc()
         return
     try:
         celery_app.send_task(task_name, args=list(args), queue=DWH_QUEUE)
     except Exception as exc:  # noqa: BLE001 — broker driver can raise anything
+        DWH_DISPATCH.labels(task=task_name, result="error").inc()
         log.warning("dwh.dispatch_failed", task=task_name, error=repr(exc))
+    else:
+        DWH_DISPATCH.labels(task=task_name, result="ok").inc()
 
 
 __all__ = [

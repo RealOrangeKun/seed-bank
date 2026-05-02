@@ -127,6 +127,76 @@ you want a known-clean slate.
   built but the celery entrypoint hasn't been written yet. `make up`
   starts only api + infra to keep the smoke clean.
 
+## Observability (Phase 9)
+
+The app exposes three signals end-to-end: **metrics**, **traces**, and
+**errors**. Each is opt-in at the infrastructure layer; the application
+side is always wired so deploying a collector is the only switch.
+
+### Metrics — Prometheus
+
+The API serves Prometheus text on `GET /metrics` (excluded from the
+HTTP middleware so scrapes do not dominate the histograms). Core
+metrics:
+
+| Metric | Kind | Labels |
+|---|---|---|
+| `http_requests_total` | counter | `method`, `path`, `status` (`2xx`/`3xx`/`4xx`/`5xx`) |
+| `http_request_duration_seconds` | histogram | `method`, `path` |
+| `http_requests_inflight` | gauge | `method`, `path` |
+| `seedbank_dwh_dispatch_total` | counter | `task`, `result` (`ok`/`disabled`/`error`) |
+| `seedbank_dwh_task_duration_seconds` | histogram | `task`, `result` |
+| `seedbank_inference_total` | counter | `kind`, `backend`, `status` |
+| `seedbank_inference_duration_seconds` | histogram | `kind`, `backend` |
+| `seedbank_experiment_run_total` | counter | `status` |
+| `seedbank_auth_login_total` | counter | `result` |
+
+The `path` label is always the **route template**
+(`/api/v1/users/{id}`) — never the raw URL — so per-UUID requests do not
+explode cardinality.
+
+Set `ENABLE_METRICS=false` to disable the middleware and the endpoint
+entirely. Default is on.
+
+### Prometheus + Grafana stack (opt-in)
+
+```bash
+docker compose --profile obs up -d prometheus grafana
+# or:
+COMPOSE_PROFILES=obs make up
+```
+
+Adds two containers:
+
+| Service | Image | Port | Purpose |
+|---|---|---|---|
+| `prometheus` | `prom/prometheus:v2.55.1` | `127.0.0.1:9090` | Scrapes `api:8000/metrics` every 15 s, 7-day retention |
+| `grafana` | `grafana/grafana:11.3.0` | `127.0.0.1:3000` | Auto-loads the Prometheus datasource and the **Seed-Bank — Overview** dashboard |
+
+Default credentials are `admin` / `admin`; override with
+`GRAFANA_USER` / `GRAFANA_PASSWORD` in `.env`. Sign-up and anonymous
+access are off by default.
+
+Both services live behind the `obs` Compose profile so the default
+`make up` stack stays at the same resource budget. Configuration is
+checked into the repo at `ops/prometheus/` and `ops/grafana/` —
+mounted read-only so a container restart cannot drift the dashboard.
+
+### Tracing — OpenTelemetry
+
+Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317` (or your
+Tempo / Jaeger endpoint) and the API + workers emit gRPC OTLP spans
+covering FastAPI, SQLAlchemy, asyncpg, Redis, outbound httpx, and
+Celery. Unset → all instrumentors are no-ops.
+
+### Errors — Sentry
+
+Set `SENTRY_DSN` to forward unhandled exceptions; the SDK lights up the
+FastAPI, Starlette, and Celery integrations automatically. Defaults to
+10% trace sampling (`SENTRY_TRACES_SAMPLE_RATE=0.1`); profiling is off
+(`SENTRY_PROFILES_SAMPLE_RATE=0.0`). PII is never sent
+(`send_default_pii=false`).
+
 ## Production overlay (TBD)
 
 `compose.prod.yaml` will be added in Phase 10 with: resource limits

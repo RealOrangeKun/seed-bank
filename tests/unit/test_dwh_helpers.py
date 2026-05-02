@@ -19,6 +19,7 @@ from uuid import uuid4
 
 import pytest
 
+from seedbank.core import metrics
 from seedbank.workers.tasks import dwh as dwh_module
 from seedbank.workers.tasks.dwh import (
     DWH_QUEUE,
@@ -28,6 +29,10 @@ from seedbank.workers.tasks.dwh import (
     _dim_user,
     dispatch_after_commit,
 )
+
+
+def _dispatch_counter(task: str, result: str) -> float:
+    return metrics.DWH_DISPATCH.labels(task=task, result=result)._value.get()
 
 pytestmark = pytest.mark.unit
 
@@ -62,6 +67,44 @@ def test_dispatch_after_commit_short_circuits_when_dwh_disabled() -> None:
     ):
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
     send.assert_not_called()
+
+
+# ── Dispatch counter (Finding #5) ──────────────────────────────────────────
+
+
+def test_dispatch_counter_ticks_on_success() -> None:
+    before = _dispatch_counter(SYNC_INFERENCE, "ok")
+    with patch.object(dwh_module.celery_app, "send_task"):
+        dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
+    after = _dispatch_counter(SYNC_INFERENCE, "ok")
+    assert after - before == 1
+
+
+def test_dispatch_counter_ticks_on_broker_error() -> None:
+    """A broker failure must record an ``error`` tick — that's the alert
+    surface operators wire up for Finding #5."""
+    before = _dispatch_counter(SYNC_INFERENCE, "error")
+    with patch.object(
+        dwh_module.celery_app, "send_task", side_effect=ConnectionError("redis down")
+    ):
+        dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
+    after = _dispatch_counter(SYNC_INFERENCE, "error")
+    assert after - before == 1
+
+
+def test_dispatch_counter_records_disabled_state() -> None:
+    """``dwh_enabled=False`` is a deliberate skip, not an outage —
+    distinguish via the ``disabled`` label so the failure-rate alert
+    doesn't fire on dev stacks where the kill switch is off."""
+    fake_settings = SimpleNamespace(dwh_enabled=False)
+    before = _dispatch_counter(SYNC_INFERENCE, "disabled")
+    with (
+        patch.object(dwh_module, "get_settings", return_value=fake_settings),
+        patch.object(dwh_module.celery_app, "send_task"),
+    ):
+        dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
+    after = _dispatch_counter(SYNC_INFERENCE, "disabled")
+    assert after - before == 1
 
 
 # ── ORM → DimRow builders ──────────────────────────────────────────────────

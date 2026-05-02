@@ -115,8 +115,16 @@ class Settings(BaseSettings):
     dwh_enabled: bool = True
 
     # ── Observability ────────────────────────────────────────────────────────
+    # OTel: when unset every instrumentor is a no-op and the app pays no
+    # exporter cost. Set to ``http://otel-collector:4317`` (or your Tempo /
+    # Jaeger / OTLP collector) to enable distributed tracing.
     otel_exporter_otlp_endpoint: str | None = None
+    # Sentry: unset → no-op. ``traces_sample_rate`` is read by sentry_sdk;
+    # ``profiles_sample_rate`` enables the Python profiler when > 0.
     sentry_dsn: SecretStr | None = None
+    sentry_traces_sample_rate: float = 0.1
+    sentry_profiles_sample_rate: float = 0.0
+    # Prometheus ``/metrics`` endpoint and HTTP middleware kill switch.
     enable_metrics: bool = True
 
     # ── Rate limiting ────────────────────────────────────────────────────────
