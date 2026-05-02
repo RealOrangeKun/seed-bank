@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from seedbank.core import metrics
 from seedbank.core.config import get_settings
 from seedbank.core.exceptions import (
     AuthError,
@@ -20,6 +21,10 @@ from seedbank.core.exceptions import (
 )
 from seedbank.core.security import hash_password
 from seedbank.services.auth_service import AuthService
+
+
+def _auth_login_count(result: str) -> float:
+    return metrics.AUTH_LOGIN.labels(result=result)._value.get()
 
 
 class _FakeSession:
@@ -319,3 +324,59 @@ class TestPasswordOrOauthInvariant:
         svc, *_ = _build_service()
         with pytest.raises(ValidationError):
             await svc._assert_password_or_oauth(u)  # noqa: SLF001
+
+
+class TestLoginMetrics:
+    """Delta tests for AUTH_LOGIN — every login outcome ticks the right
+    label exactly once. Counter is process-global, so we read deltas."""
+
+    def _user(self, *, is_active: bool = True, is_verified: bool = True) -> Any:
+        from uuid import uuid4
+
+        return MagicMock(
+            id=uuid4(),
+            email="a@b.com",
+            role="end_user",
+            is_active=is_active,
+            is_verified=is_verified,
+            hashed_password=hash_password("StrongPasswd1A"),
+        )
+
+    @pytest.mark.asyncio
+    async def test_successful_login_ticks_ok(self) -> None:
+        svc, *_ = _build_service(user_lookup=self._user())
+        before = _auth_login_count("ok")
+        await svc.login(email="a@b.com", password="StrongPasswd1A")
+        assert _auth_login_count("ok") - before == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_email_ticks_invalid_credentials(self) -> None:
+        svc, *_ = _build_service(user_lookup=None)
+        before = _auth_login_count("invalid_credentials")
+        with pytest.raises(AuthError):
+            await svc.login(email="nope@b.com", password="WhateverPwd1A")
+        assert _auth_login_count("invalid_credentials") - before == 1
+
+    @pytest.mark.asyncio
+    async def test_bad_password_ticks_invalid_credentials(self) -> None:
+        svc, *_ = _build_service(user_lookup=self._user())
+        before = _auth_login_count("invalid_credentials")
+        with pytest.raises(AuthError):
+            await svc.login(email="a@b.com", password="WrongPasswd1A")
+        assert _auth_login_count("invalid_credentials") - before == 1
+
+    @pytest.mark.asyncio
+    async def test_disabled_user_ticks_blocked(self) -> None:
+        svc, *_ = _build_service(user_lookup=self._user(is_active=False))
+        before = _auth_login_count("blocked")
+        with pytest.raises(ForbiddenError):
+            await svc.login(email="a@b.com", password="StrongPasswd1A")
+        assert _auth_login_count("blocked") - before == 1
+
+    @pytest.mark.asyncio
+    async def test_unverified_user_ticks_blocked(self) -> None:
+        svc, *_ = _build_service(user_lookup=self._user(is_verified=False))
+        before = _auth_login_count("blocked")
+        with pytest.raises(ForbiddenError):
+            await svc.login(email="a@b.com", password="StrongPasswd1A")
+        assert _auth_login_count("blocked") - before == 1

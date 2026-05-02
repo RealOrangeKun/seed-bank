@@ -20,6 +20,7 @@ from uuid import uuid4
 import pytest
 
 from seedbank.core import metrics
+from seedbank.core.exceptions import NotFoundError
 from seedbank.workers.tasks import dwh as dwh_module
 from seedbank.workers.tasks.dwh import (
     DWH_QUEUE,
@@ -27,8 +28,24 @@ from seedbank.workers.tasks.dwh import (
     _dim_model,
     _dim_seed_type,
     _dim_user,
+    _run_timed,
+    _scrub_broker_url,
     dispatch_after_commit,
 )
+
+
+def _duration_count(task: str, result: str) -> float:
+    """Read the histogram's ``_count`` from rendered samples.
+
+    Histogram label children don't expose ``_count`` directly — the count
+    lives in the ``*_count`` sample produced by ``collect()``.
+    """
+    target = {"task": task, "result": result}
+    for m in metrics.DWH_TASK_DURATION.collect():
+        for s in m.samples:
+            if s.name.endswith("_count") and s.labels == target:
+                return s.value
+    return 0.0
 
 
 def _dispatch_counter(task: str, result: str) -> float:
@@ -149,6 +166,74 @@ def test_dim_model_preserves_nullable_seed_type() -> None:
     assert row.seed_type_id is None
     assert row.status == "production"
     assert row.kind == "classification"
+
+
+## ── _run_timed (DWH_TASK_DURATION) ─────────────────────────────────────────
+
+
+def test_run_timed_records_ok_on_clean_return() -> None:
+    """Happy path: histogram count delta == 1 with ``result="ok"``."""
+    task = "seedbank.dwh.test_ok"
+
+    async def _inner(_uuid):
+        return None
+
+    before = _duration_count(task, "ok")
+    _run_timed(task, _inner, str(uuid4()))
+    after = _duration_count(task, "ok")
+    assert after - before == 1
+
+
+def test_run_timed_records_not_found_and_reraises() -> None:
+    """``NotFoundError`` is the non-retryable label; outer call must
+    re-raise so Celery's ack semantics see the failure."""
+    task = "seedbank.dwh.test_not_found"
+
+    async def _inner(_uuid):
+        raise NotFoundError("missing")
+
+    before = _duration_count(task, "not_found")
+    with pytest.raises(NotFoundError):
+        _run_timed(task, _inner, str(uuid4()))
+    after = _duration_count(task, "not_found")
+    assert after - before == 1
+
+
+def test_run_timed_records_error_and_reraises_on_generic_exception() -> None:
+    """Generic exceptions land on ``result="error"`` — the alert surface
+    operators wire to a retry-driving condition."""
+    task = "seedbank.dwh.test_error"
+
+    async def _inner(_uuid):
+        raise RuntimeError("boom")
+
+    before = _duration_count(task, "error")
+    with pytest.raises(RuntimeError, match="boom"):
+        _run_timed(task, _inner, str(uuid4()))
+    after = _duration_count(task, "error")
+    assert after - before == 1
+
+
+# ── _scrub_broker_url ──────────────────────────────────────────────────────
+
+
+def test_scrub_broker_url_masks_redis_credentials() -> None:
+    msg = "ConnectionError on redis://:secret@redis:6379/0"
+    out = _scrub_broker_url(msg)
+    assert "secret" not in out
+    assert "redis://***@redis:6379/0" in out
+
+
+def test_scrub_broker_url_masks_amqp_credentials() -> None:
+    msg = "BrokerError at amqp://guest:guest@rabbit:5672"
+    out = _scrub_broker_url(msg)
+    assert "guest:guest" not in out
+    assert "amqp://***@rabbit:5672" in out
+
+
+def test_scrub_broker_url_passthrough_when_no_url() -> None:
+    msg = "plain old error message"
+    assert _scrub_broker_url(msg) == msg
 
 
 def test_dim_seed_type_preserves_decimal_threshold() -> None:

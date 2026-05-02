@@ -81,3 +81,45 @@ async def test_4xx_status_class_label(app_client: AsyncClient) -> None:
     # And the body still mentions the metric name.
     body = generate_latest(metrics.REGISTRY).decode()
     assert 'status="4xx"' in body
+
+
+async def test_method_mismatch_keeps_route_template_label(
+    app_client: AsyncClient,
+) -> None:
+    """Hitting an existing route with the wrong verb produces 405. The
+    backend agent's revision keeps the route template (Match.PARTIAL)
+    instead of collapsing to ``_unmatched`` — so dashboards can still
+    attribute the 4xx to the right endpoint."""
+    before_template = _counter_value("POST", "/healthz", "4xx")
+    before_unmatched = _counter_value("POST", "_unmatched", "4xx")
+
+    r = await app_client.post("/healthz")
+    assert r.status_code == 405
+
+    after_template = _counter_value("POST", "/healthz", "4xx")
+    after_unmatched = _counter_value("POST", "_unmatched", "4xx")
+
+    # 405 must land on the route template, NOT _unmatched.
+    assert after_template - before_template == 1
+    assert after_unmatched == before_unmatched
+
+
+async def test_metrics_head_request_excluded_from_self_counter(
+    app_client: AsyncClient,
+) -> None:
+    """HEAD on /metrics must also short-circuit the middleware. Otherwise
+    operators that probe the scrape endpoint with HEAD would still pollute
+    the histograms with self-traffic."""
+    before_get = _counter_value("HEAD", "/metrics", "2xx")
+    r = await app_client.head("/metrics")
+    # FastAPI auto-resolves HEAD to the GET handler when only GET is
+    # registered; either 200 or 405 is acceptable here. The contract under
+    # test is the *exclusion*, not the response code.
+    assert r.status_code in (200, 405)
+
+    after_get = _counter_value("HEAD", "/metrics", "2xx")
+    after_4xx = _counter_value("HEAD", "/metrics", "4xx")
+    # Whatever the response code, /metrics must not be counted at all.
+    assert after_get == before_get
+    # And the 4xx bucket for /metrics is also untouched.
+    assert after_4xx == _counter_value("HEAD", "/metrics", "4xx")
