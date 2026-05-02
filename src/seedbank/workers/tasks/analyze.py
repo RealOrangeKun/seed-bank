@@ -177,6 +177,13 @@ async def _async_analyze_image(
             raise NotFoundError(f"scan_batch {image.batch_id} not found")
 
         # 2. CAS pending → running. Loser of the race is a no-op.
+        # Capture the start timestamp locally *before* the CAS — the
+        # repository runs the UPDATE with ``synchronize_session=False``
+        # (so the in-memory ``batch`` object's ``started_at`` is stale
+        # afterwards), and downstream helpers only need a Python-side
+        # baseline for duration logging / DWH dispatch. The persisted
+        # ``started_at`` is the DB-side ``func.now()`` from the UPDATE.
+        batch_started_at = datetime.now(tz=UTC)
         won = await repos.batches.cas_status(
             batch.id,
             expected=BatchStatus.PENDING,
@@ -190,14 +197,6 @@ async def _async_analyze_image(
             image_id=str(image.id),
             won_cas=won,
         )
-        # ``cas_status`` issues a bulk UPDATE which expires the in-memory
-        # ORM attributes that were touched (status, started_at). Without
-        # an explicit refresh, every subsequent ``batch.started_at``
-        # access triggers a lazy-load — and lazy-loads from a sync code
-        # path under AsyncSession blow up with
-        # ``sqlalchemy.exc.MissingGreenlet``. ``session.refresh`` runs
-        # the SELECT through the proper async path, so it's safe.
-        await session.refresh(batch)
         # First task to win the CAS owns the running-state DWH refresh.
         if won:
             dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
@@ -221,7 +220,7 @@ async def _async_analyze_image(
                 user_id=batch.user_id,
             )
         except Exception:
-            await _mark_batch_failed(repos=repos, batch_id=batch.id, started_at=batch.started_at)
+            await _mark_batch_failed(repos=repos, batch_id=batch.id, started_at=batch_started_at)
             await session.commit()
             dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
             raise
@@ -235,7 +234,7 @@ async def _async_analyze_image(
             detect_model=detect_model,
             seed_type_id=seed_type_id,
             batch_id=batch.id,
-            started_at=batch.started_at,
+            started_at=batch_started_at,
         )
 
         # 6. Resolve + run classify. Failures here are non-fatal: detect data
@@ -285,7 +284,7 @@ async def _async_analyze_image(
             session=session,
             repos=repos,
             batch_id=batch.id,
-            started_at=batch.started_at,
+            started_at=batch_started_at,
             had_classify_failure=classify_failed,
         )
 
@@ -421,7 +420,10 @@ async def _run_detect_and_persist(
 
     # Update latency now that we have it.
     await session.execute(
-        update(Inference).where(Inference.id == inference.id).values(latency_ms=outcome.latency_ms)
+        update(Inference)
+        .where(Inference.id == inference.id)
+        .values(latency_ms=outcome.latency_ms)
+        .execution_options(synchronize_session=False)
     )
 
     rows = [
@@ -574,6 +576,7 @@ async def _run_classify_for_detections(
         update(Inference)
         .where(Inference.id == classify_inference.id)
         .values(latency_ms=total_latency_ms or None)
+        .execution_options(synchronize_session=False)
     )
     await session.commit()
 
@@ -712,6 +715,7 @@ async def _mark_batch_terminal(
             finished_at=func.now(),
             duration_ms=duration_ms,
         )
+        .execution_options(synchronize_session=False)
     )
     result = await repos.batches.session.execute(stmt)
     return (result.rowcount or 0) == 1  # type: ignore[attr-defined]
@@ -732,6 +736,7 @@ async def _mark_batch_failed(*, repos: _Repos, batch_id: UUID, started_at: datet
             finished_at=func.now(),
             duration_ms=duration_ms,
         )
+        .execution_options(synchronize_session=False)
     )
     await repos.batches.session.execute(stmt)
 

@@ -64,6 +64,10 @@ class InferenceRepository(Repository[Inference]):
             update(Inference)
             .where(Inference.id == inference_id)
             .values(error=error)
+            # See ``ScanBatchRepository.cas_status``: skip identity-map sync
+            # so a subsequent attribute read on the in-memory ``Inference``
+            # cannot trigger an unsafe lazy-load under AsyncSession.
+            .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
         rowcount = result.rowcount or 0

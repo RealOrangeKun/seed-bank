@@ -52,6 +52,11 @@ class SeedDetectionRepository(Repository[SeedDetection]):
                 update(SeedDetection)
                 .where(SeedDetection.id == detection_id)
                 .values(quality=quality)
+                # See ``ScanBatchRepository.cas_status``: bulk UPDATE +
+                # AsyncSession identity-map sync risks ``MissingGreenlet``
+                # on later attribute reads. Callers in ``analyze.py`` do not
+                # read mutated attrs back, but be explicit anyway.
+                .execution_options(synchronize_session=False)
             )
             result = await self.session.execute(stmt)
             total += result.rowcount or 0

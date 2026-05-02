@@ -131,6 +131,10 @@ class ExperimentRepository(Repository[Experiment]):
                 Experiment.status == expected.value,
             )
             .values(**values)
+            # See ``ScanBatchRepository.cas_status`` for the rationale.
+            # AsyncSession + identity-map sync = ``MissingGreenlet`` on the
+            # next attribute read from the in-memory ORM object.
+            .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
         won = (result.rowcount or 0) == 1

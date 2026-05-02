@@ -158,6 +158,14 @@ class ScanBatchRepository(Repository[ScanBatch]):
                 ScanBatch.status == expected.value,
             )
             .values(**values)
+            # ``synchronize_session=False`` avoids SA's identity-map sync,
+            # which would otherwise issue a lazy-load when our caller next
+            # touches the in-memory ``ScanBatch`` — and lazy-loads from a
+            # synchronous code path under ``AsyncSession`` raise
+            # ``MissingGreenlet``. Callers must not read the mutated columns
+            # off the ORM object after this call (use a local timestamp or
+            # re-fetch by id).
+            .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
         won = (result.rowcount or 0) == 1
