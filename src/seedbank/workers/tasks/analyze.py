@@ -28,7 +28,7 @@ Errors are categorised:
 from __future__ import annotations
 
 import asyncio
-from contextlib import suppress
+from contextlib import aclosing, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -49,7 +49,7 @@ from seedbank.core.exceptions import (
 )
 from seedbank.core.ids import uuid7
 from seedbank.core.logging import get_logger
-from seedbank.infrastructure.cache import get_redis
+from seedbank.infrastructure.cache.redis_client import _build_redis
 from seedbank.infrastructure.db.enums import (
     BatchStatus,
     ModelKind,
@@ -152,9 +152,14 @@ async def _async_analyze_image(
 ) -> None:
     settings = get_settings()
     storage = get_storage()
-    redis = get_redis()
-
-    async with worker_session_scope() as session:
+    # Build a fresh Redis client for this task. The api process uses an
+    # ``@lru_cache``-d singleton, but a worker calls ``asyncio.run()`` per
+    # task which closes the loop on exit — the cached client's connections
+    # would be bound to a dead loop on the next task and crash with
+    # ``RuntimeError('Event loop is closed')``. Same reason
+    # ``worker_session_scope`` opens a fresh DB engine per task.
+    # ``aclosing`` guarantees ``redis.aclose()`` runs even if the body raises.
+    async with aclosing(_build_redis(settings)) as redis, worker_session_scope() as session:
         repos = _Repos(
             batches=ScanBatchRepository(session),
             images=ScanImageRepository(session),
@@ -185,6 +190,14 @@ async def _async_analyze_image(
             image_id=str(image.id),
             won_cas=won,
         )
+        # ``cas_status`` issues a bulk UPDATE which expires the in-memory
+        # ORM attributes that were touched (status, started_at). Without
+        # an explicit refresh, every subsequent ``batch.started_at``
+        # access triggers a lazy-load — and lazy-loads from a sync code
+        # path under AsyncSession blow up with
+        # ``sqlalchemy.exc.MissingGreenlet``. ``session.refresh`` runs
+        # the SELECT through the proper async path, so it's safe.
+        await session.refresh(batch)
         # First task to win the CAS owns the running-state DWH refresh.
         if won:
             dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))

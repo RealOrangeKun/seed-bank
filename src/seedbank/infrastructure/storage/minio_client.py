@@ -62,9 +62,20 @@ class MinioStorage:
             raise ExternalServiceError(f"minio: put {bucket}/{key}: {exc}") from exc
 
     async def get_object(self, bucket: str, key: str) -> bytes:
+        # miniopy-async 1.21+ requires the caller to pass an aiohttp
+        # ClientSession for `get_object` (it does not for `put_object` /
+        # `bucket_exists` / `stat_object`, which manage their own session).
+        # We open and close one per call so the storage instance stays
+        # stateless — uploads in this codebase are infrequent enough that
+        # a per-call session is fine.
+        import aiohttp
+
         try:
-            async with await self._client.get_object(bucket, key) as resp:
-                return await resp.read()
+            async with aiohttp.ClientSession() as session:
+                async with await self._client.get_object(
+                    bucket, key, session
+                ) as resp:
+                    return await resp.read()
         except S3Error as exc:
             raise ExternalServiceError(f"minio: get {bucket}/{key}: {exc}") from exc
 
