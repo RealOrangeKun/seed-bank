@@ -25,3 +25,11 @@ scrape_configs:
       - targets: ["api:8000"]
         labels:
           service: seedbank-api
+    # Defensive cardinality guard: the API replaces raw URL paths with
+    # route templates ({id}, etc.) before recording metrics, but if that
+    # ever fails open we drop the time series here instead of letting a
+    # per-UUID label explode storage.
+    metric_relabel_configs:
+      - source_labels: [path]
+        regex: ".*[0-9a-f]{8}-[0-9a-f]{4}-.*"
+        action: drop

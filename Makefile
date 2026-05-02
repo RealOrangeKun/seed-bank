@@ -32,7 +32,7 @@ install-inference: venv ## Install ML deps locally (heavy).
 	$(VENV)/bin/uv pip install -e ".[dev,inference]"
 
 # ── Compose lifecycle ───────────────────────────────────────────────────────
-.PHONY: env up up-infra up-gpu up-dev down restart logs ps wait
+.PHONY: env up up-infra up-gpu up-dev up-obs down restart logs ps wait
 env: ## Create .env from .env.example if missing. Idempotent.
 	@if [ ! -f .env ]; then cp .env.example .env && echo "created .env from .env.example"; \
 	 else echo ".env already present"; fi
@@ -52,6 +52,10 @@ up-gpu: env ## Start including the GPU inference worker.
 
 up-dev: env ## Start with adminer for quick DB poking.
 	$(COMPOSE) --profile dev up -d --build api postgres redis minio clickhouse mlflow adminer
+	@$(MAKE) wait
+
+up-obs: env ## Start the lean stack PLUS prometheus + grafana (obs profile).
+	$(COMPOSE) --profile obs up -d --build api postgres redis minio clickhouse mlflow prometheus grafana
 	@$(MAKE) wait
 
 down: ## Stop and remove containers (keeps volumes).

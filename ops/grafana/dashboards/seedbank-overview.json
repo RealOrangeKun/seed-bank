@@ -3,7 +3,7 @@
   "uid": "seedbank-overview",
   "tags": ["seedbank"],
   "timezone": "browser",
-  "schemaVersion": 38,
+  "schemaVersion": 39,
   "version": 1,
   "refresh": "30s",
   "time": {"from": "now-15m", "to": "now"},
@@ -16,7 +16,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum by (status) (rate(http_requests_total[1m]))",
+          "expr": "sum by (status) (rate(http_requests_total[5m]))",
           "legendFormat": "{{status}}"
         }
       ]
@@ -78,7 +78,7 @@
       ]
     },
     {
-      "type": "stat",
+      "type": "bargauge",
       "title": "Login attempts (5m)",
       "id": 6,
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},

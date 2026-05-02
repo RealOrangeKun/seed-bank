@@ -245,6 +245,7 @@ services:
   # provisioned datasource + Seed-Bank Overview dashboard.
   prometheus:
     profiles: ["obs"]
+    # TODO(infra): bump to current 2.x stable (or evaluate 3.x adoption) — verify tag on quay.io/prom/prometheus before bumping.
     image: prom/prometheus:v2.55.1
     container_name: seedbank-prometheus
     command:
@@ -270,14 +271,20 @@ services:
 
   grafana:
     profiles: ["obs"]
+    # TODO(infra): bump to 11.5.x or 11.6.x stable — verify exact patch tag on hub.docker.com/r/grafana/grafana before bumping.
     image: grafana/grafana:11.3.0
     container_name: seedbank-grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      # Fail-closed: no fallback. Container refuses to start if unset.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set in .env}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_SECURITY_COOKIE_SAMESITE: "strict"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_X_CONTENT_TYPE_OPTIONS: "true"
+      GF_SECURITY_X_XSS_PROTECTION: "true"
     volumes:
       - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro

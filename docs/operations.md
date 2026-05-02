@@ -11,6 +11,7 @@ First time on a fresh checkout:
 make env            # creates .env from .env.example (idempotent)
 make up-infra       # postgres + redis + minio + clickhouse only — no build, ~10s
 make up             # full stack (builds api image first time, ~5–10 min)
+make up-obs         # full stack PLUS prometheus + grafana (obs profile)
 make logs           # follow logs
 make down           # stop containers (volumes survive)
 make down-volumes   # wipe volumes too — total reset
@@ -161,9 +162,9 @@ entirely. Default is on.
 ### Prometheus + Grafana stack (opt-in)
 
 ```bash
+make up-obs
+# or, equivalently:
 docker compose --profile obs up -d prometheus grafana
-# or:
-COMPOSE_PROFILES=obs make up
 ```
 
 Adds two containers:
@@ -173,9 +174,11 @@ Adds two containers:
 | `prometheus` | `prom/prometheus:v2.55.1` | `127.0.0.1:9090` | Scrapes `api:8000/metrics` every 15 s, 7-day retention |
 | `grafana` | `grafana/grafana:11.3.0` | `127.0.0.1:3000` | Auto-loads the Prometheus datasource and the **Seed-Bank — Overview** dashboard |
 
-Default credentials are `admin` / `admin`; override with
-`GRAFANA_USER` / `GRAFANA_PASSWORD` in `.env`. Sign-up and anonymous
-access are off by default.
+`GRAFANA_PASSWORD` is **required** (no default — the container fails
+to start if unset, by design). `GRAFANA_USER` defaults to `admin`. Set
+both in `.env` before `make up-obs`. Sign-up and anonymous access are
+off by default; cookies are SameSite=strict, gravatar is disabled, and
+`X-Content-Type-Options` / `X-XSS-Protection` headers are forced on.
 
 Both services live behind the `obs` Compose profile so the default
 `make up` stack stays at the same resource budget. Configuration is
