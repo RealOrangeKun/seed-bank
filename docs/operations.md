@@ -49,8 +49,8 @@ so `make wait` polls the right address.
 | Service | Image | Purpose |
 |---|---|---|
 | `api` | `seedbank/api:0.1.0` (CPU-only, no torch) | HTTP entrypoint |
-| `worker-cpu` | same image as `api` | Celery worker for cdc + housekeeping (Phase 6+) |
-| `worker-inference` | `seedbank/worker-inference:0.1.0` (CUDA) | Celery worker for analyze + evaluation. Opt-in via `--profile gpu` |
+| `worker-cpu` | same image as `api` | Celery worker for `default,cdc,housekeeping,experiments,dwh` queues (no torch) |
+| `worker-inference` | `seedbank/worker-inference:0.1.0` | Celery worker for `inference,evaluation`. Dev: CPU torch wheels (`runtime-inference-cpu` target). Prod overlay: CUDA (`runtime-gpu`). |
 | `postgres` | `postgres:16-alpine` | OLTP system of record. `wal_level=logical` preconfigured |
 | `redis` | `redis:7-alpine` | Cache + Celery broker + rate-limit backend |
 | `minio` | `minio:RELEASE.2024-11-07` | Object storage (images, models, experiments, datasets) |
@@ -123,10 +123,16 @@ you want a known-clean slate.
 - **Api unhealthy with clickhouse: down**: clickhouse takes 15–20 s to
   warm up; the api healthcheck has a 30 s `start_period`. Wait, then
   re-curl `/readyz`. If still down, `docker compose logs clickhouse`.
-- **Worker-cpu crashlooping with `ModuleNotFoundError: seedbank.workers.celery_app`**:
-  this is expected until Phase 6 lands. The worker image is
-  built but the celery entrypoint hasn't been written yet. `make up`
-  starts only api + infra to keep the smoke clean.
+- **Inference batch stuck in `pending`**: the worker that serves the
+  `inference` queue is `worker-inference`, not `worker-cpu` (the CPU
+  image has no torch by design). Make sure `worker-inference` is up:
+  `docker compose ps worker-inference` should show `healthy`. `make up`
+  brings it up by default; if you used `make up-no-inference` to skip
+  the heavy build, switch to `make up`.
+- **`Received unregistered task of type 'seedbank.analyze_image'`**:
+  rebuild the worker image. The task modules are imported from
+  `src/seedbank/workers/tasks/__init__.py`; if your local copy is
+  pre-Phase-10 the file is empty and Celery never picks them up.
 
 ## Observability (Phase 9)
 
@@ -297,11 +303,13 @@ Expect a populated table. If you see "command not found" or "no
 devices", the host's `nvidia-container-toolkit` isn't installed or
 the daemon hasn't been restarted since installing it.
 
-A CPU-only prod fallback (host with no GPU) is intentionally **out of
-scope** for Phase 10. Workaround if it ever comes up: in
-`compose.prod.yaml` override `worker-inference.image:` to
-`seedbank/worker-cpu:0.1.0` and remove the `deploy.resources.reservations.devices`
-block.
+A CPU-only prod fallback is supported but not the default. The dev
+compose builds `worker-inference` from the `runtime-inference-cpu`
+Dockerfile target (torch CPU wheels, ~1.5 GB image, no GPU
+required). The prod overlay swaps it to `runtime-gpu` and re-adds the
+GPU device reservation. To run prod on a CPU-only host, drop the
+`build.target` and the `deploy.resources.reservations.devices` block
+from `worker-inference` in `compose.prod.yaml`.
 
 ### Secret rotation
 
