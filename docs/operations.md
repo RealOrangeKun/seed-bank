@@ -200,9 +200,137 @@ FastAPI, Starlette, and Celery integrations automatically. Defaults to
 (`SENTRY_PROFILES_SAMPLE_RATE=0.0`). PII is never sent
 (`send_default_pii=false`).
 
-## Production overlay (TBD)
+## Production overlay
 
-`compose.prod.yaml` will be added in Phase 10 with: resource limits
-tightened, secrets via Compose `secrets:` instead of env, restart
-policies, log driver pinned to `json-file` with rotation, and the GPU
-worker enabled by default.
+Prod runs as a single overlay on top of the dev compose:
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml up -d
+# or:
+make up-prod
+```
+
+`compose.prod.yaml` only sets the deltas — service definitions,
+images, healthcheck logic, and named volumes still come from
+`compose.yaml`. The deltas are: file-based secrets, hardening,
+resource caps, restart policy, log rotation, dropped external ports,
+and GPU worker default-on.
+
+### First-time secret setup
+
+Secrets live in `./secrets/`. Expected files (all `chmod 0400`,
+created with `printf '%s' ...` so there's no trailing newline):
+
+| File | Used by |
+|---|---|
+| `postgres_password` | postgres (`POSTGRES_PASSWORD_FILE`); api, workers, mlflow read it via an entrypoint shim |
+| `jwt_secret` | api, workers (Pydantic `secrets_dir`) |
+| `minio_access_key` / `minio_secret_key` | api, workers (Pydantic); minio + mlflow via entrypoint shim |
+| `clickhouse_password` | api, workers (Pydantic); clickhouse via entrypoint shim |
+| `roboflow_api_key` | api, workers (Pydantic, optional) |
+| `sentry_dsn` | api, workers (Pydantic, optional — empty file = Sentry off) |
+| `grafana_admin_password` | grafana (`GF_SECURITY_ADMIN_PASSWORD__FILE`) |
+
+The exact recipe is in `secrets/README.md`. The directory itself is
+checked in (with a `.gitignore` blocking everything but the README +
+gitignore), so a fresh clone has the right shape.
+
+`make secrets-check` walks `./secrets/` and fails if any expected file
+is missing or has perms other than `0400`. Run it before `make
+up-prod` (the target depends on it).
+
+Ownership: secrets are mounted into containers as root-owned 0400
+files at `/run/secrets/<name>`. No container user except root can
+read them by default. The api / worker entrypoint shim runs **before**
+`tini`/`USER seedbank` only inasmuch as Compose mounts the file before
+process start; the shim itself runs as `seedbank` (uid 10001) and
+reads the file via `cat`. That works because Compose mounts secrets
+world-readable inside the namespace by default — verify with
+`docker exec <ctn> ls -l /run/secrets/`. If a future hardening pass
+needs root-only secrets, add `uid: 10001, mode: 0400` to each secret
+mount.
+
+### `make up-prod` flow
+
+1. `secrets-check` runs first. Failure here aborts the bring-up.
+2. Compose merges `compose.yaml` + `compose.prod.yaml` and starts the
+   stack detached. No image build — prod assumes pre-built tags
+   (`seedbank/api:0.1.0`, `seedbank/worker-cpu:0.1.0`,
+   `seedbank/worker-inference:0.1.0`). Building in prod is a separate
+   CI step.
+3. Healthchecks at 30 s intervals; the api stays at 10 s because
+   `/readyz` is what the load balancer scrapes.
+
+### Resource caps — how they were chosen
+
+Single-box prod target: a 16 GB / 8 vCPU host. The caps below sum to
+roughly 12 GB / 13 vCPU (over-subscribed on CPU, deliberately — only
+the inference worker actually pegs CPU during a batch).
+
+| Service | CPUs | Memory | Rationale |
+|---|---|---|---|
+| api | 2.0 | 1.5G | ~50 rps headroom; tighter than dev because workers contend for CPU |
+| worker-cpu | 2.0 | 1G | Bursty CDC + housekeeping; modest memory |
+| worker-inference | (uncapped CPU) | 8G | torch + CUDA contexts + image batches |
+| postgres | 2.0 | 2G | Lets `shared_buffers` grow without page-cache thrash |
+| clickhouse | 2.0 | 4G | Columnar engine wants page-cache headroom |
+| redis | 1.0 | 512M | Small dataset, LRU eviction |
+| minio | 1.0 | 1G | Mostly proxying to disk |
+| mlflow | 0.5 | 512M | UI + REST, rare load |
+| prometheus | 1.0 | 1G | 7-day TSDB on a single api scrape target |
+| grafana | 0.5 | 512M | Single-user admin |
+
+### Dropped ports
+
+Only **api:8000** and **grafana:3000** are bound externally. Postgres,
+Redis, MinIO (both 9000 + 9001), ClickHouse, MLflow, and Prometheus
+stay on the internal `seedbank-net` bridge — reach them with
+`docker compose exec` or via Grafana's pre-provisioned datasource.
+
+### GPU verification
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml exec worker-inference nvidia-smi
+```
+
+Expect a populated table. If you see "command not found" or "no
+devices", the host's `nvidia-container-toolkit` isn't installed or
+the daemon hasn't been restarted since installing it.
+
+A CPU-only prod fallback (host with no GPU) is intentionally **out of
+scope** for Phase 10. Workaround if it ever comes up: in
+`compose.prod.yaml` override `worker-inference.image:` to
+`seedbank/worker-cpu:0.1.0` and remove the `deploy.resources.reservations.devices`
+block.
+
+### Secret rotation
+
+Honest take: there is no live reload. `Settings` is constructed once
+per process. Rotation requires a container restart.
+
+```bash
+# 1. Update the secret file.
+printf '%s' "$(openssl rand -hex 32)" > secrets/jwt_secret
+chmod 0400 secrets/jwt_secret
+
+# 2. Restart the consumers.
+docker compose -f compose.yaml -f compose.prod.yaml restart api worker-cpu worker-inference
+```
+
+Postgres password rotation is a two-step: `ALTER USER seedbank WITH
+PASSWORD '...'` first, then update `secrets/postgres_password` and
+restart everything that talks to Postgres (api, workers, mlflow).
+Skip step 1 and you'll lock yourself out.
+
+A real secret-rotation tool (Vault, sealed-secrets, etc.) is post-Phase-10.
+
+### Log rotation
+
+`json-file` driver, `max-size: 10m`, `max-file: 5` → ~50 MB cap per
+service. Off-box log shipping (Loki, ELK, CloudWatch) is post-Phase-10.
+For now `docker compose logs -f` is the access path; for a static
+snapshot pipe through `jq`:
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml logs api | jq -R 'fromjson?'
+```
