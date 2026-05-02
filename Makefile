@@ -32,7 +32,7 @@ install-inference: venv ## Install ML deps locally (heavy).
 	$(VENV)/bin/uv pip install -e ".[dev,inference]"
 
 # ── Compose lifecycle ───────────────────────────────────────────────────────
-.PHONY: env up up-infra up-gpu up-dev up-obs down restart logs ps wait
+.PHONY: env up up-infra up-gpu up-dev up-obs up-prod down down-prod restart logs logs-prod ps wait secrets-check
 env: ## Create .env from .env.example if missing. Idempotent.
 	@if [ ! -f .env ]; then cp .env.example .env && echo "created .env from .env.example"; \
 	 else echo ".env already present"; fi
@@ -57,6 +57,47 @@ up-dev: env ## Start with adminer for quick DB poking.
 up-obs: env ## Start the lean stack PLUS prometheus + grafana (obs profile).
 	$(COMPOSE) --profile obs up -d --build api postgres redis minio clickhouse mlflow prometheus grafana
 	@$(MAKE) wait
+
+# In prod the grafana password comes from `./secrets/grafana_admin_password`
+# via `GF_SECURITY_ADMIN_PASSWORD__FILE`. The dev compose still
+# interpolates `GRAFANA_PASSWORD` for `GF_SECURITY_ADMIN_PASSWORD` at
+# config-load time, so we set a dummy here to satisfy the `:?` guard
+# without using the value (the prod overlay's `GF_SECURITY_ADMIN_PASSWORD__FILE`
+# wins inside the container).
+PROD_COMPOSE_ENV := GRAFANA_PASSWORD=unused-see-secrets-grafana_admin_password
+PROD_COMPOSE := $(PROD_COMPOSE_ENV) $(COMPOSE) -f compose.yaml -f compose.prod.yaml
+
+up-prod: secrets-check ## Start the full prod overlay (secrets-checked, GPU on, ports locked down). No build — uses pre-built images.
+	$(PROD_COMPOSE) up -d
+	@echo "prod stack up. api on :8000, grafana on :3000. everything else internal."
+	@$(PROD_COMPOSE) ps
+
+down-prod: ## Stop the prod overlay (keeps volumes).
+	$(PROD_COMPOSE) down
+
+logs-prod: ## Follow prod-overlay logs.
+	$(PROD_COMPOSE) logs -f --tail=200
+
+secrets-check: ## Verify ./secrets/* are present and chmod 0400. Fails CI-style if not.
+	@set -e; \
+	required="postgres_password jwt_secret minio_access_key minio_secret_key clickhouse_password roboflow_api_key sentry_dsn grafana_admin_password"; \
+	missing=0; bad=0; \
+	for f in $$required; do \
+	  path="secrets/$$f"; \
+	  if [ ! -f "$$path" ]; then \
+	    echo "MISSING: $$path"; missing=$$((missing+1)); continue; \
+	  fi; \
+	  mode=$$(stat -c %a "$$path"); \
+	  if [ "$$mode" != "400" ]; then \
+	    echo "BAD MODE: $$path is $$mode (want 400)"; bad=$$((bad+1)); \
+	  fi; \
+	done; \
+	if [ $$missing -ne 0 ] || [ $$bad -ne 0 ]; then \
+	  echo "secrets-check FAILED ($$missing missing, $$bad wrong perms)"; \
+	  echo "see secrets/README.md for setup."; \
+	  exit 1; \
+	fi; \
+	echo "secrets-check OK ($$(echo $$required | wc -w) files, 0400)"
 
 down: ## Stop and remove containers (keeps volumes).
 	$(COMPOSE) down
