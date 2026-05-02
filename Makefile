@@ -42,12 +42,12 @@ up-infra: env ## Start ONLY infra (postgres, redis, minio, clickhouse). No build
 	@echo "infra up. host ports follow compose.override.yaml if present."
 	@$(COMPOSE) ps --format "table {{.Service}}\t{{.Health}}\t{{.Ports}}"
 
-up: env ## Start the full lean stack (api + infra). Builds the api image first time (slow once, fast after).
-	$(COMPOSE) up -d --build api postgres redis minio clickhouse mlflow
+up: env ## Start the full lean stack (api + both workers + infra). worker-inference defaults to CPU torch wheels.
+	$(COMPOSE) up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow
 	@$(MAKE) wait
 
-up-gpu: env ## Start including the GPU inference worker.
-	$(COMPOSE) --profile gpu up -d --build
+up-no-inference: env ## Start without the (heavy) torch worker. Only api + worker-cpu + infra.
+	$(COMPOSE) up -d --build api worker-cpu postgres redis minio clickhouse mlflow
 	@$(MAKE) wait
 
 up-dev: env ## Start with adminer for quick DB poking.

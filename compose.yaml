@@ -53,6 +53,10 @@ services:
       resources:
         limits: {cpus: "1.5", memory: 768M}
 
+  # ``worker-cpu`` runs CDC, housekeeping, experiments, and DWH dual-write
+  # tasks. It does NOT serve the ``inference`` queue — torch / torchvision
+  # live in the ``[inference]`` extra and are intentionally absent from the
+  # CPU runtime image. Inference jobs go to ``worker-inference``.
   worker-cpu:
     build:
       context: .
@@ -60,7 +64,7 @@ services:
       target: runtime-cpu
     image: seedbank/worker-cpu:0.1.0
     container_name: seedbank-worker-cpu
-    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,inference,experiments,dwh"]
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,experiments,dwh"]
     environment:
       <<: *app-env
     healthcheck:
@@ -77,26 +81,36 @@ services:
       resources:
         limits: {cpus: "1.0", memory: 512M}
 
+  # ``worker-inference`` serves the ``inference`` + ``evaluation`` queues.
+  # Default build target is ``runtime-inference-cpu`` (torch CPU wheels) so
+  # the dev stack works on a laptop without CUDA. The prod overlay swaps
+  # the target to ``runtime-gpu`` and re-adds the GPU device reservation.
   worker-inference:
-    profiles: ["gpu"]
     build:
       context: .
       dockerfile: Dockerfile
-      target: runtime-gpu
+      target: runtime-inference-cpu
     image: seedbank/worker-inference:0.1.0
     container_name: seedbank-worker-inference
     command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference,evaluation"]
     environment:
       <<: *app-env
-    deploy:
-      resources:
-        reservations:
-          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
-        limits: {memory: 8G}
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A seedbank.workers.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     depends_on:
+      postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       minio: {condition: service_healthy}
     restart: unless-stopped
+    deploy:
+      resources:
+        # CPU torch is the default. Cap memory generously — FasterRCNN
+        # + ResNet18 on CPU can spike to ~2 GB at first inference.
+        limits: {cpus: "2.0", memory: 4G}
 
   postgres:
     image: postgres:16-alpine

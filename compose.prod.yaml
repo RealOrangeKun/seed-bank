@@ -167,12 +167,16 @@ services:
       resources:
         limits: {cpus: "2.0", memory: 1G}
 
-  # ── worker-inference ─ GPU, default-on in prod. Memory cap held at
-  # 8G (set in dev compose) — torch + CUDA contexts are heavy. No
-  # `read_only: true`: torch / CUDA write to HF / torch caches under
+  # ── worker-inference ─ GPU in prod. Dev defaults to runtime-inference-cpu;
+  # prod swaps the build target to runtime-gpu and re-adds the GPU device
+  # reservation. Memory cap raised to 8G — torch + CUDA contexts are heavy.
+  # No `read_only: true`: torch / CUDA write to HF / torch caches under
   # $HOME at first use.
   worker-inference:
-    profiles: !override []
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-gpu
     <<: *prod-hardening
     logging: *prod-logging
     environment: *app-env
@@ -192,6 +196,11 @@ services:
       - "--loglevel=info"
       - "-Q"
       - "inference,evaluation"
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+        limits: {memory: 8G}
 
   # ── postgres ─ 2.0 CPU / 2G. Single-box prod, modest write rate;
   # 2G RAM lets shared_buffers grow without thrashing the page cache.
