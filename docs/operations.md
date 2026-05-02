@@ -144,7 +144,7 @@ metrics:
 |---|---|---|
 | `http_requests_total` | counter | `method`, `path`, `status` (`2xx`/`3xx`/`4xx`/`5xx`) |
 | `http_request_duration_seconds` | histogram | `method`, `path` |
-| `http_requests_inflight` | gauge | `method`, `path` |
+| `http_requests_inflight` | gauge | `method` |
 | `seedbank_dwh_dispatch_total` | counter | `task`, `result` (`ok`/`disabled`/`error`) |
 | `seedbank_dwh_task_duration_seconds` | histogram | `task`, `result` |
 | `seedbank_inference_total` | counter | `kind`, `backend`, `status` |

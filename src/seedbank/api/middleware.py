@@ -67,9 +67,11 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.EXCLUDED_PATHS:
             return await call_next(request)
 
-        path = _route_template(request)
         method = request.method
-        HTTP_REQUESTS_INFLIGHT.labels(method=method, path=path).inc()
+        # Inflight gauge has no path label — see the comment in
+        # ``core/metrics.py``. The route template isn't known yet anyway
+        # (the Router runs *inside* ``call_next``).
+        HTTP_REQUESTS_INFLIGHT.labels(method=method).inc()
         start = perf_counter()
         status = "5xx"  # unhandled exception path; 500 if call_next raises
         try:
@@ -77,7 +79,13 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             status = _status_class(response.status_code)
             return response
         finally:
-            HTTP_REQUESTS_INFLIGHT.labels(method=method, path=path).dec()
+            HTTP_REQUESTS_INFLIGHT.labels(method=method).dec()
+            # Resolve the template *after* call_next so ``scope["router"]``
+            # is populated. Inside the Router's __call__, Starlette sets
+            # ``scope["router"] = self`` before dispatching to the route —
+            # so by the time control returns here (response *or* exception),
+            # the router and the matched route are visible.
+            path = _route_template(request)
             HTTP_REQUEST_DURATION.labels(method=method, path=path).observe(
                 perf_counter() - start
             )

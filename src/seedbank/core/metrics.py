@@ -93,7 +93,13 @@ def _build(registry: CollectorRegistry) -> None:
     HTTP_REQUESTS_INFLIGHT = Gauge(
         "http_requests_inflight",
         "HTTP requests currently being processed.",
-        labelnames=("method", "path"),
+        # method-only: the route template isn't resolvable until *after*
+        # the Router has run, but the gauge has to inc on the way in. A
+        # raw-URL fallback would leak labelsets into the registry under
+        # diverse traffic (gauges retain labelsets forever, even after
+        # they decrement to 0). Method alone keeps the cardinality
+        # bounded at <10 and the gauge still answers "how loaded am I".
+        labelnames=("method",),
         registry=registry,
     )
 

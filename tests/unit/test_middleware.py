@@ -109,8 +109,8 @@ def _hist_count(method: str, path: str) -> float:
     return 0.0
 
 
-def _inflight(method: str, path: str) -> float:
-    return metrics.HTTP_REQUESTS_INFLIGHT.labels(method=method, path=path)._value.get()
+def _inflight(method: str) -> float:
+    return metrics.HTTP_REQUESTS_INFLIGHT.labels(method=method)._value.get()
 
 
 def _build_app(*, raises: bool = False) -> Starlette:
@@ -130,20 +130,18 @@ async def test_prometheus_middleware_5xx_path_keeps_inflight_balanced() -> None:
     * observe the duration histogram exactly once,
     * tick ``http_requests_total`` with ``status="5xx"``.
 
-    Note on the ``path`` label: ``_route_template`` runs before
-    ``call_next``, at which point Starlette's router has not yet
-    populated ``scope["router"]`` — so the labelset collapses to
-    ``"_unmatched"``. That's exactly what production also records when an
-    exception escapes the handler before the router gets a chance to
-    annotate the scope, so asserting against this label is the honest
-    contract.
+    The ``path`` label is the route template (``/x``) — even on the
+    exception path, because Starlette's Router populates
+    ``scope["router"]`` inside its ``__call__`` *before* dispatching to
+    the handler. So by the time control returns to PrometheusMiddleware's
+    ``finally`` block (response or exception), the route is resolvable.
     """
     app = _build_app(raises=True)
-    path_label = "_unmatched"
+    path_label = "/x"
 
     counter_before = _http_count("GET", path_label, "5xx")
     hist_before = _hist_count("GET", path_label)
-    inflight_before = _inflight("GET", path_label)
+    inflight_before = _inflight("GET")
 
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
@@ -155,7 +153,7 @@ async def test_prometheus_middleware_5xx_path_keeps_inflight_balanced() -> None:
         response = await client.get("/x")
         assert response.status_code == 500
 
-    assert _inflight("GET", path_label) == inflight_before  # gauge balanced
+    assert _inflight("GET") == inflight_before  # gauge balanced
     assert _hist_count("GET", path_label) - hist_before == 1
     assert _http_count("GET", path_label, "5xx") - counter_before == 1
 
@@ -168,7 +166,7 @@ async def test_prometheus_middleware_skips_metrics_path_entirely() -> None:
 
     counter_before = _http_count("GET", "/metrics", "2xx")
     hist_before = _hist_count("GET", "/metrics")
-    inflight_before = _inflight("GET", "/metrics")
+    inflight_before = _inflight("GET")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
@@ -178,7 +176,7 @@ async def test_prometheus_middleware_skips_metrics_path_entirely() -> None:
     # No deltas at all — the middleware never ran for this path.
     assert _http_count("GET", "/metrics", "2xx") == counter_before
     assert _hist_count("GET", "/metrics") == hist_before
-    assert _inflight("GET", "/metrics") == inflight_before
+    assert _inflight("GET") == inflight_before
 
 
 def test_excluded_paths_set_contains_metrics() -> None:
