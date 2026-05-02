@@ -13,7 +13,7 @@ Sentry-side identity.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from seedbank.core.logging import get_logger
 
@@ -49,6 +49,12 @@ def init_sentry(settings: Settings) -> None:
             environment=settings.env,
             release=f"{settings.service_name}@0.1.0",
             send_default_pii=False,
+            # FastAPI/Starlette integrations otherwise capture up to 1KB of
+            # request body — that includes login JSON (email + password) and
+            # OAuth callback codes. ``never`` switches the body capture off
+            # entirely; the structured-log request_id is enough correlation.
+            max_request_body_size="never",
+            before_send=_before_send,
             traces_sample_rate=settings.sentry_traces_sample_rate,
             profiles_sample_rate=settings.sentry_profiles_sample_rate,
             integrations=[
@@ -63,6 +69,16 @@ def init_sentry(settings: Settings) -> None:
 
     _INITIALISED = True
     log.info("sentry.initialised", env=settings.env)
+
+
+def _before_send(event: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any]:
+    """Defensive PII scrub: drop request body even if ``max_request_body_size``
+    is bypassed by an integration we don't control. Returning the event keeps
+    the trace; only the body is removed."""
+    request = event.get("request")
+    if isinstance(request, dict):
+        request.pop("data", None)
+    return event
 
 
 __all__ = ["init_sentry"]

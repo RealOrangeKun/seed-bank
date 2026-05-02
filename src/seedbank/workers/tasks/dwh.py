@@ -21,6 +21,7 @@ to be eventually consistent on hard deletes.
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from time import perf_counter
@@ -431,9 +432,26 @@ def dispatch_after_commit(task_name: str, *args: Any) -> None:
         celery_app.send_task(task_name, args=list(args), queue=DWH_QUEUE)
     except Exception as exc:  # noqa: BLE001 — broker driver can raise anything
         DWH_DISPATCH.labels(task=task_name, result="error").inc()
-        log.warning("dwh.dispatch_failed", task=task_name, error=repr(exc))
+        # ``repr(exc)`` on a redis-py / kombu exception can carry the broker
+        # URL with credentials. Log the exception class + the scrubbed
+        # message instead.
+        log.warning(
+            "dwh.dispatch_failed",
+            task=task_name,
+            error_type=type(exc).__name__,
+            error_msg=_scrub_broker_url(str(exc)),
+        )
     else:
         DWH_DISPATCH.labels(task=task_name, result="ok").inc()
+
+
+_BROKER_URL_RE = re.compile(r"(redis|amqp|sentinel|rediss)://[^@\s]+@")
+
+
+def _scrub_broker_url(message: str) -> str:
+    """Replace ``scheme://user:pass@host`` with ``scheme://***@`` so a leaking
+    driver exception cannot put the broker password into our logs."""
+    return _BROKER_URL_RE.sub(r"\1://***@", message)
 
 
 __all__ = [
