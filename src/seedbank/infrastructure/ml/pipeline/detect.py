@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass
 
 from seedbank.core.logging import get_logger
+from seedbank.core.metrics import INFERENCE_DURATION, INFERENCE_TOTAL
 from seedbank.infrastructure.ml.backends.base import (
     Detection,
     DetectionConfig,
@@ -60,8 +61,21 @@ class DetectPipeline:
             )
 
         start = time.perf_counter()
-        detections = await backend.detect(image, cfg)
-        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        status = "ok"
+        try:
+            detections = await backend.detect(image, cfg)
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            elapsed = time.perf_counter() - start
+            INFERENCE_DURATION.labels(
+                kind="detection", backend=backend_name
+            ).observe(elapsed)
+            INFERENCE_TOTAL.labels(
+                kind="detection", backend=backend_name, status=status
+            ).inc()
+        elapsed_ms = int(elapsed * 1000)
         log.info(
             "ml.detect",
             model_id=str(cfg.model_id),

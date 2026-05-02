@@ -33,6 +33,7 @@ from seedbank.core.exceptions import (
     ValidationError,
 )
 from seedbank.core.logging import get_logger
+from seedbank.core.metrics import AUTH_LOGIN
 from seedbank.core.security import (
     JWT_TYPE_REFRESH,
     decode_jwt,
@@ -252,6 +253,7 @@ class AuthService:
                 metadata={"email": email, "reason": "no_user"}, ip=ip,
             )
             await self.session.commit()
+            AUTH_LOGIN.labels(result="invalid_credentials").inc()
             raise AuthError("Invalid email or password.")
 
         if not verify_password(password, user.hashed_password):
@@ -260,11 +262,14 @@ class AuthService:
                 metadata={"email": email, "reason": "bad_password"}, ip=ip,
             )
             await self.session.commit()
+            AUTH_LOGIN.labels(result="invalid_credentials").inc()
             raise AuthError("Invalid email or password.")
 
         if not user.is_active:
+            AUTH_LOGIN.labels(result="blocked").inc()
             raise ForbiddenError("Account is disabled.")
         if not user.is_verified:
+            AUTH_LOGIN.labels(result="blocked").inc()
             raise ForbiddenError("Email not verified.")
 
         pair = await self._issue_token_pair(user, ip=ip, user_agent=None)
@@ -273,6 +278,7 @@ class AuthService:
             actor_id=user.id, action="user.login", target=user, ip=ip,
         )
         await self.session.commit()
+        AUTH_LOGIN.labels(result="ok").inc()
         return user, pair
 
     async def refresh(
@@ -369,6 +375,7 @@ class AuthService:
         if existing_link is not None:
             user = await self.users.get(existing_link.user_id)
             if user is None or not user.is_active:
+                AUTH_LOGIN.labels(result="blocked").inc()
                 raise ForbiddenError("Account is disabled.")
         else:
             user = await self.users.get_by_email(identity.email)
@@ -406,6 +413,10 @@ class AuthService:
             metadata={"provider": identity.provider}, ip=ip,
         )
         await self.session.commit()
+        # OAuth success collapses onto the same ``ok`` label as password
+        # login — keeping the labelset to {ok, invalid_credentials, blocked}
+        # avoids cardinality creep; the provider lives in audit_log instead.
+        AUTH_LOGIN.labels(result="ok").inc()
         return user, pair
 
     # ── Role management (admin) ──────────────────────────────────────────────
