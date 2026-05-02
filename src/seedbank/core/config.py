@@ -22,6 +22,12 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",
         case_sensitive=False,
         extra="ignore",
+        # File-based secrets in prod. Pydantic-Settings reads every file
+        # under this directory whose name matches a field (lowercased)
+        # and treats its contents as that field's value. The directory
+        # is silently skipped when missing, so dev (no /run/secrets) is
+        # unaffected. See `compose.prod.yaml` and `secrets/README.md`.
+        secrets_dir="/run/secrets",
     )
 
     # ── Service identity ─────────────────────────────────────────────────────
