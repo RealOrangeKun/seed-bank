@@ -68,12 +68,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
 
-    # Order matters: RequestId first so CORS/error-handler logs already have
-    # a request_id; PrometheusMiddleware wraps the rest so timings include
-    # downstream middleware overhead but exclude RequestId itself (sub-µs).
-    app.add_middleware(RequestIdMiddleware)
+    # Starlette ``add_middleware`` is LIFO: the **last** registered wraps
+    # outermost. We want RequestId outermost so every log line — including
+    # those from PrometheusMiddleware — carries a request_id, while
+    # Prometheus measures handler-only time (excludes the negligible
+    # RequestId overhead). Register Prometheus first, RequestId last.
     if settings.enable_metrics:
         app.add_middleware(PrometheusMiddleware)
+    app.add_middleware(RequestIdMiddleware)
     if settings.cors_allow_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -98,6 +100,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # OTel must instrument FastAPI **after** routers are included; the
     # instrumentor walks the route table once and would miss anything
     # added later. No-op when ``OTEL_EXPORTER_OTLP_ENDPOINT`` is unset.
+    # The /metrics, /healthz, /readyz endpoints below are excluded from
+    # tracing via ``excluded_urls`` inside ``init_tracing_for_api`` — order
+    # of registration relative to those routes is therefore not load-bearing.
     init_tracing_for_api(app, settings)
 
     if settings.enable_metrics:

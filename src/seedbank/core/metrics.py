@@ -24,8 +24,7 @@ Design:
   sub-100ms with the long tail being analyze-style endpoints (uploads,
   presigns) — not for ML inference, which we measure separately.
 
-The module's public surface is the metric objects + :func:`metrics_response`
-+ :func:`reset_metrics` (test-only).
+The module's public surface is the metric objects + :func:`metrics_response`.
 """
 
 from __future__ import annotations

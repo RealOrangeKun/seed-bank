@@ -102,16 +102,21 @@ def _status_class(code: int) -> str:
 def _route_template(request: Request) -> str:
     """Resolve the request path to its route template, or ``"_unmatched"``.
 
-    Starlette doesn't expose a public helper; we re-walk the router and
-    return the first ``Match.FULL`` route's template. ``Match.PARTIAL``
-    (method mismatch) is treated as unmatched — its 405 still counts but
-    the path label collapses, which is the right call for cardinality.
+    Starlette doesn't expose a public helper; we re-walk the router. A
+    ``Match.FULL`` always wins. Failing that, a ``Match.PARTIAL`` (path
+    matches but the method doesn't — the 405 path) keeps the route
+    template so dashboards can still attribute the 4xx to the right
+    endpoint. Only when *no* route matches at all do we collapse to
+    ``"_unmatched"``.
     """
     router = request.scope.get("router")
     if router is None:
         return "_unmatched"
+    partial_path: str | None = None
     for route in router.routes:
         match, _ = route.matches(request.scope)
         if match == Match.FULL:
             return getattr(route, "path", "_unmatched")
-    return "_unmatched"
+        if match == Match.PARTIAL and partial_path is None:
+            partial_path = getattr(route, "path", None)
+    return partial_path or "_unmatched"
