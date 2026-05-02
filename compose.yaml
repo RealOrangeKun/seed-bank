@@ -64,7 +64,12 @@ services:
       target: runtime-cpu
     image: seedbank/worker-cpu:0.1.0
     container_name: seedbank-worker-cpu
-    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,experiments,dwh"]
+    # Explicit ``--concurrency``: Celery defaults to host CPU count, which on
+    # a developer laptop is often 8–16. Each prefork child loads SQLAlchemy +
+    # boto + pydantic etc. (~50 MB), so the default would blow past the 512M
+    # cap and the container is OOM-killed (exit 137). The CPU limit is 1.0
+    # and these are I/O-bound DWH/CDC tasks — concurrency=2 is plenty.
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,experiments,dwh", "--concurrency=2", "--max-tasks-per-child=100"]
     environment:
       <<: *app-env
     healthcheck:
@@ -92,7 +97,12 @@ services:
       target: runtime-inference-cpu
     image: seedbank/worker-inference:0.1.0
     container_name: seedbank-worker-inference
-    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference,evaluation"]
+    # Explicit ``--concurrency``: matches the 2-CPU cap. Celery's host-CPU
+    # default would fork ~12 children, each lazily loading torch + a full
+    # model when its first inference task arrives (~500 MB peak); with a
+    # bigger model that would OOM the 4 GB cap. Two children give the right
+    # parallelism for the available CPUs without burning RAM on idle forks.
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference,evaluation", "--concurrency=2", "--max-tasks-per-child=50"]
     environment:
       <<: *app-env
     healthcheck:
@@ -209,7 +219,11 @@ services:
         limits: {cpus: "1.0", memory: 1G}
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.18.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mlflow
+    image: seedbank/mlflow:0.1.0
     container_name: seedbank-mlflow
     command:
       - "mlflow"
@@ -229,7 +243,14 @@ services:
     ports:
       - "127.0.0.1:5000:5000"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
+      # The slim mlflow image doesn't ship curl; use the Python interpreter
+      # we know is there. ``urlopen`` raises on non-2xx, so we don't need
+      # an explicit status check.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; urllib.request.urlopen('http://localhost:5000/health').read()"
       interval: 15s
       timeout: 5s
       retries: 6
