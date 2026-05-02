@@ -24,6 +24,10 @@ import pytest
 
 from seedbank.infrastructure.db.enums import UserRole
 from seedbank.infrastructure.db.models import (
+    Dataset,
+    DatasetItem,
+    Experiment,
+    ExperimentResult,
     Inference,
     ModelArtifact,
     ScanBatch,
@@ -34,6 +38,7 @@ from seedbank.infrastructure.db.models import (
 )
 from seedbank.workers.tasks.dwh import (
     _async_sync_detections,
+    _async_sync_experiment_results,
     _async_sync_inference,
     _async_sync_scan_batch,
 )
@@ -120,17 +125,98 @@ async def _seed_image(session: AsyncSession, *, batch_id: UUID) -> ScanImage:
     return img
 
 
-async def _seed_inference(session: AsyncSession, *, image_id: UUID, model_id: UUID) -> Inference:
+async def _seed_inference(
+    session: AsyncSession,
+    *,
+    image_id: UUID,
+    model_id: UUID,
+    error: str | None = None,
+) -> Inference:
     inf = Inference(
         image_id=image_id,
         model_id=model_id,
         backend="torch_local",
         latency_ms=42,
+        error=error,
         occurred_at=datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC),
     )
     session.add(inf)
     await session.flush()
     return inf
+
+
+async def _seed_dataset(
+    session: AsyncSession,
+    *,
+    name: str = "ds-dwh",
+    created_by: UUID | None = None,
+) -> Dataset:
+    ds = Dataset(name=name, created_by=created_by)
+    session.add(ds)
+    await session.flush()
+    return ds
+
+
+async def _seed_dataset_item(
+    session: AsyncSession,
+    *,
+    dataset_id: UUID,
+    key: str = "items/x.jpg",
+) -> DatasetItem:
+    di = DatasetItem(
+        dataset_id=dataset_id,
+        image_storage_key=key,
+        ground_truth={"boxes": []},
+    )
+    session.add(di)
+    await session.flush()
+    return di
+
+
+async def _seed_experiment(
+    session: AsyncSession,
+    *,
+    model_id: UUID,
+    dataset_id: UUID,
+    created_by: UUID | None,
+    name: str = "exp-dwh",
+    finished: bool = True,
+) -> Experiment:
+    started = datetime(2026, 5, 1, 11, 30, 0, tzinfo=UTC)
+    finished_at = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC) if finished else None
+    exp = Experiment(
+        name=name,
+        status="succeeded" if finished else "running",
+        model_id=model_id,
+        dataset_id=dataset_id,
+        started_at=started,
+        finished_at=finished_at,
+        duration_ms=(int((finished_at - started).total_seconds() * 1000) if finished_at else None),
+        created_by=created_by,
+    )
+    session.add(exp)
+    await session.flush()
+    return exp
+
+
+async def _seed_experiment_result(
+    session: AsyncSession,
+    *,
+    experiment_id: UUID,
+    dataset_item_id: UUID,
+    error: str | None = None,
+    latency_ms: int | None = 17,
+) -> ExperimentResult:
+    er = ExperimentResult(
+        experiment_id=experiment_id,
+        dataset_item_id=dataset_item_id,
+        predicted_boxes={"boxes": []},
+        latency_ms=latency_ms,
+        error=error,
+    )
+    session.add(er)
+    await session.flush()
+    return er
 
 
 async def _seed_detection(
@@ -327,3 +413,190 @@ async def test_sync_scan_batch_dedups_via_replacing_merge_tree(
     assert len(rows) == 1
     assert rows[0]["status"] == "succeeded"
     assert rows[0]["geo_country_code"] == "EG"
+
+
+# ── has_error round-trip (partial-batch path) ──────────────────────────────
+
+
+@pytest.mark.usefixtures("_truncate_clickhouse")
+async def test_sync_inference_with_error_sets_has_error_flag(
+    db_session: AsyncSession,
+    clickhouse_client: Any,
+) -> None:
+    """Inference rows carry an ``error`` text column when the worker
+    pipeline blew up on that image (the ``partial`` batch path). The
+    fact row must reflect that as ``has_error = 1`` so dashboards can
+    aggregate failure rate per model without re-joining to OLTP."""
+    user = await _seed_user(db_session, email="err@e.com")
+    st = await _seed_seed_type(db_session, code="failure")
+    model = await _seed_model(db_session, seed_type_id=st.id, name="bad-detect", version="v1")
+    batch = await _seed_batch(db_session, user_id=user.id)
+    img = await _seed_image(db_session, batch_id=batch.id)
+    inf = await _seed_inference(
+        db_session,
+        image_id=img.id,
+        model_id=model.id,
+        error="RuntimeError: CUDA out of memory",
+    )
+    await db_session.commit()
+
+    await _async_sync_inference(inf.id)
+
+    rows = await clickhouse_client.query(
+        "SELECT has_error, latency_ms FROM fact_inference FINAL "
+        "WHERE inference_id = %(id)s",
+        {"id": str(inf.id)},
+    )
+    assert len(rows) == 1
+    # ClickHouse Bool / UInt8 boundary depends on driver — accept either.
+    assert rows[0]["has_error"] in (1, True)
+    # Latency is preserved even on errored rows so post-mortems can read it.
+    assert rows[0]["latency_ms"] == 42
+
+
+# ── fact_experiment_result round-trip ──────────────────────────────────────
+
+
+@pytest.mark.usefixtures("_truncate_clickhouse")
+async def test_sync_experiment_results_writes_one_row_per_result(
+    db_session: AsyncSession,
+    clickhouse_client: Any,
+) -> None:
+    """Per-result fan-out: each ExperimentResult becomes one
+    fact_experiment_result row, dim_user + dim_model upserted, has_error
+    set per-result, and ``occurred_at`` carries the experiment's
+    finished_at."""
+    user = await _seed_user(db_session, email="exp@e.com")
+    st = await _seed_seed_type(db_session, code="exp-coffee")
+    model = await _seed_model(db_session, seed_type_id=st.id, name="exp-detect", version="v1")
+    dataset = await _seed_dataset(db_session, name="ds-exp-1", created_by=user.id)
+    di1 = await _seed_dataset_item(db_session, dataset_id=dataset.id, key="items/a.jpg")
+    di2 = await _seed_dataset_item(db_session, dataset_id=dataset.id, key="items/b.jpg")
+    exp = await _seed_experiment(
+        db_session,
+        model_id=model.id,
+        dataset_id=dataset.id,
+        created_by=user.id,
+        name="exp-1",
+    )
+    r_ok = await _seed_experiment_result(
+        db_session, experiment_id=exp.id, dataset_item_id=di1.id, latency_ms=33
+    )
+    r_err = await _seed_experiment_result(
+        db_session,
+        experiment_id=exp.id,
+        dataset_item_id=di2.id,
+        error="oom",
+        latency_ms=None,
+    )
+    await db_session.commit()
+
+    await _async_sync_experiment_results(exp.id)
+
+    rows = await clickhouse_client.query(
+        "SELECT result_id, experiment_id, dataset_id, dataset_item_id, "
+        "model_id, user_id, has_error, latency_ms, occurred_at "
+        "FROM fact_experiment_result FINAL "
+        "WHERE experiment_id = %(id)s ORDER BY has_error",
+        {"id": str(exp.id)},
+    )
+    assert len(rows) == 2
+    ids = {UUID(str(r["result_id"])) for r in rows}
+    assert ids == {r_ok.id, r_err.id}
+    # ORDER BY has_error puts the success row first (0 < 1).
+    ok = rows[0]
+    err = rows[1]
+    assert UUID(str(ok["dataset_item_id"])) == di1.id
+    assert UUID(str(err["dataset_item_id"])) == di2.id
+    assert ok["has_error"] in (0, False)
+    assert err["has_error"] in (1, True)
+    assert ok["latency_ms"] == 33
+    assert err["latency_ms"] is None
+    assert UUID(str(ok["model_id"])) == model.id
+    assert UUID(str(ok["user_id"])) == user.id
+    # occurred_at comes from experiment.finished_at, normalized to UTC.
+    # Driver may return aware-UTC or naive-UTC depending on the version;
+    # strip tzinfo on both sides so the wall-clock equality holds either way.
+    actual_dt = ok["occurred_at"]
+    if actual_dt.tzinfo is not None:
+        actual_dt = actual_dt.replace(tzinfo=None)
+    assert actual_dt == exp.finished_at.replace(tzinfo=None)
+
+    # Dim joinability — model and user upserted as side-effects of the sync.
+    dim_models = await clickhouse_client.query(
+        "SELECT name FROM dim_model FINAL WHERE model_id = %(id)s",
+        {"id": str(model.id)},
+    )
+    assert dim_models == [{"name": model.name}]
+    dim_users = await clickhouse_client.query(
+        "SELECT email FROM dim_user FINAL WHERE user_id = %(id)s",
+        {"id": str(user.id)},
+    )
+    assert dim_users == [{"email": user.email}]
+
+
+@pytest.mark.usefixtures("_truncate_clickhouse")
+async def test_sync_experiment_results_orphan_user_writes_null(
+    db_session: AsyncSession,
+    clickhouse_client: Any,
+) -> None:
+    """Phase 8 follow-up: experiments whose ``created_by`` was nulled by
+    an account deletion (``ON DELETE SET NULL``) write ``user_id IS NULL``
+    in the warehouse instead of the previous all-zero-UUID sentinel.
+    Dim_user is NOT upserted in that case (no user to project)."""
+    st = await _seed_seed_type(db_session, code="exp-rice")
+    model = await _seed_model(db_session, seed_type_id=st.id, name="exp-orphan", version="v1")
+    dataset = await _seed_dataset(db_session, name="ds-orphan", created_by=None)
+    di = await _seed_dataset_item(db_session, dataset_id=dataset.id, key="items/o.jpg")
+    exp = await _seed_experiment(
+        db_session,
+        model_id=model.id,
+        dataset_id=dataset.id,
+        created_by=None,
+        name="exp-orphan",
+    )
+    await _seed_experiment_result(
+        db_session, experiment_id=exp.id, dataset_item_id=di.id, latency_ms=10
+    )
+    await db_session.commit()
+
+    await _async_sync_experiment_results(exp.id)
+
+    rows = await clickhouse_client.query(
+        "SELECT user_id FROM fact_experiment_result FINAL "
+        "WHERE experiment_id = %(id)s",
+        {"id": str(exp.id)},
+    )
+    assert len(rows) == 1
+    assert rows[0]["user_id"] is None
+
+
+@pytest.mark.usefixtures("_truncate_clickhouse")
+async def test_sync_experiment_results_no_op_on_empty_experiment(
+    db_session: AsyncSession,
+    clickhouse_client: Any,
+) -> None:
+    """An Experiment with zero ExperimentResult rows must not write any
+    fact_experiment_result rows. Guards the empty-rows short-circuit at
+    the worker layer (before the repo-level guard)."""
+    user = await _seed_user(db_session, email="exp-empty@e.com")
+    st = await _seed_seed_type(db_session, code="exp-empty-st")
+    model = await _seed_model(db_session, seed_type_id=st.id, name="exp-empty", version="v1")
+    dataset = await _seed_dataset(db_session, name="ds-empty", created_by=user.id)
+    exp = await _seed_experiment(
+        db_session,
+        model_id=model.id,
+        dataset_id=dataset.id,
+        created_by=user.id,
+        name="exp-empty",
+    )
+    await db_session.commit()
+
+    await _async_sync_experiment_results(exp.id)
+
+    rows = await clickhouse_client.query(
+        "SELECT count() AS n FROM fact_experiment_result "
+        "WHERE experiment_id = %(id)s",
+        {"id": str(exp.id)},
+    )
+    assert rows == [{"n": 0}]

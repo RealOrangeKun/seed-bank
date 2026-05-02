@@ -33,7 +33,6 @@ from seedbank.core.exceptions import ExternalServiceError, NotFoundError
 from seedbank.core.logging import get_logger
 from seedbank.infrastructure.analytics import (
     AnalyticsRepository,
-    ClickHouseClient,
     DimModelRow,
     DimSeedTypeRow,
     DimUserRow,
@@ -41,6 +40,7 @@ from seedbank.infrastructure.analytics import (
     FactExperimentResultRow,
     FactInferenceRow,
     FactScanBatchRow,
+    get_clickhouse,
 )
 from seedbank.infrastructure.db.models import (
     Dataset,
@@ -122,10 +122,13 @@ def sync_scan_batch(self: object, batch_id: str) -> None:  # noqa: ARG001
 
 
 # ── Async cores ────────────────────────────────────────────────────────────
-
-
-async def _open_clickhouse() -> ClickHouseClient:
-    return await ClickHouseClient.from_settings(get_settings())
+#
+# Every task uses the worker-process-cached :func:`get_clickhouse` helper
+# so the urllib3 pool inside ``clickhouse-connect`` is reused across task
+# runs. The async wrapper is a thread-pool over the sync client — it has
+# no event-loop-bound state, so re-use across ``asyncio.run`` calls is
+# safe (unlike asyncpg, which is why Postgres still uses
+# ``worker_session_scope`` per task).
 
 
 async def _async_sync_inference(inference_id: UUID) -> None:
@@ -134,30 +137,27 @@ async def _async_sync_inference(inference_id: UUID) -> None:
         seed_type = await _load_seed_type(session, model.seed_type_id) if model.seed_type_id else None
         user = await _require_user(session, batch.user_id)
 
-    client = await _open_clickhouse()
-    try:
-        repo = AnalyticsRepository(client)
-        await repo.upsert_user(_dim_user(user))
-        await repo.upsert_model(_dim_model(model))
-        if seed_type is not None:
-            await repo.upsert_seed_type(_dim_seed_type(seed_type))
-        await repo.insert_inference(
-            FactInferenceRow(
-                inference_id=inference.id,
-                image_id=image.id,
-                batch_id=batch.id,
-                user_id=batch.user_id,
-                model_id=model.id,
-                seed_type_id=model.seed_type_id,
-                backend=model.backend,
-                model_kind=model.kind,
-                latency_ms=inference.latency_ms,
-                has_error=bool(inference.error),
-                occurred_at=inference.occurred_at,
-            )
+    client = await get_clickhouse()
+    repo = AnalyticsRepository(client)
+    await repo.upsert_user(_dim_user(user))
+    await repo.upsert_model(_dim_model(model))
+    if seed_type is not None:
+        await repo.upsert_seed_type(_dim_seed_type(seed_type))
+    await repo.insert_inference(
+        FactInferenceRow(
+            inference_id=inference.id,
+            image_id=image.id,
+            batch_id=batch.id,
+            user_id=batch.user_id,
+            model_id=model.id,
+            seed_type_id=model.seed_type_id,
+            backend=model.backend,
+            model_kind=model.kind,
+            latency_ms=inference.latency_ms,
+            has_error=bool(inference.error),
+            occurred_at=inference.occurred_at,
         )
-    finally:
-        await client.close()
+    )
     log.info("dwh.inference_synced", inference_id=str(inference_id))
 
 
@@ -177,37 +177,34 @@ async def _async_sync_detections(inference_id: UUID) -> None:
         log.info("dwh.detections_skipped", inference_id=str(inference_id), reason="empty")
         return
 
-    client = await _open_clickhouse()
-    try:
-        repo = AnalyticsRepository(client)
-        for st in seed_types.values():
-            await repo.upsert_seed_type(_dim_seed_type(st))
-        await repo.insert_detections(
-            FactDetectionRow(
-                detection_id=d.id,
-                inference_id=inference.id,
-                image_id=image.id,
-                batch_id=batch.id,
-                user_id=batch.user_id,
-                model_id=model.id,
-                seed_type_id=d.seed_type_id,
-                quality=d.quality,
-                confidence=d.confidence,
-                detection_confidence=d.detection_confidence or d.confidence,
-                box_x_norm=d.box_x_norm,
-                box_y_norm=d.box_y_norm,
-                box_w_norm=d.box_w_norm,
-                box_h_norm=d.box_h_norm,
-                width_px=d.width_px,
-                height_px=d.height_px,
-                area_px=d.area_px,
-                aspect_ratio=d.aspect_ratio,
-                occurred_at=inference.occurred_at,
-            )
-            for d in detections
+    client = await get_clickhouse()
+    repo = AnalyticsRepository(client)
+    for st in seed_types.values():
+        await repo.upsert_seed_type(_dim_seed_type(st))
+    await repo.insert_detections(
+        FactDetectionRow(
+            detection_id=d.id,
+            inference_id=inference.id,
+            image_id=image.id,
+            batch_id=batch.id,
+            user_id=batch.user_id,
+            model_id=model.id,
+            seed_type_id=d.seed_type_id,
+            quality=d.quality,
+            confidence=d.confidence,
+            detection_confidence=d.detection_confidence or d.confidence,
+            box_x_norm=d.box_x_norm,
+            box_y_norm=d.box_y_norm,
+            box_w_norm=d.box_w_norm,
+            box_h_norm=d.box_h_norm,
+            width_px=d.width_px,
+            height_px=d.height_px,
+            area_px=d.area_px,
+            aspect_ratio=d.aspect_ratio,
+            occurred_at=inference.occurred_at,
         )
-    finally:
-        await client.close()
+        for d in detections
+    )
     log.info(
         "dwh.detections_synced",
         inference_id=str(inference_id),
@@ -245,28 +242,25 @@ async def _async_sync_experiment_results(experiment_id: UUID) -> None:
     occurred_at = experiment.finished_at or experiment.started_at or datetime.now(timezone.utc)
     user_id = user.id if user is not None else None
 
-    client = await _open_clickhouse()
-    try:
-        repo = AnalyticsRepository(client)
-        if user is not None:
-            await repo.upsert_user(_dim_user(user))
-        await repo.upsert_model(_dim_model(model))
-        await repo.insert_experiment_results(
-            FactExperimentResultRow(
-                result_id=r.id,
-                experiment_id=experiment.id,
-                dataset_id=dataset.id,
-                dataset_item_id=r.dataset_item_id,
-                model_id=model.id,
-                user_id=user_id,
-                has_error=bool(r.error),
-                latency_ms=r.latency_ms,
-                occurred_at=occurred_at,
-            )
-            for r in results
+    client = await get_clickhouse()
+    repo = AnalyticsRepository(client)
+    if user is not None:
+        await repo.upsert_user(_dim_user(user))
+    await repo.upsert_model(_dim_model(model))
+    await repo.insert_experiment_results(
+        FactExperimentResultRow(
+            result_id=r.id,
+            experiment_id=experiment.id,
+            dataset_id=dataset.id,
+            dataset_item_id=r.dataset_item_id,
+            model_id=model.id,
+            user_id=user_id,
+            has_error=bool(r.error),
+            latency_ms=r.latency_ms,
+            occurred_at=occurred_at,
         )
-    finally:
-        await client.close()
+        for r in results
+    )
     log.info(
         "dwh.experiment_results_synced",
         experiment_id=str(experiment_id),
@@ -284,27 +278,24 @@ async def _async_sync_scan_batch(batch_id: UUID) -> None:
             select(func.count(ScanImage.id)).where(ScanImage.batch_id == batch_id)
         ) or 0
 
-    client = await _open_clickhouse()
-    try:
-        repo = AnalyticsRepository(client)
-        await repo.upsert_user(_dim_user(user))
-        await repo.upsert_scan_batch(
-            FactScanBatchRow(
-                batch_id=batch.id,
-                user_id=batch.user_id,
-                supplier_id=batch.supplier_id,
-                status=batch.status,
-                source=batch.source,
-                image_count=int(image_count),
-                duration_ms=batch.duration_ms,
-                submitted_at=batch.submitted_at,
-                started_at=batch.started_at,
-                finished_at=batch.finished_at,
-                geo_country_code=(batch.geo_country_code or ""),
-            )
+    client = await get_clickhouse()
+    repo = AnalyticsRepository(client)
+    await repo.upsert_user(_dim_user(user))
+    await repo.upsert_scan_batch(
+        FactScanBatchRow(
+            batch_id=batch.id,
+            user_id=batch.user_id,
+            supplier_id=batch.supplier_id,
+            status=batch.status,
+            source=batch.source,
+            image_count=int(image_count),
+            duration_ms=batch.duration_ms,
+            submitted_at=batch.submitted_at,
+            started_at=batch.started_at,
+            finished_at=batch.finished_at,
+            geo_country_code=(batch.geo_country_code or ""),
         )
-    finally:
-        await client.close()
+    )
     log.info(
         "dwh.scan_batch_synced",
         batch_id=str(batch_id),
