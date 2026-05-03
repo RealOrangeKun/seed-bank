@@ -3,6 +3,8 @@ joined under each."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import desc, func, select, update
@@ -19,12 +21,26 @@ from seedbank.infrastructure.db.models import (
 from .base import Repository
 
 if TYPE_CHECKING:
-    from datetime import datetime
     from uuid import UUID
 
     from seedbank.infrastructure.db.enums import BatchStatus
 
 log = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class CasResult:
+    """Result of a compare-and-set status flip.
+
+    ``won`` is true iff this caller flipped the row. ``started_at`` and
+    ``finished_at`` carry the canonical DB-side timestamps that were just
+    set by the UPDATE — populated by ``RETURNING``, so callers don't have
+    to re-fetch or fall back to a local Python clock.
+    """
+
+    won: bool
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 class ScanBatchRepository(Repository[ScanBatch]):
@@ -137,13 +153,15 @@ class ScanBatchRepository(Repository[ScanBatch]):
         new: BatchStatus,
         set_started_at: bool = False,
         set_finished_at: bool = False,
-    ) -> bool:
+    ) -> CasResult:
         """Compare-and-set ``status`` from ``expected`` to ``new``.
 
-        Returns ``True`` iff exactly one row was updated. Concurrent workers
-        racing on the same batch get ``False`` for every loser — caller
-        treats that as "not first, no-op". ``func.now()`` is used for any
-        timestamp set so the DB owns the clock.
+        Returns a :class:`CasResult`. ``won`` is true iff exactly one row was
+        updated; concurrent workers racing on the same batch get
+        ``won=False`` and treat that as "not first, no-op". When the caller
+        asks for ``set_started_at`` / ``set_finished_at``, the DB-side
+        ``func.now()`` value is returned via ``RETURNING`` so the caller has
+        the canonical timestamp without re-fetching.
         """
         values: dict[str, object] = {"status": new.value}
         if set_started_at:
@@ -158,24 +176,23 @@ class ScanBatchRepository(Repository[ScanBatch]):
                 ScanBatch.status == expected.value,
             )
             .values(**values)
-            # ``synchronize_session=False`` avoids SA's identity-map sync,
-            # which would otherwise issue a lazy-load when our caller next
-            # touches the in-memory ``ScanBatch`` — and lazy-loads from a
-            # synchronous code path under ``AsyncSession`` raise
-            # ``MissingGreenlet``. Callers must not read the mutated columns
-            # off the ORM object after this call (use a local timestamp or
-            # re-fetch by id).
+            .returning(ScanBatch.started_at, ScanBatch.finished_at)
+            # ``synchronize_session=False`` avoids SA's identity-map sync.
+            # Combined with ``RETURNING``, the caller gets the post-update
+            # values directly and never reads stale columns off the in-memory
+            # ORM object.
             .execution_options(synchronize_session=False)
         )
-        result = await self.session.execute(stmt)
-        won = (result.rowcount or 0) == 1
+        row = (await self.session.execute(stmt)).first()
         log.info(
             "scan_batch.cas_status",
             batch_id=str(batch_id),
             **{"from": expected.value, "to": new.value},
-            won=won,
+            won=row is not None,
         )
-        return won
+        if row is None:
+            return CasResult(won=False)
+        return CasResult(won=True, started_at=row[0], finished_at=row[1])
 
     async def list_detections_for_batch(
         self, batch_id: UUID, user_id: UUID

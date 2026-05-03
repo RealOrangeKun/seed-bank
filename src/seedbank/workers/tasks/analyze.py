@@ -27,8 +27,7 @@ Errors are categorised:
 
 from __future__ import annotations
 
-import asyncio
-from contextlib import aclosing, suppress
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -49,7 +48,6 @@ from seedbank.core.exceptions import (
 )
 from seedbank.core.ids import uuid7
 from seedbank.core.logging import get_logger
-from seedbank.infrastructure.cache.redis_client import _build_redis
 from seedbank.infrastructure.db.enums import (
     BatchStatus,
     ModelKind,
@@ -81,6 +79,7 @@ from seedbank.infrastructure.ml.pipeline.factory import (
 from seedbank.infrastructure.storage import get_storage
 from seedbank.services.traffic_router import TrafficRouter
 from seedbank.workers.celery_app import celery_app
+from seedbank.workers.runtime import get_worker_redis, run_async
 from seedbank.workers.session import worker_session_scope
 from seedbank.workers.tasks.dwh import (
     SYNC_DETECTIONS,
@@ -121,7 +120,7 @@ def analyze_image(
     seed_type_id: str | None = None,
 ) -> None:
     """Sync Celery wrapper. The real work lives in the async coroutine."""
-    asyncio.run(
+    run_async(
         _async_analyze_image(
             image_id=UUID(image_id),
             model_id_override=(UUID(model_id_override) if model_id_override else None),
@@ -152,14 +151,11 @@ async def _async_analyze_image(
 ) -> None:
     settings = get_settings()
     storage = get_storage()
-    # Build a fresh Redis client for this task. The api process uses an
-    # ``@lru_cache``-d singleton, but a worker calls ``asyncio.run()`` per
-    # task which closes the loop on exit — the cached client's connections
-    # would be bound to a dead loop on the next task and crash with
-    # ``RuntimeError('Event loop is closed')``. Same reason
-    # ``worker_session_scope`` opens a fresh DB engine per task.
-    # ``aclosing`` guarantees ``redis.aclose()`` runs even if the body raises.
-    async with aclosing(_build_redis(settings)) as redis, worker_session_scope() as session:
+    # The redis client and DB engine are process-scoped (built in the
+    # worker_process_init signal) and bound to the persistent loop —
+    # safe to reuse across tasks; nothing to close here.
+    redis = get_worker_redis()
+    async with worker_session_scope() as session:
         repos = _Repos(
             batches=ScanBatchRepository(session),
             images=ScanImageRepository(session),
@@ -177,14 +173,12 @@ async def _async_analyze_image(
             raise NotFoundError(f"scan_batch {image.batch_id} not found")
 
         # 2. CAS pending → running. Loser of the race is a no-op.
-        # Capture the start timestamp locally *before* the CAS — the
-        # repository runs the UPDATE with ``synchronize_session=False``
-        # (so the in-memory ``batch`` object's ``started_at`` is stale
-        # afterwards), and downstream helpers only need a Python-side
-        # baseline for duration logging / DWH dispatch. The persisted
-        # ``started_at`` is the DB-side ``func.now()`` from the UPDATE.
-        batch_started_at = datetime.now(tz=UTC)
-        won = await repos.batches.cas_status(
+        # ``cas_status`` returns the canonical DB-side ``started_at`` via
+        # ``RETURNING`` so we never read the stale in-memory ORM column.
+        # On a lost CAS, fall back to the row's existing ``started_at``
+        # (set by whichever worker won) — read it from the DB, not from
+        # the in-memory object, since that one is also stale.
+        cas = await repos.batches.cas_status(
             batch.id,
             expected=BatchStatus.PENDING,
             new=BatchStatus.RUNNING,
@@ -195,11 +189,19 @@ async def _async_analyze_image(
             "analyze.batch_running",
             batch_id=str(batch.id),
             image_id=str(image.id),
-            won_cas=won,
+            won_cas=cas.won,
         )
-        # First task to win the CAS owns the running-state DWH refresh.
-        if won:
+        if cas.won:
+            # First task to win the CAS owns the running-state DWH refresh.
             dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
+            batch_started_at = cas.started_at
+        else:
+            # Loser of the CAS: another worker already flipped the row to
+            # RUNNING and stamped ``started_at``. Re-fetch through the
+            # async path so we have an up-to-date timestamp for duration
+            # bookkeeping.
+            refreshed = await repos.batches.get(batch.id)
+            batch_started_at = refreshed.started_at if refreshed else None
 
         # 3. Pull image bytes from MinIO. Failure here -> ExternalServiceError
         # which Celery retries via ``autoretry_for``.

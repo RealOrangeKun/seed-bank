@@ -26,7 +26,6 @@ captures the count.
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -76,6 +75,7 @@ from seedbank.services.eval import (
 )
 from seedbank.services.eval.classification import ClassificationItemResult
 from seedbank.workers.celery_app import celery_app
+from seedbank.workers.runtime import run_async
 from seedbank.workers.session import worker_session_scope
 
 log = get_logger(__name__)
@@ -96,7 +96,7 @@ def run_experiment(
     experiment_id: str,
 ) -> None:
     """Sync wrapper. Real work in the async coroutine."""
-    asyncio.run(_async_run_experiment(experiment_id=UUID(experiment_id)))
+    run_async(_async_run_experiment(experiment_id=UUID(experiment_id)))
 
 
 # ── Async orchestration ───────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
             raise NotFoundError(f"experiment {experiment_id} not found")
 
         # 2. CAS pending → running. Loser is a no-op (concurrent retry).
-        won = await repos.experiments.cas_status(
+        cas = await repos.experiments.cas_status(
             experiment.id,
             expected=ExperimentStatus.PENDING,
             new=ExperimentStatus.RUNNING,
@@ -142,12 +142,14 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
         log.info(
             "experiment.running",
             experiment_id=str(experiment.id),
-            won_cas=won,
+            won_cas=cas.won,
         )
-        if not won:
+        if not cas.won:
             return
 
-        started_at = datetime.now(UTC)
+        # ``cas_status`` returned the canonical DB-side ``started_at`` via
+        # ``RETURNING`` — use it for duration math instead of a Python clock.
+        started_at = cas.started_at or datetime.now(UTC)
 
         # 3. Load model + dataset + items.
         model = await repos.models.get(experiment.model_id)

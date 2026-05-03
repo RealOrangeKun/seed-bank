@@ -28,6 +28,7 @@ from seedbank.infrastructure.db.models import (
 )
 
 from .base import Repository
+from .scan_batch import CasResult
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -105,12 +106,16 @@ class ExperimentRepository(Repository[Experiment]):
         duration_ms: int | None = None,
         summary_metrics: dict[str, object] | None = None,
         mlflow_run_id: str | None = None,
-    ) -> bool:
-        """Atomic status flip. Returns True iff exactly one row updated.
+    ) -> CasResult:
+        """Atomic status flip. Returns a :class:`CasResult` whose ``won`` is
+        true iff exactly one row was updated.
 
         Used by the worker to advance pending → running, then running →
-        succeeded/failed. Concurrent worker retries lose the CAS and
-        no-op rather than double-flipping the row.
+        succeeded/failed. Concurrent worker retries lose the CAS and no-op
+        rather than double-flipping the row. When ``set_started_at`` /
+        ``set_finished_at`` is requested, the DB-side ``func.now()`` value
+        is returned via ``RETURNING`` so the caller has the canonical
+        timestamp without re-reading the row.
         """
         values: dict[str, object] = {"status": new.value}
         if set_started_at:
@@ -131,20 +136,22 @@ class ExperimentRepository(Repository[Experiment]):
                 Experiment.status == expected.value,
             )
             .values(**values)
-            # See ``ScanBatchRepository.cas_status`` for the rationale.
-            # AsyncSession + identity-map sync = ``MissingGreenlet`` on the
-            # next attribute read from the in-memory ORM object.
+            .returning(Experiment.started_at, Experiment.finished_at)
+            # See ``ScanBatchRepository.cas_status``: ``synchronize_session=False``
+            # plus ``RETURNING`` gives the caller the canonical post-update
+            # values without ever touching the in-memory ORM object.
             .execution_options(synchronize_session=False)
         )
-        result = await self.session.execute(stmt)
-        won = (result.rowcount or 0) == 1
+        row = (await self.session.execute(stmt)).first()
         log.info(
             "experiment.cas_status",
             experiment_id=str(experiment_id),
             **{"from": expected.value, "to": new.value},
-            won=won,
+            won=row is not None,
         )
-        return won
+        if row is None:
+            return CasResult(won=False)
+        return CasResult(won=True, started_at=row[0], finished_at=row[1])
 
 
 class ExperimentResultRepository(Repository[ExperimentResult]):
