@@ -1,13 +1,14 @@
 """Worker-scoped async session helper.
 
-Each Celery task opens its own engine + sessionmaker and disposes the
-engine when the task ends. This is **required**: the API process keeps a
-process-wide engine via ``@lru_cache`` in
-:mod:`seedbank.infrastructure.db.session`, but reusing it from inside
-``asyncio.run(...)`` in a worker would tie its asyncpg connections to a
-loop that closes when the task returns — the next task would crash.
+Yields an ``AsyncSession`` from the process-scoped sessionmaker built in
+:mod:`seedbank.workers.runtime`. The engine itself is created exactly
+once per worker process (in the ``worker_process_init`` signal) and
+disposed on shutdown — no per-task pool churn.
 
-Pattern is verbatim from ``scripts/register_model.py:116-153``.
+Why not reuse the API's ``@lru_cache``-d engine in
+``seedbank.infrastructure.db.session``? Because that one is bound to the
+API's event loop. Workers run their own persistent loop and need their
+own engine on it.
 """
 
 from __future__ import annotations
@@ -15,33 +16,20 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-
-from seedbank.core.config import get_settings
+from seedbank.workers.runtime import get_worker_sessionmaker
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 
 @asynccontextmanager
 async def worker_session_scope() -> AsyncIterator[AsyncSession]:
-    """Yield a fresh ``AsyncSession`` backed by a per-call engine.
-
-    The engine is disposed in ``finally`` so connection pools never leak
-    across Celery task invocations.
-    """
-    settings = get_settings()
-    engine = create_async_engine(str(settings.postgres_dsn), future=True)
-    sm = async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
-    try:
-        async with sm() as session:
-            yield session
-    finally:
-        await engine.dispose()
+    """Yield a fresh ``AsyncSession`` from the process-scoped pool."""
+    sm = get_worker_sessionmaker()
+    async with sm() as session:
+        yield session
 
 
 __all__ = ["worker_session_scope"]

@@ -8,18 +8,23 @@ Settings come from :class:`seedbank.core.config.Settings`; nothing reads
 inline in the calling process. Production keeps it ``False`` so the broker
 boundary is the same in dev and prod.
 
-Workers must NOT reuse the API's ``@lru_cache``'d engine. Each task opens
-a fresh engine via :mod:`seedbank.workers.session`.
+Each worker process owns one persistent ``asyncio`` loop, one
+``AsyncEngine`` (via :mod:`seedbank.workers.session`), and one redis
+client (via :mod:`seedbank.workers.runtime`), all bound to that loop and
+reused across every task. They are constructed in
+``worker_process_init`` (post-fork) and disposed in
+``worker_process_shutdown``.
 """
 
 from __future__ import annotations
 
 from celery import Celery
-from celery.signals import worker_process_init
+from celery.signals import worker_process_init, worker_process_shutdown
 
 from seedbank.core.config import Settings, get_settings
 from seedbank.core.sentry import init_sentry
 from seedbank.core.tracing import init_tracing_for_celery
+from seedbank.workers.runtime import init_worker_runtime, shutdown_worker_runtime
 
 
 def _make_celery_app(settings: Settings) -> Celery:
@@ -69,19 +74,28 @@ celery_app: Celery = make_celery_app()
 
 
 @worker_process_init.connect  # type: ignore[misc]
-def _init_obs_per_worker(**_: object) -> None:
-    """Initialise tracing + Sentry **after** Celery's prefork.
+def _init_per_worker(**_: object) -> None:
+    """Initialise tracing + Sentry + the async runtime **after** prefork.
 
     Installing the OTel TracerProvider before fork shares a gRPC channel
     across children and the exporter silently drops spans. Sentry has
-    similar fork-safety constraints. This signal fires once per worker
-    process post-fork — exactly the right place. Both initialisers are
-    no-ops when their respective env vars are unset, so the dev compose
-    stack stays clean.
+    similar fork-safety constraints. The async engine + redis client are
+    bound to the persistent loop we build here, so they MUST be created
+    post-fork too — sharing them across the prefork would alias the
+    underlying file descriptors.
     """
     settings = get_settings()
     init_sentry(settings)
     init_tracing_for_celery(settings)
+    init_worker_runtime(settings)
+
+
+@worker_process_shutdown.connect  # type: ignore[misc]
+def _shutdown_per_worker(**_: object) -> None:
+    """Tear down the async runtime cleanly. Closes the redis client and
+    disposes the engine on the persistent loop, then closes the loop.
+    """
+    shutdown_worker_runtime()
 
 
 __all__ = ["celery_app", "make_celery_app"]

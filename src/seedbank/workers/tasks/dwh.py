@@ -20,7 +20,6 @@ to be eventually consistent on hard deletes.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
@@ -59,6 +58,7 @@ from seedbank.infrastructure.db.models import (
     User,
 )
 from seedbank.workers.celery_app import celery_app
+from seedbank.workers.runtime import run_async
 from seedbank.workers.session import worker_session_scope
 
 log = get_logger(__name__)
@@ -90,7 +90,7 @@ def _run_timed(
     start = perf_counter()
     result = "ok"
     try:
-        asyncio.run(fn(UUID(arg_id)))
+        run_async(fn(UUID(arg_id)))
     except NotFoundError:
         result = "not_found"
         raise
