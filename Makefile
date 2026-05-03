@@ -33,9 +33,13 @@ install-inference: venv ## Install ML deps locally (heavy).
 
 # ── Compose lifecycle ───────────────────────────────────────────────────────
 .PHONY: env up up-infra up-gpu up-dev up-obs up-prod down down-prod restart logs logs-prod ps wait secrets-check
-env: ## Create .env from .env.example if missing. Idempotent.
+env: ## Provision .env and compose.override.yaml from their *.example templates if missing. Idempotent.
 	@if [ ! -f .env ]; then cp .env.example .env && echo "created .env from .env.example"; \
 	 else echo ".env already present"; fi
+	@if [ ! -f compose.override.yaml ]; then \
+	   cp compose.override.example.yaml compose.override.yaml && \
+	   echo "created compose.override.yaml from compose.override.example.yaml"; \
+	 else echo "compose.override.yaml already present"; fi
 
 up-infra: env ## Start ONLY infra (postgres, redis, minio, clickhouse). No build, fast smoke.
 	$(COMPOSE) up -d postgres redis minio clickhouse
@@ -161,6 +165,9 @@ test-integration: ## Integration tests (testcontainers).
 
 test-e2e: ## Full e2e suite.
 	$(VENV)/bin/pytest -m e2e tests/e2e
+
+smoke: ## Run the end-to-end smoke against the running compose stack.
+	@API_PORT=$(API_PORT) bash scripts/smoke.sh
 
 cov: ## Open coverage report (xml in CI, html locally).
 	$(VENV)/bin/pytest --cov-report=html
