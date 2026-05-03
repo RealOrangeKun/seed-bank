@@ -163,8 +163,8 @@ services:
       - "--loglevel=info"
       - "-Q"
       - "default,cdc,housekeeping,experiments,dwh"
-      - "--concurrency=4"
-      - "--max-tasks-per-child=200"
+      - "--concurrency=${WORKER_CPU_CONCURRENCY:-4}"
+      - "--max-tasks-per-child=${WORKER_CPU_MAX_TASKS_PER_CHILD:-200}"
     deploy:
       resources:
         limits: {cpus: "2.0", memory: 1G}
@@ -198,8 +198,8 @@ services:
       - "--loglevel=info"
       - "-Q"
       - "inference,evaluation"
-      - "--concurrency=2"
-      - "--max-tasks-per-child=50"
+      - "--concurrency=${WORKER_INFERENCE_CONCURRENCY:-2}"
+      - "--max-tasks-per-child=${WORKER_INFERENCE_MAX_TASKS_PER_CHILD:-50}"
     deploy:
       resources:
         reservations:

@@ -69,7 +69,7 @@ services:
     # boto + pydantic etc. (~50 MB), so the default would blow past the 512M
     # cap and the container is OOM-killed (exit 137). The CPU limit is 1.0
     # and these are I/O-bound DWH/CDC tasks — concurrency=2 is plenty.
-    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,experiments,dwh", "--concurrency=2", "--max-tasks-per-child=100"]
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,experiments,dwh", "--concurrency=${WORKER_CPU_CONCURRENCY:-2}", "--max-tasks-per-child=${WORKER_CPU_MAX_TASKS_PER_CHILD:-100}"]
     environment:
       <<: *app-env
     healthcheck:
@@ -102,7 +102,7 @@ services:
     # model when its first inference task arrives (~500 MB peak); with a
     # bigger model that would OOM the 4 GB cap. Two children give the right
     # parallelism for the available CPUs without burning RAM on idle forks.
-    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference,evaluation", "--concurrency=2", "--max-tasks-per-child=50"]
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference,evaluation", "--concurrency=${WORKER_INFERENCE_CONCURRENCY:-2}", "--max-tasks-per-child=${WORKER_INFERENCE_MAX_TASKS_PER_CHILD:-50}"]
     environment:
       <<: *app-env
     healthcheck:
