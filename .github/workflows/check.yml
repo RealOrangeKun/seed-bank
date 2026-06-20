@@ -1,0 +1,40 @@
+# Fast PR gate — mirrors `make check` (lint + typecheck + unit).
+# No coverage enforcement here: the unit subset alone won't hit the
+# project's 80% gate (that's enforced by the full pyramid in test.yml).
+name: check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff format (check only)
+        run: ruff format --check .
+
+      - name: ruff lint
+        run: ruff check .
+
+      - name: mypy (strict)
+        run: mypy
+
+      - name: unit tests
+        run: pytest -m "unit or not integration and not e2e" tests/unit --no-cov
