@@ -140,10 +140,25 @@ class BatchDetailOut(BatchOut):
     images: list[ScanImageOut] = Field(default_factory=list)
 
 
+class ImageUrlOut(BaseModel):
+    """A short-lived, browser-reachable URL for one stored scan image.
+
+    Returned by ``GET /batches/{id}/image-urls`` so the client can render the
+    original image (and overlay normalized bounding boxes) without the bytes
+    ever traversing the API process. ``expires_at`` lets the client refetch
+    before the presigned URL lapses.
+    """
+
+    image_id: UUID
+    url: str
+    expires_at: datetime
+
+
 __all__ = [
     "AnalyzeQueryIn",
     "BatchDetailOut",
     "BatchOut",
+    "ImageUrlOut",
     "InferenceOut",
     "ScanImageOut",
     "SeedDetectionOut",

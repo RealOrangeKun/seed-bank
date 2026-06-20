@@ -11,8 +11,11 @@ The service raises domain exceptions only — the router maps to HTTP.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from seedbank.core.config import get_settings
 from seedbank.core.exceptions import NotFoundError
 from seedbank.core.logging import get_logger
 from seedbank.domain.user import Role
@@ -22,11 +25,25 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from seedbank.core.config import Settings
     from seedbank.domain.user import AuthenticatedUser
     from seedbank.infrastructure.db.models import ScanBatch
-    from seedbank.infrastructure.db.repositories import ScanBatchRepository
+    from seedbank.infrastructure.db.repositories import (
+        ScanBatchRepository,
+        ScanImageRepository,
+    )
+    from seedbank.infrastructure.storage import MinioStorage
 
 log = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ImageUrl:
+    """A presigned, browser-reachable URL for one stored scan image."""
+
+    image_id: UUID
+    url: str
+    expires_at: datetime
 
 
 class BatchService:
@@ -37,9 +54,15 @@ class BatchService:
         *,
         session: AsyncSession,
         batches: ScanBatchRepository,
+        images: ScanImageRepository,
+        storage: MinioStorage,
+        settings: Settings | None = None,
     ) -> None:
         self.session = session
         self.batches = batches
+        self.images = images
+        self.storage = storage
+        self.settings = settings or get_settings()
 
     async def list_for_user(
         self,
@@ -90,12 +113,42 @@ class BatchService:
         if actor.role is Role.ADMIN:
             row = await self.batches.get_with_full_graph(batch_id)
         else:
-            row = await self.batches.get_with_images_and_detections(
-                batch_id, actor.id
-            )
+            row = await self.batches.get_with_images_and_detections(batch_id, actor.id)
         if row is None:
             raise NotFoundError("Batch not found.")
         return row
 
+    async def image_urls_for_user(
+        self,
+        *,
+        batch_id: UUID,
+        actor: AuthenticatedUser,
+    ) -> list[ImageUrl]:
+        """Presigned GET URLs for every image in a batch the actor may read.
 
-__all__ = ["BatchService"]
+        Ownership is enforced exactly as in :meth:`get_for_user` (admins may
+        read any batch; everyone else only their own), and the same
+        ``NotFoundError``-on-miss rule applies so image IDs cannot be probed.
+        Unlike :meth:`get_for_user` this does *not* load the detection graph —
+        only the lightweight image rows are needed to mint URLs.
+        """
+        if actor.role is Role.ADMIN:
+            batch = await self.batches.get(batch_id)
+        else:
+            batch = await self.batches.get_for_user(batch_id, actor.id)
+        if batch is None:
+            raise NotFoundError("Batch not found.")
+
+        ttl = timedelta(seconds=self.settings.minio_presign_ttl_seconds)
+        expires_at = datetime.now(UTC) + ttl
+        images = await self.images.list_for_batch(batch_id)
+        urls: list[ImageUrl] = []
+        for image in images:
+            url = await self.storage.presigned_get_url(
+                self.settings.minio_bucket_images, image.storage_key, ttl
+            )
+            urls.append(ImageUrl(image_id=image.id, url=url, expires_at=expires_at))
+        return urls
+
+
+__all__ = ["BatchService", "ImageUrl"]

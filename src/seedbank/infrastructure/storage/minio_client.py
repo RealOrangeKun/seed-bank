@@ -26,8 +26,13 @@ log = get_logger(__name__)
 class MinioStorage:
     """Async object storage. Implements the `ObjectStorage` Protocol."""
 
-    def __init__(self, client: Minio) -> None:
+    def __init__(self, client: Minio, presign_client: Minio | None = None) -> None:
         self._client = client
+        # Presigned GET URLs are consumed by browsers, so they must be signed
+        # for an externally reachable host (see ``minio_public_endpoint``).
+        # Falls back to the in-cluster client when no public client is given
+        # (e.g. tests that talk to MinIO over a single hostname).
+        self._presign_client = presign_client or client
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "MinioStorage":
@@ -37,7 +42,13 @@ class MinioStorage:
             secret_key=settings.minio_secret_key.get_secret_value(),
             secure=settings.minio_secure,
         )
-        return cls(client)
+        presign_client = Minio(
+            settings.minio_public_endpoint,
+            access_key=settings.minio_access_key.get_secret_value(),
+            secret_key=settings.minio_secret_key.get_secret_value(),
+            secure=settings.minio_public_secure,
+        )
+        return cls(client, presign_client)
 
     async def ensure_bucket(self, bucket: str) -> None:
         try:
@@ -102,7 +113,16 @@ class MinioStorage:
         return await self._client.presigned_put_object(bucket, key, expires=ttl)
 
     async def presigned_get_url(self, bucket: str, key: str, ttl: timedelta) -> str:
-        return await self._client.presigned_get_object(bucket, key, expires=ttl)
+        # Signed against the public endpoint so the resulting URL is reachable
+        # from a browser, not just from inside the compose network.
+        try:
+            return await self._presign_client.presigned_get_object(
+                bucket, key, expires=ttl
+            )
+        except S3Error as exc:
+            raise ExternalServiceError(
+                f"minio: presign get {bucket}/{key}: {exc}"
+            ) from exc
 
 
 @lru_cache(maxsize=1)

@@ -8,11 +8,12 @@ Code that needs a setting receives it via the `Settings` object — never via
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -38,8 +39,28 @@ class Settings(BaseSettings):
 
     # ── HTTP ─────────────────────────────────────────────────────────────────
     api_v1_prefix: str = "/api/v1"
-    cors_allow_origins: list[str] = Field(default_factory=list)
-    trusted_hosts: list[str] = Field(default_factory=lambda: ["*"])
+    # ``NoDecode`` disables Pydantic-Settings' default JSON decoding for these
+    # list fields so the env source hands us the raw string; the validator
+    # below then splits on commas. Keeps ``CORS_ALLOW_ORIGINS=http://a,http://b``
+    # ergonomic instead of forcing a JSON array.
+    cors_allow_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["*"]
+    )
+
+    @field_validator("cors_allow_origins", "trusted_hosts", mode="before")
+    @classmethod
+    def _parse_list(cls, v: object) -> object:
+        """Accept a JSON array *or* a comma-separated string (a list passes
+        through). ``NoDecode`` hands us the raw env string; we keep backward
+        compatibility with the JSON-array form used in ``.env`` while also
+        allowing the friendlier ``a,b,c``."""
+        if isinstance(v, str):
+            s = v.strip()
+            if s.startswith("["):
+                return json.loads(s)
+            return [item.strip() for item in s.split(",") if item.strip()]
+        return v
 
     # ── Auth ─────────────────────────────────────────────────────────────────
     jwt_secret: SecretStr = SecretStr("change-me-in-prod")  # noqa: S106
@@ -82,6 +103,13 @@ class Settings(BaseSettings):
     minio_bucket_experiments: str = "seedbank-experiments"
     minio_bucket_datasets: str = "seedbank-datasets"
     minio_presign_ttl_seconds: int = 60 * 5
+    # ``minio_endpoint`` is the in-cluster host the API uses to read/write
+    # objects. Presigned URLs, however, are handed to *browsers*, which cannot
+    # resolve an internal compose hostname like ``minio:9000`` — and the URL
+    # signature is bound to the host. ``minio_public_endpoint`` is therefore the
+    # externally reachable host used *only* to sign GET URLs for clients.
+    minio_public_endpoint: str = "localhost:9000"
+    minio_public_secure: bool = False
 
     # ── ClickHouse ───────────────────────────────────────────────────────────
     clickhouse_host: str = "clickhouse"

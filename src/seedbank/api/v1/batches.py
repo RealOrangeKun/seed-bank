@@ -19,7 +19,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 
 from seedbank.api.deps import BatchServiceDep, CurrentUser
-from seedbank.schemas.analysis import BatchDetailOut, BatchOut
+from seedbank.schemas.analysis import BatchDetailOut, BatchOut, ImageUrlOut
 from seedbank.schemas.common import Envelope, Page, paginate
 
 router = APIRouter(prefix="/batches", tags=["batches"])
@@ -60,6 +60,24 @@ async def get_batch(
     # response shape.
     out = out.model_copy(update={"image_count": len(out.images)})
     return Envelope[BatchDetailOut](data=out)
+
+
+@router.get("/{batch_id}/image-urls", response_model=Envelope[list[ImageUrlOut]])
+async def get_batch_image_urls(
+    batch_id: UUID,
+    actor: CurrentUser,
+    service: BatchServiceDep,
+) -> Envelope[list[ImageUrlOut]]:
+    """Short-lived presigned URLs for the batch's images.
+
+    The client pairs these with the normalized bounding boxes from
+    ``GET /batches/{id}`` to render detections over the original image —
+    the bytes are served straight from object storage, never proxied
+    through the API.
+    """
+    urls = await service.image_urls_for_user(batch_id=batch_id, actor=actor)
+    items = [ImageUrlOut.model_validate(u, from_attributes=True) for u in urls]
+    return Envelope[list[ImageUrlOut]](data=items)
 
 
 __all__ = ["router"]

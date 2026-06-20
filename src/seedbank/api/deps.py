@@ -200,8 +200,17 @@ def analysis_service(
 def batch_service(
     session: DbSession,
     batches: ScanBatchRepoDep,
+    images: ScanImageRepoDep,
+    storage: StorageDep,
+    settings: SettingsDep,
 ) -> BatchService:
-    return BatchService(session=session, batches=batches)
+    return BatchService(
+        session=session,
+        batches=batches,
+        images=images,
+        storage=storage,
+        settings=settings,
+    )
 
 
 def dataset_service(
