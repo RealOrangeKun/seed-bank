@@ -32,7 +32,7 @@ install-inference: venv ## Install ML deps locally (heavy).
 	$(VENV)/bin/uv pip install -e ".[dev,inference]"
 
 # ── Compose lifecycle ───────────────────────────────────────────────────────
-.PHONY: env up up-infra up-gpu up-dev up-obs up-prod down down-prod restart logs logs-prod ps wait secrets-check
+.PHONY: env up up-infra up-gpu up-dev up-obs up-front front up-prod down down-prod restart logs logs-prod ps wait secrets-check
 env: ## Provision .env and compose.override.yaml from their *.example templates if missing. Idempotent.
 	@if [ ! -f .env ]; then cp .env.example .env && echo "created .env from .env.example"; \
 	 else echo ".env already present"; fi
@@ -61,6 +61,13 @@ up-dev: env ## Start with adminer for quick DB poking.
 up-obs: env ## Start the lean stack PLUS prometheus + grafana (obs profile).
 	$(COMPOSE) --profile obs up -d --build api postgres redis minio clickhouse mlflow prometheus grafana
 	@$(MAKE) wait
+
+up-front: env ## Start the lean stack PLUS the built React frontend (nginx on :5173).
+	$(COMPOSE) --profile frontend up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow frontend
+	@$(MAKE) wait
+
+front: ## Run the frontend dev server locally (Vite on :5173; needs `make up` for the API).
+	cd frontend && npm install && npm run dev
 
 # In prod the grafana password comes from `./secrets/grafana_admin_password`
 # via `GF_SECURITY_ADMIN_PASSWORD__FILE`. The dev compose still

@@ -1,0 +1,112 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Agricultural-green theme. Tokens are HSL channels (no `hsl()` wrapper) so
+  Tailwind can compose them with opacity. Light is a warm off-white field;
+  primary is a deep leaf green; accents are earthy amber. Dark is a soil-night
+  palette that keeps the same green identity.
+*/
+@layer base {
+  :root {
+    --background: 80 30% 98%;
+    --foreground: 150 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 25% 12%;
+
+    --primary: 142 60% 30%;
+    --primary-foreground: 140 50% 97%;
+
+    --secondary: 90 30% 94%;
+    --secondary-foreground: 150 25% 18%;
+
+    --muted: 90 20% 94%;
+    --muted-foreground: 150 10% 40%;
+
+    --accent: 38 80% 92%;
+    --accent-foreground: 30 50% 22%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 60% 32%;
+    --success-foreground: 140 50% 97%;
+
+    --warning: 38 92% 45%;
+    --warning-foreground: 40 60% 12%;
+
+    --border: 110 16% 86%;
+    --input: 110 16% 86%;
+    --ring: 142 60% 30%;
+
+    --radius: 0.65rem;
+  }
+
+  .dark {
+    --background: 150 24% 7%;
+    --foreground: 90 20% 92%;
+
+    --card: 150 22% 10%;
+    --card-foreground: 90 20% 92%;
+
+    --popover: 150 22% 10%;
+    --popover-foreground: 90 20% 92%;
+
+    --primary: 142 55% 48%;
+    --primary-foreground: 150 30% 8%;
+
+    --secondary: 150 14% 18%;
+    --secondary-foreground: 90 20% 92%;
+
+    --muted: 150 12% 18%;
+    --muted-foreground: 120 10% 62%;
+
+    --accent: 38 40% 22%;
+    --accent-foreground: 38 80% 88%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 55% 48%;
+    --success-foreground: 150 30% 8%;
+
+    --warning: 38 80% 55%;
+    --warning-foreground: 40 60% 10%;
+
+    --border: 150 12% 22%;
+    --input: 150 12% 24%;
+    --ring: 142 55% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+}
+
+/* Subtle field-pattern backdrop for auth screens. */
+.bg-field {
+  background-image: radial-gradient(
+      hsl(var(--primary) / 0.07) 1px,
+      transparent 1px
+    ),
+    radial-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px);
+  background-position:
+    0 0,
+    12px 12px;
+  background-size: 24px 24px;
+}
