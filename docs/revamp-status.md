@@ -92,6 +92,12 @@ stub/TODO scan over ~13.6k LOC found 3 benign documented TODOs and zero
   (only layer skipping the repository pattern).
 - Endpoints whose service/schema already exist but no route: password change
   (`PATCH /users/me/password`), `GET /experiments/{id}/results`, presigned upload.
+- **Test suite not hermetic** (confirmed 2026-06-20): app-booting integration
+  tests fail outside Docker because the rate limiter dials `redis:6379` and
+  `fakeredis` doesn't cover it. Make `app_client` use fakeredis end-to-end (or
+  add a redis service to `test.yml`) before the coverage gate can be trusted.
+- **No dependency lockfile** — add `uv.lock` (or pinned constraints) so installs
+  and CI are reproducible.
 
 **P2 — hardening / correctness / docs**
 - Validate `builder_key` at model-register time (else opaque 503 at inference).
@@ -112,12 +118,32 @@ stub/TODO scan over ~13.6k LOC found 3 benign documented TODOs and zero
 `f"{ground_truth}_pred_{pred}"`, so `fn_bad = confusion["bad_pred_good"]` is
 right.
 
+### Verified suite state (2026-06-20, fresh Python 3.12 toolchain)
+
+- **Unit tier: 171 passed** after fixing two suite-rot bugs the missing CI never
+  caught — a stale `_init_obs_per_worker` assertion (code renamed it to
+  `_init_per_worker`), and a `worker_process_init` test that leaked the global
+  `runtime._LOOP` into the `dwh_helpers` tests. Both fixed + committed.
+- **Integration tier: 24 passed / 13 failed — and the failures are not product
+  bugs.** Every failing test boots the full `app_client`, whose slowapi rate
+  limiter connects to the compose hostname `redis:6379` (unreachable outside
+  Docker); the `fakeredis` fixture doesn't intercept the limiter's client. Pure
+  Postgres-testcontainer repository tests pass. The suite is **not hermetic**.
+- **No dependency lockfile** — a fresh install pulls newer-than-May libs
+  (starlette 1.3, redis 5.3, clickhouse-connect 0.15…), so builds aren't
+  reproducible and deprecation drift (`HTTP_422_UNPROCESSABLE_ENTITY`) is already
+  visible.
+- The committed `coverage.xml` (~15%, May 2) is a partial `make check` artifact —
+  ignore it. A clean coverage number must come from a hermetic run in CI.
+
 ## Resume roadmap
 
 Sequenced **original-Phase-10 first** (the agreed first track):
 
-1. **Establish true coverage** — `make test` (full pyramid, testcontainers),
-   regenerate `coverage.xml`, record the real number.
+1. **Make the suite hermetic, then establish true coverage** — fix the
+   `app_client`/rate-limiter Redis dependency (fakeredis end-to-end or a CI redis
+   service) and add a dependency lockfile; only then is `make test` coverage
+   meaningful. (Unit tier already green: 171 passed.)
 2. **Add CI** under `.github/workflows/`: `check.yml` (mirror `make check`),
    `test.yml` (full pyramid), `smoke.yml` (compose up → `make seed` →
    `scripts/smoke.sh`), `build.yml` (multi-stage images; assert no torch in the
