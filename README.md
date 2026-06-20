@@ -45,14 +45,17 @@ legacy/              # archived prototype, do not import from here
 
 ## Status
 
-Phases 1–5 landed: scaffold, schema, repos + clients, auth (bcrypt +
-JWT + OAuth + API keys + RBAC), ML platform (plugin registry, backends,
-model manager, traffic-split router, `/api/v1/models`).
+Phases 1–9 landed: scaffold, schema, repos + clients, auth (bcrypt +
+JWT + OAuth + API keys + RBAC), ML platform (registry, backends, model
+manager, traffic-split router, `/api/v1/models`), the unified inference
+path (`POST /analyze` + Celery batch), experiments + MLflow, the DWH
+(OLTP → ClickHouse, implemented as Celery dual-write rather than logical
+replication), and observability (`/metrics` + OTel + Sentry, opt-in).
 
-Pending: Phase 6 (inference path + presigned upload + Celery batch),
-Phase 7 (experiments + MLflow), Phase 8 (DWH via Postgres logical
-replication → ClickHouse CDC), Phase 9 (observability + hardening),
-Phase 10 (load tests, full e2e, docs polish).
+Outstanding — the original **Phase 10** (load tests, full e2e coverage,
+docs polish) plus CI/CD, which was never scoped. See
+[`docs/revamp-status.md`](docs/revamp-status.md) for the full reconstructed
+state, the remaining-work list, and the resume roadmap.
 
 ## License
 
