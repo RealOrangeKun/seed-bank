@@ -82,8 +82,12 @@ inference-full = [
   "inference-sdk>=0.30,<1.0",         # Roboflow client
 ]
 dev = [
-  "ruff>=0.7,<1.0",
-  "mypy>=1.13,<2.0",
+  # Pinned EXACT: ruff's formatter + lint rules change across minor versions,
+  # so a range silently reformats the tree on a fresh install (the 0.7→0.15
+  # drift that broke `make check`). mypy strict is sensitive the same way.
+  # Bump these deliberately, in their own commit, never via a range bump.
+  "ruff==0.15.18",
+  "mypy==1.20.2",
   "types-passlib",
   "types-python-jose",
   "pytest>=8.3,<9.0",
