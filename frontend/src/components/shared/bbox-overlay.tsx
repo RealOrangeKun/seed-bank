@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   Tooltip,
@@ -16,6 +16,12 @@ interface BBoxOverlayProps {
   /** Optional map of seed_type_id → display label. */
   seedTypeLabels?: Record<string, string>;
   alt?: string;
+  /** Hide detections whose confidence is below this 0–1 threshold. */
+  minConfidence?: number;
+  /** Only draw detections whose quality is in this set (undefined = all). */
+  qualityFilter?: Set<string | "unclassified">;
+  /** Show a small confidence label inside each box. */
+  showLabels?: boolean;
 }
 
 function boxColor(d: SeedDetectionOut): string {
@@ -29,14 +35,37 @@ function boxColor(d: SeedDetectionOut): string {
  * (0–1), so we position them with CSS percentages — resolution-independent,
  * scales with the rendered image.
  */
-export function BBoxOverlay({ src, detections, seedTypeLabels, alt }: BBoxOverlayProps) {
+export function BBoxOverlay({
+  src,
+  detections,
+  seedTypeLabels,
+  alt,
+  minConfidence = 0,
+  qualityFilter,
+  showLabels = false,
+}: BBoxOverlayProps) {
   const [hovered, setHovered] = useState<number | null>(null);
+
+  // Apply confidence + quality filters. Keep the original index so hover state
+  // and aria labels stay stable as filters change.
+  const visible = useMemo(
+    () =>
+      detections
+        .map((d, i) => ({ d, i }))
+        .filter(({ d }) => toNumber(d.confidence) >= minConfidence)
+        .filter(({ d }) => {
+          if (!qualityFilter) return true;
+          const key = d.quality ?? "unclassified";
+          return qualityFilter.has(key);
+        }),
+    [detections, minConfidence, qualityFilter],
+  );
 
   return (
     <TooltipProvider delayDuration={100}>
       <div className="relative inline-block max-w-full overflow-hidden rounded-lg border bg-muted">
         <img src={src} alt={alt ?? "Scan image"} className="block max-w-full" />
-        {detections.map((d, i) => {
+        {visible.map(({ d, i }) => {
           const left = toNumber(d.box_x_norm) * 100;
           const top = toNumber(d.box_y_norm) * 100;
           const width = toNumber(d.box_w_norm) * 100;
@@ -63,10 +92,18 @@ export function BBoxOverlay({ src, detections, seedTypeLabels, alt }: BBoxOverla
                     width: `${width}%`,
                     height: `${height}%`,
                     borderColor: boxColor(d),
-                    backgroundColor:
-                      hovered === i ? `${boxColor(d)}22` : "transparent",
+                    backgroundColor: hovered === i ? `${boxColor(d)}22` : "transparent",
                   }}
-                />
+                >
+                  {showLabels ? (
+                    <span
+                      className="absolute -top-4 left-0 rounded px-1 text-[9px] font-medium leading-tight text-white"
+                      style={{ backgroundColor: boxColor(d) }}
+                    >
+                      {formatConfidence(d.confidence)}
+                    </span>
+                  ) : null}
+                </div>
               </TooltipTrigger>
               <TooltipContent className="space-y-0.5">
                 <div className="font-medium">

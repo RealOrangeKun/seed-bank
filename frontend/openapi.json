@@ -1689,6 +1689,73 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Delete Batch",
+        "description": "Soft-delete one batch the caller owns (admins: any).\n\n404 if it doesn't exist, isn't owned, or is already deleted \u2014 same\nnon-enumeration rule as the read endpoints.",
+        "operationId": "delete_batch_api_v1_batches__batch_id__delete",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/batches/{batch_id}/image-urls": {
@@ -1750,6 +1817,230 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Envelope_list_ImageUrlOut__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/delete": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Bulk Delete Batches",
+        "description": "Soft-delete up to 200 owned batches in one call.\n\nBest-effort: IDs the caller doesn't own or that are already deleted are\nskipped, and ``deleted`` reports how many actually took effect. Returns 200\n(not 204) because the count is the useful part of the response.",
+        "operationId": "bulk_delete_batches_api_v1_batches_delete_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchBulkDeleteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_BatchDeleteResult_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{batch_id}/export.csv": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Export Batch Csv",
+        "description": "Download every detection in the batch as a CSV file.\n\nColumns are fixed (:data:`_EXPORT_COLUMNS`) and rows are ordered by image\nthen detection id, so re-exports diff cleanly. Decimals are emitted via the\nschema so they match the JSON wire format (``\"0.9234\"``, not a lossy float).",
+        "operationId": "export_batch_csv_api_v1_batches__batch_id__export_csv_get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every detection in the batch as CSV.",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{batch_id}/export.json": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Export Batch Json",
+        "description": "Download every detection in the batch as JSON.\n\nSame data and ordering as the CSV export, wrapped in the standard\n``Envelope`` so it's consistent with the rest of the API. The\n``Content-Disposition`` header nudges browsers to save it as a file.",
+        "operationId": "export_batch_json_api_v1_batches__batch_id__export_json_get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_SeedDetectionOut__"
                 }
               }
             }
@@ -2998,6 +3289,41 @@
         "title": "ApiKeyOut",
         "description": "Returned on **creation only**. The plaintext `key` is included exactly\nonce and never retrievable again."
       },
+      "BatchBulkDeleteIn": {
+        "properties": {
+          "batch_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Batch Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "batch_ids"
+        ],
+        "title": "BatchBulkDeleteIn",
+        "description": "Request body for ``POST /batches/delete`` \u2014 bulk soft-delete.\n\nCapped so a single call can't fan out an unbounded ``IN (...)``. IDs the\ncaller doesn't own (or that are already deleted) are silently skipped; the\nresponse reports how many actually took effect."
+      },
+      "BatchDeleteResult": {
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "BatchDeleteResult",
+        "description": "How many batches a (bulk) delete actually soft-deleted."
+      },
       "BatchDetailOut": {
         "properties": {
           "id": {
@@ -3622,6 +3948,18 @@
         ],
         "title": "Envelope[ApiKeyOut]"
       },
+      "Envelope_BatchDeleteResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BatchDeleteResult"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[BatchDeleteResult]"
+      },
       "Envelope_BatchDetailOut_": {
         "properties": {
           "data": {
@@ -3781,6 +4119,22 @@
           "data"
         ],
         "title": "Envelope[list[ImageUrlOut]]"
+      },
+      "Envelope_list_SeedDetectionOut__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SeedDetectionOut"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[list[SeedDetectionOut]]"
       },
       "Envelope_list_SeedTypeOut__": {
         "properties": {

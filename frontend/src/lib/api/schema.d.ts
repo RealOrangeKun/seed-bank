@@ -363,7 +363,14 @@ export interface paths {
         get: operations["get_batch_api_v1_batches__batch_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Batch
+         * @description Soft-delete one batch the caller owns (admins: any).
+         *
+         *     404 if it doesn't exist, isn't owned, or is already deleted — same
+         *     non-enumeration rule as the read endpoints.
+         */
+        delete: operations["delete_batch_api_v1_batches__batch_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -386,6 +393,78 @@ export interface paths {
          *     through the API.
          */
         get: operations["get_batch_image_urls_api_v1_batches__batch_id__image_urls_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Batches
+         * @description Soft-delete up to 200 owned batches in one call.
+         *
+         *     Best-effort: IDs the caller doesn't own or that are already deleted are
+         *     skipped, and ``deleted`` reports how many actually took effect. Returns 200
+         *     (not 204) because the count is the useful part of the response.
+         */
+        post: operations["bulk_delete_batches_api_v1_batches_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{batch_id}/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Batch Csv
+         * @description Download every detection in the batch as a CSV file.
+         *
+         *     Columns are fixed (:data:`_EXPORT_COLUMNS`) and rows are ordered by image
+         *     then detection id, so re-exports diff cleanly. Decimals are emitted via the
+         *     schema so they match the JSON wire format (``"0.9234"``, not a lossy float).
+         */
+        get: operations["export_batch_csv_api_v1_batches__batch_id__export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{batch_id}/export.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Batch Json
+         * @description Download every detection in the batch as JSON.
+         *
+         *     Same data and ordering as the CSV export, wrapped in the standard
+         *     ``Envelope`` so it's consistent with the rest of the API. The
+         *     ``Content-Disposition`` header nudges browsers to save it as a file.
+         */
+        get: operations["export_batch_json_api_v1_batches__batch_id__export_json_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -619,6 +698,26 @@ export interface components {
             revoked_at?: string | null;
             /** Key */
             key?: string | null;
+        };
+        /**
+         * BatchBulkDeleteIn
+         * @description Request body for ``POST /batches/delete`` — bulk soft-delete.
+         *
+         *     Capped so a single call can't fan out an unbounded ``IN (...)``. IDs the
+         *     caller doesn't own (or that are already deleted) are silently skipped; the
+         *     response reports how many actually took effect.
+         */
+        BatchBulkDeleteIn: {
+            /** Batch Ids */
+            batch_ids: string[];
+        };
+        /**
+         * BatchDeleteResult
+         * @description How many batches a (bulk) delete actually soft-deleted.
+         */
+        BatchDeleteResult: {
+            /** Deleted */
+            deleted: number;
         };
         /**
          * BatchDetailOut
@@ -866,6 +965,10 @@ export interface components {
         Envelope_ApiKeyOut_: {
             data: components["schemas"]["ApiKeyOut"];
         };
+        /** Envelope[BatchDeleteResult] */
+        Envelope_BatchDeleteResult_: {
+            data: components["schemas"]["BatchDeleteResult"];
+        };
         /** Envelope[BatchDetailOut] */
         Envelope_BatchDetailOut_: {
             data: components["schemas"]["BatchDetailOut"];
@@ -918,6 +1021,11 @@ export interface components {
         Envelope_list_ImageUrlOut__: {
             /** Data */
             data: components["schemas"]["ImageUrlOut"][];
+        };
+        /** Envelope[list[SeedDetectionOut]] */
+        Envelope_list_SeedDetectionOut__: {
+            /** Data */
+            data: components["schemas"]["SeedDetectionOut"][];
         };
         /** Envelope[list[SeedTypeOut]] */
         Envelope_list_SeedTypeOut__: {
@@ -2441,6 +2549,38 @@ export interface operations {
             };
         };
     };
+    delete_batch_api_v1_batches__batch_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_batch_image_urls_api_v1_batches__batch_id__image_urls_get: {
         parameters: {
             query?: never;
@@ -2462,6 +2602,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_list_ImageUrlOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_batches_api_v1_batches_delete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchBulkDeleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_BatchDeleteResult_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_batch_csv_api_v1_batches__batch_id__export_csv_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every detection in the batch as CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_batch_json_api_v1_batches__batch_id__export_json_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_SeedDetectionOut__"];
                 };
             };
             /** @description Validation Error */
