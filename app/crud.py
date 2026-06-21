@@ -4,7 +4,19 @@ from sqlalchemy import func, and_, cast, case, Date
 from app.models import User, ScanBatch, ScanImage, SeedDetection, SeedCatalog, ProcessingStatus, QualityLabel
 from typing import Optional, Tuple, List, Dict
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+
+def _utcnow() -> datetime:
+    """Timezone-aware current UTC time (replaces the deprecated datetime.utcnow())."""
+    return datetime.now(timezone.utc)
+
+
+def _as_aware(dt: datetime) -> datetime:
+    """Coerce a possibly-naive datetime to timezone-aware UTC for safe comparison."""
+    if dt is None:
+        return dt
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 def generate_device_fingerprint(user_agent: str = None, remote_addr: str = None) -> str:
@@ -47,7 +59,7 @@ def get_or_create_guest_user(db: Session, device_fingerprint: str) -> User:
     # Try to find existing guest with this fingerprint
     user = db.query(User).filter(
         User.device_fingerprint == device_fingerprint,
-        User.is_guest == True
+        User.is_guest.is_(True)
     ).first()
     
     if user:
@@ -280,7 +292,7 @@ def get_user_statistics(db: Session, user_id: int, days: Optional[int] = None) -
     
     # Apply date filter if provided
     if days is not None and days > 0:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = _utcnow() - timedelta(days=days)
         query = query.filter(ScanBatch.created_at >= cutoff_date)
     
     batches = query.all()
@@ -340,43 +352,33 @@ def get_user_statistics(db: Session, user_id: int, days: Optional[int] = None) -
     
     # Recent activity (always calculate from all batches, not filtered)
     all_batches = db.query(ScanBatch).filter(ScanBatch.user_id == user_id).all()
-    now = datetime.utcnow()
-    
-    # Handle timezone-aware datetimes
+    now = _utcnow()
+
     batches_last_7_days = 0
     batches_last_30_days = 0
     for b in all_batches:
         if b.created_at:
-            # Handle both timezone-aware and naive datetimes
-            if hasattr(b.created_at, 'replace'):
-                created_at_naive = b.created_at.replace(tzinfo=None) if b.created_at.tzinfo else b.created_at
-            else:
-                created_at_naive = b.created_at
-            delta = now - created_at_naive
+            delta = now - _as_aware(b.created_at)
             if delta.days <= 7:
                 batches_last_7_days += 1
             if delta.days <= 30:
                 batches_last_30_days += 1
-    
+
     # Determine period
     if days:
-        start_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        start_date = (_utcnow() - timedelta(days=days)).isoformat()
     else:
         # Get earliest batch date, handle empty batches
         if batches:
             earliest_batches = [b.created_at for b in batches if b.created_at]
             if earliest_batches:
-                earliest = min(earliest_batches)
-                # Handle timezone-aware datetime
-                if hasattr(earliest, 'replace'):
-                    earliest = earliest.replace(tzinfo=None) if earliest.tzinfo else earliest
-                start_date = earliest.isoformat()
+                start_date = _as_aware(min(earliest_batches)).isoformat()
             else:
-                start_date = datetime.utcnow().isoformat()
+                start_date = _utcnow().isoformat()
         else:
-            start_date = datetime.utcnow().isoformat()
-    
-    end_date = datetime.utcnow().isoformat()
+            start_date = _utcnow().isoformat()
+
+    end_date = _utcnow().isoformat()
     
     return {
         "total_batches": total_batches,
@@ -432,7 +434,7 @@ def get_user_analytics(db: Session, user_id: int, days: Optional[int] = None) ->
     """
     batch_q = db.query(ScanBatch).filter(ScanBatch.user_id == user_id)
     if days is not None and days > 0:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = _utcnow() - timedelta(days=days)
         batch_q = batch_q.filter(ScanBatch.created_at >= cutoff)
     batch_ids = [b.id for b in batch_q.all()]
 

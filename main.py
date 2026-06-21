@@ -1,29 +1,24 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Request, Query, Path
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response
 from typing import Optional
 import torch
-import torchvision
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-import torch.nn as nn
-import torchvision.models as models
-from torchvision.ops import nms
 import cv2
 import numpy as np
-from PIL import Image
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from torchvision import transforms
-import io
 from typing import List, Dict
 import os
-from datetime import datetime
+import base64
+import requests
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 # Database imports
 from app.database import get_db
-from app.models import User, ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel, SeedCatalog, AIModel
+from app.models import ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel
 from app.ml.model_manager import ModelManager
 from app.ml.detection_pipeline import detect_seeds_multi, classify_seeds_multi
 from app.crud import (
@@ -39,16 +34,53 @@ from app.crud import (
     iter_batch_detections_for_export,
 )
 
+
+def utcnow() -> datetime:
+    """Timezone-aware current UTC time (replaces the deprecated datetime.utcnow())."""
+    return datetime.now(timezone.utc)
+
+
 app = FastAPI(title="Bank Seed Demo API", version="1.0.0")
 
-# CORS middleware for frontend access
+# CORS middleware for frontend access.
+# Origins are configurable via CORS_ORIGINS (comma-separated). Default "*" allows any
+# origin; in that mode credentials are disabled because the CORS spec forbids combining
+# a wildcard Access-Control-Allow-Origin with Access-Control-Allow-Credentials (#6).
+_cors_env = os.getenv("CORS_ORIGINS", "*").strip()
+if _cors_env == "*":
+    _cors_origins = ["*"]
+    _cors_allow_credentials = False
+else:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    _cors_allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Roboflow config for the "fast" endpoints. The API key MUST come from the environment
+# (ROBOFLOW_API_KEY); it is no longer hardcoded (#3). When unset, the fast endpoints
+# return 503 instead of leaking/clashing on a baked-in key.
+ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY", "")
+ROBOFLOW_MODEL_ID = os.getenv("ROBOFLOW_MODEL_ID", "maize-gslkp-3pcv5/9")
+ROBOFLOW_URL = (
+    f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}"
+    if ROBOFLOW_API_KEY else None
+)
+
+
+def _require_roboflow():
+    """Raise 503 if the fast (Roboflow-backed) endpoints are not configured."""
+    if not ROBOFLOW_URL:
+        raise HTTPException(
+            status_code=503,
+            detail="Fast mode is not configured: set the ROBOFLOW_API_KEY environment variable.",
+        )
+
 
 # Global variables for models
 model_manager: Optional[ModelManager] = None
@@ -103,7 +135,7 @@ async def load_models():
         print("="*50)
         config = model_manager.get_config_summary()
         print(f"Detection: {config['detection_model']['name']} (v{config['detection_model']['version']})")
-        print(f"Quality Models:")
+        print("Quality Models:")
         for seed_type, model_info in config['quality_models'].items():
             print(f"  - {seed_type}: {model_info['name']} (threshold={model_info['threshold']})")
         print("="*50 + "\n")
@@ -166,48 +198,6 @@ def detect_seeds(rgb_img: np.ndarray) -> tuple:
     )
 
 
-def calculate_confidence_score(
-    prob: float, threshold: float = 0.9, k: float = 8.0
-) -> Dict:
-    """
-    Calculate confidence scores based on distance from threshold with exponential weighting.
-
-    Args:
-        prob: Classification probability (0-1)
-        threshold: Decision threshold (default 0.9)
-        k: Exponential coefficient for amplifying differences (higher = stronger early differences)
-
-    Returns:
-        Dictionary with confidence metrics
-    """
-    # Calculate distance from threshold
-    distance = abs(prob - threshold)
-
-    # Exponential confidence: amplifies early differences
-    # confidence ranges from 0 to ~100%
-    # Using 1 - e^(-k * distance) formula
-    confidence = prob
-
-    confidence *= 100
-
-    # Good percentage: inverse of probability (lower prob = more good)
-    good_percentage = (1 - prob) * 100
-
-    # Bad percentage: direct probability
-    bad_percentage = prob * 100
-
-    # Determine which side of threshold
-    is_bad = prob > threshold
-
-    return {
-        "good_percentage": round(good_percentage, 2),
-        "bad_percentage": round(bad_percentage, 2),
-        "classification_confidence": round(
-            confidence, 2
-        ),  # How confident we are in the classification
-    }
-
-
 def classify_seeds(rgb_img: np.ndarray, detected_seeds: List[Dict]) -> List[Dict]:
     """
     Classify each detected seed using the appropriate quality model based on seed type.
@@ -261,7 +251,7 @@ async def analyze_image(
         guest_user = get_or_create_guest_user(db, device_fingerprint)
         
         # Create scan batch
-        processing_start = datetime.utcnow()
+        processing_start = utcnow()
         scan_batch = ScanBatch(
             user_id=guest_user.id,
             status=ProcessingStatus.PROCESSING,
@@ -290,7 +280,7 @@ async def analyze_image(
             db.add(scan_image)
             
             # Update batch as completed with zero seeds
-            processing_end = datetime.utcnow()
+            processing_end = utcnow()
             scan_batch.status = ProcessingStatus.COMPLETED
             scan_batch.processing_end_at = processing_end
             scan_batch.processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
@@ -374,7 +364,7 @@ async def analyze_image(
             db.add(detection)
         
         # Update batch with final statistics
-        processing_end = datetime.utcnow()
+        processing_end = utcnow()
         processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
         
         scan_batch.status = ProcessingStatus.COMPLETED
@@ -486,7 +476,7 @@ async def analyze_batch(
         guest_user = get_or_create_guest_user(db, device_fingerprint)
         
         # Create scan batch for the entire batch
-        processing_start = datetime.utcnow()
+        processing_start = utcnow()
         scan_batch = ScanBatch(
             user_id=guest_user.id,
             status=ProcessingStatus.PROCESSING,
@@ -647,7 +637,7 @@ async def analyze_batch(
         )
 
         # Update batch with final statistics
-        processing_end = datetime.utcnow()
+        processing_end = utcnow()
         processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
         
         scan_batch.status = ProcessingStatus.COMPLETED
@@ -719,15 +709,6 @@ async def get_models_config():
         raise HTTPException(status_code=503, detail="Models not loaded")
     
     return model_manager.get_config_summary()
-# Roboflow Client (Using requests due to Python 3.13 incompatibility with inference-sdk)
-import requests
-import base64
-
-ROBOFLOW_API_KEY = "vBZaHEYnhnXfg0StVnqV"
-ROBOFLOW_MODEL_ID = "maize-gslkp-3pcv5/9"
-ROBOFLOW_URL = (
-    f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}"
-)
 
 
 @app.post("/api/analyze/fast")
@@ -736,6 +717,7 @@ async def analyze_image_fast(file: UploadFile = File(...)):
     Fast endpoint using Roboflow for detection + Local ResNet for classification
     """
     try:
+        _require_roboflow()
         # Validate file type
         if not file.content_type or not file.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="File must be an image")
@@ -789,15 +771,21 @@ async def analyze_image_fast(file: UploadFile = File(...)):
                 if model_manager:
                     try:
                         seed_type_id = model_manager.get_seed_type_id(class_name)
-                    except:
-                        pass # Keep None if not found
+                    except Exception:
+                        seed_type_id = None  # Keep None if not found
+
+                # Skip classes we have no quality model for; classifying them would
+                # raise downstream and 500 the whole request (#8).
+                if seed_type_id is None:
+                    print(f"Skipping unmapped detection class '{class_name}' (fast mode)")
+                    continue
 
                 detected_seeds.append(
                     {
                         "box": (x1, y1, x2, y2),
                         "detection_confidence": float(pred["confidence"]),
-                        "seed_type_name": class_name, 
-                        "seed_type_id": seed_type_id
+                        "seed_type_name": class_name,
+                        "seed_type_id": seed_type_id,
                     }
                 )
         if len(detected_seeds) == 0:
@@ -894,6 +882,7 @@ async def analyze_batch_fast(
     Fast batch analysis endpoint: Multiple images using Roboflow for detection + Local ResNet for classification
     """
     try:
+        _require_roboflow()
         if not files:
             raise HTTPException(status_code=400, detail="No files provided")
 
@@ -913,7 +902,7 @@ async def analyze_batch_fast(
         guest_user = get_or_create_guest_user(db, device_fingerprint)
         
         # Create scan batch for the entire batch
-        processing_start = datetime.utcnow()
+        processing_start = utcnow()
         scan_batch = ScanBatch(
             user_id=guest_user.id,
             status=ProcessingStatus.PROCESSING,
@@ -980,15 +969,20 @@ async def analyze_batch_fast(
                     if model_manager:
                         try:
                             seed_type_id = model_manager.get_seed_type_id(class_name)
-                        except:
-                            pass # Keep None if not found
+                        except Exception:
+                            seed_type_id = None  # Keep None if not found
+
+                    # Skip classes we have no quality model for (#8).
+                    if seed_type_id is None:
+                        print(f"Skipping unmapped detection class '{class_name}' (fast batch)")
+                        continue
 
                     detected_seeds.append(
                         {
                             "box": (x1, y1, x2, y2),
                             "detection_confidence": float(pred["confidence"]),
-                            "seed_type_name": class_name, 
-                            "seed_type_id": seed_type_id
+                            "seed_type_name": class_name,
+                            "seed_type_id": seed_type_id,
                         }
                     )
 
@@ -1147,7 +1141,7 @@ async def analyze_batch_fast(
         )
 
         # Update batch with final statistics
-        processing_end = datetime.utcnow()
+        processing_end = utcnow()
         processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
         
         scan_batch.status = ProcessingStatus.COMPLETED
@@ -1470,8 +1464,8 @@ async def get_user_statistics_endpoint(
             },
             "period": {
                 "days": days,
-                "start_date": datetime.utcnow().isoformat(),
-                "end_date": datetime.utcnow().isoformat()
+                "start_date": utcnow().isoformat(),
+                "end_date": utcnow().isoformat()
             }
         }
         return {
@@ -1515,8 +1509,8 @@ async def get_user_statistics_endpoint(
             },
             "period": {
                 "days": days,
-                "start_date": datetime.utcnow().isoformat(),
-                "end_date": datetime.utcnow().isoformat()
+                "start_date": utcnow().isoformat(),
+                "end_date": utcnow().isoformat()
             }
         }
         return {
