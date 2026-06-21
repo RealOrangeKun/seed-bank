@@ -82,9 +82,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
         server_default=text("'end_user'"),
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
-    is_verified: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=text("false")
-    )
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     oauth_accounts: Mapped[list[OAuthAccount]] = relationship(
@@ -208,9 +206,7 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(64), nullable=False)
     target_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    audit_metadata: Mapped[dict[str, Any] | None] = mapped_column(
-        "metadata", JSONB, nullable=True
-    )
+    audit_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
     ip: Mapped[str | None] = mapped_column(INET, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -384,7 +380,8 @@ class Dataset(Base, TimestampMixin, SoftDeleteMixin):
     __table_args__ = (Index("ix_datasets_created_by", "created_by"),)
 
     items: Mapped[list[DatasetItem]] = relationship(
-        back_populates="dataset", cascade="all, delete-orphan",
+        back_populates="dataset",
+        cascade="all, delete-orphan",
     )
 
 
@@ -481,7 +478,8 @@ class Experiment(Base, TimestampMixin):
     )
 
     results: Mapped[list[ExperimentResult]] = relationship(
-        back_populates="experiment", cascade="all, delete-orphan",
+        back_populates="experiment",
+        cascade="all, delete-orphan",
     )
 
 
@@ -549,8 +547,14 @@ class ScanBatch(Base, TimestampMixin, SoftDeleteMixin):
     geo_city: Mapped[str | None] = mapped_column(String(120), nullable=True)
     geo_country_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
+    # Public share link. NULL means not shared; a non-null opaque token grants
+    # read-only access to this batch via ``GET /shared/{token}`` (no auth).
+    # Unique so a token resolves to exactly one batch.
+    share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+
     images: Mapped[list[ScanImage]] = relationship(
-        back_populates="batch", cascade="all, delete-orphan",
+        back_populates="batch",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
@@ -603,7 +607,8 @@ class ScanImage(Base):
 
     batch: Mapped[ScanBatch] = relationship(back_populates="images")
     inferences: Mapped[list[Inference]] = relationship(
-        back_populates="image", cascade="all, delete-orphan",
+        back_populates="image",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
@@ -643,7 +648,8 @@ class Inference(Base):
 
     image: Mapped[ScanImage] = relationship(back_populates="inferences")
     detections: Mapped[list[SeedDetection]] = relationship(
-        back_populates="inference", cascade="all, delete-orphan",
+        back_populates="inference",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
@@ -685,9 +691,7 @@ class SeedDetection(Base):
     inference: Mapped[Inference] = relationship(back_populates="detections")
 
     __table_args__ = (
-        CheckConstraint(
-            "confidence >= 0 AND confidence <= 1", name="confidence_range"
-        ),
+        CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_range"),
         CheckConstraint(
             "detection_confidence IS NULL OR "
             "(detection_confidence >= 0 AND detection_confidence <= 1)",

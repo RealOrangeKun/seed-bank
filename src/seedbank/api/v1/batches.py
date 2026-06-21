@@ -20,14 +20,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
 
-from seedbank.api.deps import BatchServiceDep, CurrentUser
+from seedbank.api.deps import AnalyticsServiceDep, BatchServiceDep, CurrentUser
 from seedbank.schemas.analysis import (
     BatchBulkDeleteIn,
+    BatchCompareIn,
+    BatchCompareOut,
     BatchDeleteResult,
     BatchDetailOut,
     BatchOut,
     ImageUrlOut,
     SeedDetectionOut,
+    ShareLinkOut,
 )
 from seedbank.schemas.common import Envelope, Page, paginate
 
@@ -134,6 +137,21 @@ async def bulk_delete_batches(
     return Envelope[BatchDeleteResult](data=BatchDeleteResult(deleted=deleted))
 
 
+@router.post("/compare", response_model=Envelope[BatchCompareOut])
+async def compare_batches(
+    payload: BatchCompareIn,
+    actor: CurrentUser,
+    analytics: AnalyticsServiceDep,
+) -> Envelope[BatchCompareOut]:
+    """Side-by-side aggregate stats for 2–10 of the caller's batches.
+
+    Owned batches come back in request order; any requested id the caller
+    doesn't own is reported in ``missing`` instead of failing the request.
+    """
+    data = await analytics.compare(batch_ids=payload.batch_ids, user_id=actor.id)
+    return Envelope[BatchCompareOut](data=data)
+
+
 @router.delete("/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_batch(
     batch_id: UUID,
@@ -200,6 +218,62 @@ async def export_batch_json(
     items = [SeedDetectionOut.model_validate(d) for d in detections]
     response.headers["Content-Disposition"] = f'attachment; filename="batch-{batch_id}.json"'
     return Envelope[list[SeedDetectionOut]](data=items)
+
+
+@router.get(
+    "/{batch_id}/images/{image_id}/annotated.png",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"image/png": {}},
+            "description": "The scan image with detection boxes burned in.",
+        }
+    },
+)
+async def annotated_image(
+    batch_id: UUID,
+    image_id: UUID,
+    actor: CurrentUser,
+    service: BatchServiceDep,
+) -> Response:
+    """The original scan image with detection boxes drawn on, as a PNG.
+
+    Boxes are colored by quality (good/bad/unclassified). Ownership-checked like
+    every other batch read; 404 if the batch or image isn't the caller's.
+    """
+    png = await service.annotated_png_for_user(batch_id=batch_id, image_id=image_id, actor=actor)
+    return Response(content=png, media_type="image/png")
+
+
+@router.post("/{batch_id}/share", response_model=Envelope[ShareLinkOut])
+async def create_share_link(
+    batch_id: UUID,
+    actor: CurrentUser,
+    service: BatchServiceDep,
+) -> Envelope[ShareLinkOut]:
+    """Create (or rotate) a public read-only share link for an owned batch.
+
+    Returns the opaque token and the relative public path the frontend turns
+    into a shareable URL. Calling again rotates the token.
+    """
+    token = await service.create_share_link(batch_id=batch_id, actor=actor)
+    return Envelope[ShareLinkOut](
+        data=ShareLinkOut(
+            batch_id=batch_id,
+            share_token=token,
+            share_path=f"/shared/{token}",
+        )
+    )
+
+
+@router.delete("/{batch_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_share_link(
+    batch_id: UUID,
+    actor: CurrentUser,
+    service: BatchServiceDep,
+) -> None:
+    """Revoke the batch's share link — the public URL stops working."""
+    await service.revoke_share_link(batch_id=batch_id, actor=actor)
 
 
 __all__ = ["router"]

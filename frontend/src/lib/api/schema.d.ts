@@ -425,6 +425,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batches/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compare Batches
+         * @description Side-by-side aggregate stats for 2–10 of the caller's batches.
+         *
+         *     Owned batches come back in request order; any requested id the caller
+         *     doesn't own is reported in ``missing`` instead of failing the request.
+         */
+        post: operations["compare_batches_api_v1_batches_compare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/batches/{batch_id}/export.csv": {
         parameters: {
             query?: never;
@@ -465,6 +488,100 @@ export interface paths {
          *     ``Content-Disposition`` header nudges browsers to save it as a file.
          */
         get: operations["export_batch_json_api_v1_batches__batch_id__export_json_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{batch_id}/images/{image_id}/annotated.png": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Annotated Image
+         * @description The original scan image with detection boxes drawn on, as a PNG.
+         *
+         *     Boxes are colored by quality (good/bad/unclassified). Ownership-checked like
+         *     every other batch read; 404 if the batch or image isn't the caller's.
+         */
+        get: operations["annotated_image_api_v1_batches__batch_id__images__image_id__annotated_png_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{batch_id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Share Link
+         * @description Create (or rotate) a public read-only share link for an owned batch.
+         *
+         *     Returns the opaque token and the relative public path the frontend turns
+         *     into a shareable URL. Calling again rotates the token.
+         */
+        post: operations["create_share_link_api_v1_batches__batch_id__share_post"];
+        /**
+         * Revoke Share Link
+         * @description Revoke the batch's share link — the public URL stops working.
+         */
+        delete: operations["revoke_share_link_api_v1_batches__batch_id__share_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Analytics
+         * @description Aggregated analytics for the caller over the trailing ``window_days``.
+         *
+         *     The trend line spans the window (zero-filled per day); totals,
+         *     type split, and confidence histogram cover the user's whole live history.
+         */
+        get: operations["get_analytics_api_v1_analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shared/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shared Batch
+         * @description Read-only public view of a shared batch. 404 if the token is unknown,
+         *     revoked, or the batch was deleted.
+         */
+        get: operations["get_shared_batch_api_v1_shared__token__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -659,6 +776,75 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AnalyticsConfidenceBin
+         * @description A 10%-wide bucket; ``from_pct``/``to_pct`` are 0–100 inclusive bounds.
+         */
+        AnalyticsConfidenceBin: {
+            /** From Pct */
+            from_pct: number;
+            /** To Pct */
+            to_pct: number;
+            /** Count */
+            count: number;
+        };
+        /**
+         * AnalyticsOut
+         * @description The full analytics payload for one user.
+         */
+        AnalyticsOut: {
+            totals: components["schemas"]["AnalyticsTotals"];
+            /** Trend */
+            trend: components["schemas"]["AnalyticsTrendPoint"][];
+            /** Type Split */
+            type_split: components["schemas"]["AnalyticsTypeSplit"][];
+            /** Confidence Histogram */
+            confidence_histogram: components["schemas"]["AnalyticsConfidenceBin"][];
+            /** Window Days */
+            window_days: number;
+        };
+        /** AnalyticsTotals */
+        AnalyticsTotals: {
+            /** Batches */
+            batches: number;
+            /** Images */
+            images: number;
+            /** Detections */
+            detections: number;
+            /** Good */
+            good: number;
+            /** Bad */
+            bad: number;
+            /** Unclassified */
+            unclassified: number;
+            /** Good Rate */
+            good_rate: number;
+        };
+        /** AnalyticsTrendPoint */
+        AnalyticsTrendPoint: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Batches */
+            batches: number;
+            /** Detections */
+            detections: number;
+        };
+        /** AnalyticsTypeSplit */
+        AnalyticsTypeSplit: {
+            /** Seed Type Id */
+            seed_type_id?: string | null;
+            /** Total */
+            total: number;
+            /** Good */
+            good: number;
+            /** Bad */
+            bad: number;
+            /** Good Rate */
+            good_rate: number;
+        };
         /** ApiKeyCreateIn */
         ApiKeyCreateIn: {
             /** Name */
@@ -710,6 +896,53 @@ export interface components {
         BatchBulkDeleteIn: {
             /** Batch Ids */
             batch_ids: string[];
+        };
+        /**
+         * BatchCompareIn
+         * @description Request body for ``POST /batches/compare`` — up to 10 owned batches.
+         */
+        BatchCompareIn: {
+            /** Batch Ids */
+            batch_ids: string[];
+        };
+        /**
+         * BatchCompareOut
+         * @description Side-by-side comparison result.
+         *
+         *     ``rows`` are returned in the same order the caller requested (ids not owned
+         *     are dropped). ``missing`` lists requested ids that weren't found/owned so the
+         *     UI can flag them.
+         */
+        BatchCompareOut: {
+            /** Rows */
+            rows: components["schemas"]["BatchCompareRow"][];
+            /** Missing */
+            missing: string[];
+        };
+        /**
+         * BatchCompareRow
+         * @description Aggregate stats for one batch in a comparison.
+         */
+        BatchCompareRow: {
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Images */
+            images: number;
+            /** Detections */
+            detections: number;
+            /** Good */
+            good: number;
+            /** Bad */
+            bad: number;
+            /** Unclassified */
+            unclassified: number;
+            /** Good Rate */
+            good_rate: number;
+            /** Mean Confidence */
+            mean_confidence: number;
         };
         /**
          * BatchDeleteResult
@@ -961,9 +1194,17 @@ export interface components {
              */
             item_count: number;
         };
+        /** Envelope[AnalyticsOut] */
+        Envelope_AnalyticsOut_: {
+            data: components["schemas"]["AnalyticsOut"];
+        };
         /** Envelope[ApiKeyOut] */
         Envelope_ApiKeyOut_: {
             data: components["schemas"]["ApiKeyOut"];
+        };
+        /** Envelope[BatchCompareOut] */
+        Envelope_BatchCompareOut_: {
+            data: components["schemas"]["BatchCompareOut"];
         };
         /** Envelope[BatchDeleteResult] */
         Envelope_BatchDeleteResult_: {
@@ -1008,6 +1249,14 @@ export interface components {
         /** Envelope[ModelPerformanceOut] */
         Envelope_ModelPerformanceOut_: {
             data: components["schemas"]["ModelPerformanceOut"];
+        };
+        /** Envelope[ShareLinkOut] */
+        Envelope_ShareLinkOut_: {
+            data: components["schemas"]["ShareLinkOut"];
+        };
+        /** Envelope[SharedBatchOut] */
+        Envelope_SharedBatchOut_: {
+            data: components["schemas"]["SharedBatchOut"];
         };
         /** Envelope[SupplierOut] */
         Envelope_SupplierOut_: {
@@ -1542,6 +1791,53 @@ export interface components {
             description?: string | null;
             /** Default Confidence Threshold */
             default_confidence_threshold: string;
+        };
+        /**
+         * ShareLinkOut
+         * @description The share token for a batch (and the relative public path).
+         */
+        ShareLinkOut: {
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Share Token */
+            share_token: string;
+            /** Share Path */
+            share_path: string;
+        };
+        /**
+         * SharedBatchOut
+         * @description Read-only public view of a shared batch.
+         *
+         *     Deliberately omits owner/user identifiers — a share link must not leak who
+         *     created the scan. Carries just enough to render the report: status, timing,
+         *     and the image → inference → detection graph.
+         */
+        SharedBatchOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["BatchStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /**
+             * Image Count
+             * @default 0
+             */
+            image_count: number;
+            /** Images */
+            images?: components["schemas"]["ScanImageOut"][];
         };
         /**
          * SupplierCreateIn
@@ -2651,6 +2947,42 @@ export interface operations {
             };
         };
     };
+    compare_batches_api_v1_batches_compare_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchCompareIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_BatchCompareOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_batch_csv_api_v1_batches__batch_id__export_csv_get: {
         parameters: {
             query?: never;
@@ -2706,6 +3038,172 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_list_SeedDetectionOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    annotated_image_api_v1_batches__batch_id__images__image_id__annotated_png_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                batch_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scan image with detection boxes burned in. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_share_link_api_v1_batches__batch_id__share_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ShareLinkOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_share_link_api_v1_batches__batch_id__share_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_analytics_api_v1_analytics_get: {
+        parameters: {
+            query?: {
+                window_days?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AnalyticsOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shared_batch_api_v1_shared__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SharedBatchOut_"];
                 };
             };
             /** @description Validation Error */

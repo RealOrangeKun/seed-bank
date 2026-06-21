@@ -18,18 +18,34 @@ const DashboardPage = lazy(() =>
   })),
 );
 const AnalyzePage = lazy(() =>
-  import("@/features/analyze/pages/analyze-page").then((m) => ({ default: m.AnalyzePage })),
+  import("@/features/analyze/pages/analyze-page").then((m) => ({
+    default: m.AnalyzePage,
+  })),
 );
 const BatchesPage = lazy(() =>
-  import("@/features/batches/pages/batches-page").then((m) => ({ default: m.BatchesPage })),
+  import("@/features/batches/pages/batches-page").then((m) => ({
+    default: m.BatchesPage,
+  })),
 );
 const BatchDetailPage = lazy(() =>
   import("@/features/batches/pages/batch-detail-page").then((m) => ({
     default: m.BatchDetailPage,
   })),
 );
+const AnalyticsPage = lazy(() =>
+  import("@/features/analytics/pages/analytics-page").then((m) => ({
+    default: m.AnalyticsPage,
+  })),
+);
+const ComparePage = lazy(() =>
+  import("@/features/compare/pages/compare-page").then((m) => ({
+    default: m.ComparePage,
+  })),
+);
 const ProfilePage = lazy(() =>
-  import("@/features/profile/pages/profile-page").then((m) => ({ default: m.ProfilePage })),
+  import("@/features/profile/pages/profile-page").then((m) => ({
+    default: m.ProfilePage,
+  })),
 );
 const ModelsPage = lazy(() =>
   import("@/features/models/pages/models-page").then((m) => ({ default: m.ModelsPage })),
@@ -60,7 +76,9 @@ const ExperimentDetailPage = lazy(() =>
   })),
 );
 const TrafficPage = lazy(() =>
-  import("@/features/traffic/pages/traffic-page").then((m) => ({ default: m.TrafficPage })),
+  import("@/features/traffic/pages/traffic-page").then((m) => ({
+    default: m.TrafficPage,
+  })),
 );
 const UsersPage = lazy(() =>
   import("@/features/users/pages/users-page").then((m) => ({ default: m.UsersPage })),
@@ -104,6 +122,8 @@ export const router = createBrowserRouter([
           { path: "analyze", element: lazyEl(<AnalyzePage />) },
           { path: "batches", element: lazyEl(<BatchesPage />) },
           { path: "batches/:batchId", element: lazyEl(<BatchDetailPage />) },
+          { path: "analytics", element: lazyEl(<AnalyticsPage />) },
+          { path: "compare", element: lazyEl(<ComparePage />) },
           { path: "profile", element: lazyEl(<ProfilePage />) },
           { path: "api-keys", element: lazyEl(<ApiKeysPage />) },
           {
