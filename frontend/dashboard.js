@@ -416,9 +416,11 @@
 
     if (window.lucide) lucide.createIcons();
 
-    // Deep-link support: ?view=analytics opens the dashboard directly.
+    // Deep-link support: ?view=analytics|history opens that view directly.
     const params = new URLSearchParams(location.search);
-    if (params.get('view') === 'analytics') Dashboard.open();
+    const view = params.get('view');
+    if (view === 'analytics') Dashboard.open();
+    else if (view === 'history' && window.App?.showHistory) window.App.showHistory();
   }
 
   if (document.readyState === 'loading') {

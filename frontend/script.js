@@ -497,11 +497,18 @@ const App = {
         const stats = result.statistics;
         const { statGoodCount, statGoodPercent, statBadCount, statBadPercent, statTotal, statProgressBar, statExecutionTime } = this.elements;
 
-        statGoodCount.textContent = stats.good_seeds;
+        // Animated count-up for the headline numbers (falls back to plain text).
+        if (window.SBCountUp) {
+            window.SBCountUp(statGoodCount, stats.good_seeds);
+            window.SBCountUp(statBadCount, stats.bad_seeds);
+            window.SBCountUp(statTotal, result.total_seeds);
+        } else {
+            statGoodCount.textContent = stats.good_seeds;
+            statBadCount.textContent = stats.bad_seeds;
+            statTotal.textContent = result.total_seeds;
+        }
         statGoodPercent.textContent = `${stats.good_percentage}%`;
-        statBadCount.textContent = stats.bad_seeds;
         statBadPercent.textContent = `${stats.bad_percentage}%`;
-        statTotal.textContent = result.total_seeds;
 
         if (statExecutionTime) {
             const ms = this.state.reportMetadata?.processingDurationMs;
