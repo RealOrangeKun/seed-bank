@@ -1,9 +1,28 @@
 import { ImagePlus, X } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+/**
+ * Build and maintain object-URL thumbnails for the selected files, revoking
+ * them when the selection changes or the component unmounts. Keyed by file
+ * identity so re-renders don't churn URLs for files that didn't change.
+ */
+function useThumbnails(files: File[]): string[] {
+  const [urls, setUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    const next = files.map((f) => URL.createObjectURL(f));
+    setUrls(next);
+    return () => {
+      next.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [files]);
+
+  return urls;
+}
 
 interface FileDropzoneProps {
   files: File[];
@@ -26,6 +45,7 @@ export function FileDropzone({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
+  const thumbnails = useThumbnails(files);
 
   const addFiles = useCallback(
     (incoming: FileList | null) => {
@@ -62,7 +82,9 @@ export function FileDropzone({
         }}
         className={cn(
           "flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-card/50 px-6 py-10 text-center transition-colors",
-          dragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/60",
+          dragging
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/60",
           disabled && "pointer-events-none opacity-60",
         )}
       >
@@ -95,31 +117,60 @@ export function FileDropzone({
       ) : null}
 
       {files.length > 0 ? (
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {files.map((f, i) => (
-            <li
-              key={`${f.name}-${i}`}
-              className="flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              <span className="truncate" title={f.name}>
-                {f.name}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {formatBytes(f.size)}
-              </span>
-              <Button
+        <>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {files.length} image{files.length === 1 ? "" : "s"} ·{" "}
+              {formatBytes(files.reduce((sum, f) => sum + f.size, 0))}
+            </span>
+            {!disabled ? (
+              <button
                 type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                aria-label={`Remove ${f.name}`}
-                onClick={() => onChange(files.filter((_, idx) => idx !== i))}
+                className="hover:text-destructive"
+                onClick={() => onChange([])}
               >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </li>
-          ))}
-        </ul>
+                Clear all
+              </button>
+            ) : null}
+          </div>
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+            {files.map((f, i) => (
+              <li
+                key={`${f.name}-${i}`}
+                className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+              >
+                {thumbnails[i] ? (
+                  <img
+                    src={thumbnails[i]}
+                    alt={f.name}
+                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                  />
+                ) : null}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4">
+                  <p
+                    className="truncate text-[10px] font-medium text-white"
+                    title={f.name}
+                  >
+                    {f.name}
+                  </p>
+                  <p className="text-[9px] text-white/70">{formatBytes(f.size)}</p>
+                </div>
+                {!disabled ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute right-1 top-1 h-5 w-5 opacity-0 shadow transition-opacity group-hover:opacity-100"
+                    aria-label={`Remove ${f.name}`}
+                    onClick={() => onChange(files.filter((_, idx) => idx !== i))}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
     </div>
   );
