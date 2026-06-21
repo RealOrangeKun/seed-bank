@@ -10,6 +10,8 @@ import { useBatches } from "@/features/batches/api";
 import { hasRole, useAuth } from "@/features/auth/use-auth";
 import { formatDateTime } from "@/lib/format";
 
+import { StatsStrip } from "../components/stats-strip";
+
 function QuickAction({
   to,
   icon: Icon,
@@ -41,7 +43,10 @@ function QuickAction({
 export function DashboardPage() {
   const { user } = useAuth();
   const isDeveloper = hasRole(user, ["ai_developer", "admin"]);
-  const recent = useBatches({ page: 1, pageSize: 5 });
+  // One fetch backs both the stats strip (whole window) and the recent list
+  // (first five), so the dashboard makes a single batches request.
+  const recent = useBatches({ page: 1, pageSize: 50 });
+  const recentFive = (recent.data?.data ?? []).slice(0, 5);
 
   return (
     <>
@@ -56,6 +61,10 @@ export function DashboardPage() {
           </Button>
         }
       />
+
+      {recent.data && recent.data.data.length > 0 ? (
+        <StatsStrip batches={recent.data.data} />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <QuickAction
@@ -95,13 +104,13 @@ export function DashboardPage() {
         <CardContent>
           {recent.isPending ? (
             <LoadingState />
-          ) : recent.isError || recent.data.data.length === 0 ? (
+          ) : recent.isError || recentFive.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               No scans yet. Start with a new analysis.
             </p>
           ) : (
             <ul className="divide-y">
-              {recent.data.data.map((b) => (
+              {recentFive.map((b) => (
                 <li key={b.id}>
                   <Link
                     to={`/batches/${b.id}`}
