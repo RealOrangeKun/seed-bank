@@ -27,13 +27,16 @@ from app.models import User, ScanBatch, ScanImage, SeedDetection, ProcessingStat
 from app.ml.model_manager import ModelManager
 from app.ml.detection_pipeline import detect_seeds_multi, classify_seeds_multi
 from app.crud import (
-    get_or_create_guest_user, 
+    get_or_create_guest_user,
     generate_device_fingerprint,
     get_user_by_fingerprint,
     get_user_batches,
     get_batch_by_id_and_user,
     get_batch_detections,
-    get_user_statistics
+    get_user_statistics,
+    get_user_analytics,
+    compare_batches,
+    iter_batch_detections_for_export,
 )
 
 app = FastAPI(title="Bank Seed Demo API", version="1.0.0")
@@ -391,7 +394,6 @@ async def analyze_image(
             bounding_boxes.append(
                 {
                     "id": idx,
-                            "seed_type": seed["seed_type_name"],
                     "seed_type": seed["seed_type_name"],
                     "x1": x1,
                     "y1": y1,
@@ -434,6 +436,11 @@ async def analyze_image(
 
         return JSONResponse(content=response_data)
 
+    except HTTPException:
+        # Deliberate client errors (e.g. 400 invalid file) must not be masked as 500.
+        if 'db' in locals():
+            db.rollback()
+        raise
     except ValueError as e:
         if 'db' in locals():
             db.rollback()
@@ -672,6 +679,10 @@ async def analyze_batch(
 
         return JSONResponse(content=response_data)
 
+    except HTTPException:
+        if 'db' in locals():
+            db.rollback()
+        raise
     except ValueError as e:
         if 'db' in locals():
             db.rollback()
@@ -821,7 +832,7 @@ async def analyze_image_fast(file: UploadFile = File(...)):
             bounding_boxes.append(
                 {
                     "id": idx,
-                            "seed_type": seed["seed_type_name"],
+                    "seed_type": seed["seed_type_name"],
                     "x1": x1,
                     "y1": y1,
                     "x2": x2,
@@ -864,6 +875,8 @@ async def analyze_image_fast(file: UploadFile = File(...)):
             }
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fast analysis failed: {str(e)}")
 
@@ -1167,6 +1180,10 @@ async def analyze_batch_fast(
             }
         )
 
+    except HTTPException:
+        if 'db' in locals():
+            db.rollback()
+        raise
     except Exception as e:
         if 'db' in locals():
             db.rollback()
@@ -1507,6 +1524,125 @@ async def get_user_statistics_endpoint(
             "stats": empty_stats,
             "period": empty_stats.get("period", {})
         }
+
+
+def _current_user(request: Request, db: Session):
+    """Resolve the current guest user from the request's device fingerprint (read-only)."""
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    fingerprint = generate_device_fingerprint(user_agent, client_host)
+    return get_user_by_fingerprint(db, fingerprint)
+
+
+@app.get("/api/analytics")
+async def get_analytics(
+    request: Request,
+    days: Optional[int] = Query(None, ge=1, description="Look-back window in days"),
+    db: Session = Depends(get_db),
+):
+    """Rich analytics for the analytics dashboard.
+
+    Returns totals, a daily good/bad trend, the seed-type split, and size/confidence
+    histograms — all computed from the current user's persisted detections.
+    """
+    user = _current_user(request, db)
+    if not user:
+        # No history yet -> return a well-formed empty payload (better UX than 404).
+        # user_id=-1 matches no rows, so get_user_analytics returns its empty shape.
+        return {"success": True, "analytics": get_user_analytics(db, -1, days)}
+    analytics = get_user_analytics(db, user.id, days)
+    return {"success": True, "analytics": analytics}
+
+
+@app.post("/api/compare")
+async def compare(
+    request: Request,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    """Compare multiple batches side-by-side. Body: {"batch_ids": [int, ...]}."""
+    batch_ids = payload.get("batch_ids") if isinstance(payload, dict) else None
+    if not batch_ids or not isinstance(batch_ids, list):
+        raise HTTPException(status_code=400, detail="batch_ids (non-empty list) is required")
+    if len(batch_ids) > 10:
+        raise HTTPException(status_code=400, detail="Cannot compare more than 10 batches at once")
+    try:
+        batch_ids = [int(b) for b in batch_ids]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="batch_ids must be integers")
+
+    user = _current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    summaries = compare_batches(db, user.id, batch_ids)
+    if not summaries:
+        raise HTTPException(status_code=404, detail="None of the requested batches were found")
+    return {"success": True, "count": len(summaries), "batches": summaries}
+
+
+@app.get("/api/batches/{batch_id}/export.csv")
+async def export_batch_csv(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    db: Session = Depends(get_db),
+):
+    """Download all detections for a batch as CSV."""
+    user = _current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    rows = iter_batch_detections_for_export(db, batch_id, user.id)
+    if rows is None:
+        raise HTTPException(status_code=404, detail="Batch not found or access denied")
+
+    import csv as _csv
+    import io as _io
+
+    buf = _io.StringIO()
+    fieldnames = [
+        "detection_id", "image_id", "seed_type", "quality", "confidence_score",
+        "detection_confidence", "good_percentage", "bad_percentage",
+        "box_x_norm", "box_y_norm", "box_w_norm", "box_h_norm",
+        "area", "width", "height", "aspect_ratio", "centroid_x", "centroid_y",
+    ]
+    writer = _csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow(r)
+    csv_text = buf.getvalue()
+
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="batch_{batch_id}_detections.csv"',
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+@app.get("/api/batches/{batch_id}/export.json")
+async def export_batch_json(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    db: Session = Depends(get_db),
+):
+    """Download all detections for a batch as JSON."""
+    user = _current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    rows = iter_batch_detections_for_export(db, batch_id, user.id)
+    if rows is None:
+        raise HTTPException(status_code=404, detail="Batch not found or access denied")
+
+    return JSONResponse(
+        content={"batch_id": batch_id, "total_detections": len(rows), "detections": rows},
+        headers={
+            "Content-Disposition": f'attachment; filename="batch_{batch_id}_detections.json"',
+        },
+    )
 
 
 @app.options("/api/images/{batch_id}/{path:path}")
