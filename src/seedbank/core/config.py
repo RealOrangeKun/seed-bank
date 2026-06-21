@@ -44,9 +44,7 @@ class Settings(BaseSettings):
     # below then splits on commas. Keeps ``CORS_ALLOW_ORIGINS=http://a,http://b``
     # ergonomic instead of forcing a JSON array.
     cors_allow_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
-    trusted_hosts: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["*"]
-    )
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["*"])
 
     @field_validator("cors_allow_origins", "trusted_hosts", mode="before")
     @classmethod
@@ -63,9 +61,9 @@ class Settings(BaseSettings):
         return v
 
     # ── Auth ─────────────────────────────────────────────────────────────────
-    jwt_secret: SecretStr = SecretStr("change-me-in-prod")  # noqa: S106
+    jwt_secret: SecretStr = SecretStr("change-me-in-prod")
     jwt_algorithm: str = "HS256"
-    jwt_access_ttl_seconds: int = 60 * 15           # 15 min
+    jwt_access_ttl_seconds: int = 60 * 15  # 15 min
     jwt_refresh_ttl_seconds: int = 60 * 60 * 24 * 7  # 7 days
     bcrypt_rounds: int = 12
     api_key_prefix: str = "seedbank_"
@@ -110,6 +108,12 @@ class Settings(BaseSettings):
     # externally reachable host used *only* to sign GET URLs for clients.
     minio_public_endpoint: str = "localhost:9000"
     minio_public_secure: bool = False
+    # SigV4 signing region. Supplying it explicitly lets the client sign
+    # presigned URLs *offline* — otherwise miniopy-async issues a live
+    # GetBucketLocation call to resolve the region, which the public presign
+    # client cannot make (the browser-facing host is unreachable from the API).
+    # MinIO's default region is ``us-east-1``.
+    minio_region: str = "us-east-1"
 
     # ── ClickHouse ───────────────────────────────────────────────────────────
     clickhouse_host: str = "clickhouse"
