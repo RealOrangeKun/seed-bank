@@ -11,6 +11,7 @@ from . import (
     api_keys,
     auth,
     batches,
+    catalog,
     datasets,
     experiments,
     models,
@@ -26,6 +27,7 @@ api_router.include_router(models.router)
 api_router.include_router(traffic.router)
 api_router.include_router(analyze.router)
 api_router.include_router(batches.router)
+api_router.include_router(catalog.router)
 api_router.include_router(datasets.router)
 api_router.include_router(experiments.router)
 

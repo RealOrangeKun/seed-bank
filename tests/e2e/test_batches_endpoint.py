@@ -20,7 +20,6 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 from PIL import Image
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.infrastructure.db.enums import UserRole
 from tests.e2e.conftest import SeedAndLogin, SeededUser, auth_header
@@ -40,16 +39,12 @@ def _short_circuit_minio_and_celery(monkeypatch: pytest.MonkeyPatch) -> None:
     from seedbank.infrastructure.storage.minio_client import MinioStorage
     from seedbank.workers import celery_app as celery_module
 
-    monkeypatch.setattr(
-        MinioStorage, "put_object", AsyncMock(return_value=None)
-    )
+    monkeypatch.setattr(MinioStorage, "put_object", AsyncMock(return_value=None))
 
     def _fake_send_task(*args: Any, **kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr(
-        celery_module.celery_app, "send_task", _fake_send_task
-    )
+    monkeypatch.setattr(celery_module.celery_app, "send_task", _fake_send_task)
 
 
 async def _submit(client: AsyncClient, token: str) -> str:
@@ -93,6 +88,35 @@ async def test_list_batches_unauthenticated_returns_401(
     assert r.status_code == 401
 
 
+async def test_list_image_count_matches_detail_count(
+    app_client: AsyncClient, end_user: SeededUser
+) -> None:
+    """Regression: ``GET /batches`` used to report ``image_count=0`` because
+    the list path never patched it. The list count must now match what the
+    detail endpoint derives from the eager-loaded image collection."""
+    r = await app_client.post(
+        "/api/v1/analyze",
+        headers=auth_header(end_user.token),
+        files=[
+            ("files", ("a.png", _png(), "image/png")),
+            ("files", ("b.png", _png(), "image/png")),
+        ],
+    )
+    assert r.status_code == 202, r.text
+    batch_id = r.json()["data"]["id"]
+
+    r_list = await app_client.get("/api/v1/batches", headers=auth_header(end_user.token))
+    assert r_list.status_code == 200, r_list.text
+    listed = next(b for b in r_list.json()["data"] if b["id"] == batch_id)
+    assert listed["image_count"] == 2
+
+    r_detail = await app_client.get(
+        f"/api/v1/batches/{batch_id}", headers=auth_header(end_user.token)
+    )
+    assert r_detail.status_code == 200
+    assert r_detail.json()["data"]["image_count"] == listed["image_count"]
+
+
 async def test_list_batches_pagination_walks_pages(
     app_client: AsyncClient, end_user: SeededUser
 ) -> None:
@@ -130,12 +154,8 @@ async def test_list_only_returns_caller_batches(
     await _submit(app_client, user_a.token)
     await _submit(app_client, user_b.token)
 
-    r_a = await app_client.get(
-        "/api/v1/batches", headers=auth_header(user_a.token)
-    )
-    r_b = await app_client.get(
-        "/api/v1/batches", headers=auth_header(user_b.token)
-    )
+    r_a = await app_client.get("/api/v1/batches", headers=auth_header(user_a.token))
+    r_b = await app_client.get("/api/v1/batches", headers=auth_header(user_b.token))
     assert r_a.json()["meta"]["total"] == 2
     assert r_b.json()["meta"]["total"] == 1
 
@@ -175,9 +195,7 @@ async def test_get_batch_for_nonexistent_id_returns_404_problem(
         headers=auth_header(end_user.token),
     )
     assert r.status_code == 404
-    assert r.headers.get("content-type", "").startswith(
-        "application/problem+json"
-    )
+    assert r.headers.get("content-type", "").startswith("application/problem+json")
     assert r.json()["code"] == "not_found"
 
 

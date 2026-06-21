@@ -39,6 +39,8 @@ from seedbank.infrastructure.db.repositories import (
     RefreshTokenRepository,
     ScanBatchRepository,
     ScanImageRepository,
+    SeedTypeRepository,
+    SupplierRepository,
     UserRepository,
 )
 from seedbank.infrastructure.db.session import get_db as _get_db
@@ -47,6 +49,7 @@ from seedbank.services.analysis_service import AnalysisService
 from seedbank.services.api_key_service import ApiKeyService
 from seedbank.services.auth_service import AuthService
 from seedbank.services.batch_service import BatchService
+from seedbank.services.catalog_service import CatalogService
 from seedbank.services.dataset_service import DatasetService
 from seedbank.services.experiment_service import ExperimentService
 
@@ -110,6 +113,14 @@ def scan_image_repo(session: DbSession) -> ScanImageRepository:
     return ScanImageRepository(session)
 
 
+def seed_type_repo(session: DbSession) -> SeedTypeRepository:
+    return SeedTypeRepository(session)
+
+
+def supplier_repo(session: DbSession) -> SupplierRepository:
+    return SupplierRepository(session)
+
+
 def dataset_repo(session: DbSession) -> DatasetRepository:
     return DatasetRepository(session)
 
@@ -140,15 +151,13 @@ OAuthAccountRepoDep = Annotated[OAuthAccountRepository, Depends(oauth_account_re
 ApiKeyRepoDep = Annotated[ApiKeyRepository, Depends(api_key_repo)]
 ScanBatchRepoDep = Annotated[ScanBatchRepository, Depends(scan_batch_repo)]
 ScanImageRepoDep = Annotated[ScanImageRepository, Depends(scan_image_repo)]
+SeedTypeRepoDep = Annotated[SeedTypeRepository, Depends(seed_type_repo)]
+SupplierRepoDep = Annotated[SupplierRepository, Depends(supplier_repo)]
 DatasetRepoDep = Annotated[DatasetRepository, Depends(dataset_repo)]
 DatasetItemRepoDep = Annotated[DatasetItemRepository, Depends(dataset_item_repo)]
 ExperimentRepoDep = Annotated[ExperimentRepository, Depends(experiment_repo)]
-ExperimentResultRepoDep = Annotated[
-    ExperimentResultRepository, Depends(experiment_result_repo)
-]
-ModelArtifactRepoDep = Annotated[
-    ModelArtifactRepository, Depends(model_artifact_repo)
-]
+ExperimentResultRepoDep = Annotated[ExperimentResultRepository, Depends(experiment_result_repo)]
+ModelArtifactRepoDep = Annotated[ModelArtifactRepository, Depends(model_artifact_repo)]
 ModelMetricRepoDep = Annotated[ModelMetricRepository, Depends(model_metric_repo)]
 
 
@@ -213,6 +222,18 @@ def batch_service(
     )
 
 
+def catalog_service(
+    session: DbSession,
+    seed_types: SeedTypeRepoDep,
+    suppliers: SupplierRepoDep,
+) -> CatalogService:
+    return CatalogService(
+        session=session,
+        seed_types=seed_types,
+        suppliers=suppliers,
+    )
+
+
 def dataset_service(
     session: DbSession,
     datasets: DatasetRepoDep,
@@ -241,6 +262,7 @@ AuthServiceDep = Annotated[AuthService, Depends(auth_service)]
 ApiKeyServiceDep = Annotated[ApiKeyService, Depends(api_key_service)]
 AnalysisServiceDep = Annotated[AnalysisService, Depends(analysis_service)]
 BatchServiceDep = Annotated[BatchService, Depends(batch_service)]
+CatalogServiceDep = Annotated[CatalogService, Depends(catalog_service)]
 DatasetServiceDep = Annotated[DatasetService, Depends(dataset_service)]
 ExperimentServiceDep = Annotated[ExperimentService, Depends(experiment_service)]
 
@@ -330,9 +352,7 @@ async def current_user(
     else:
         raise AuthError("Authentication required.")
 
-    structlog.contextvars.bind_contextvars(
-        user_id=str(actor.id), auth_method=actor.auth_method
-    )
+    structlog.contextvars.bind_contextvars(user_id=str(actor.id), auth_method=actor.auth_method)
     request.state.user = actor
     return actor
 
@@ -374,9 +394,7 @@ def require_scope(*scopes: str):
             return actor
         missing = required - actor.scopes
         if missing:
-            raise ForbiddenError(
-                f"API key is missing scopes: {', '.join(sorted(missing))}."
-            )
+            raise ForbiddenError(f"API key is missing scopes: {', '.join(sorted(missing))}.")
         return actor
 
     return _checker

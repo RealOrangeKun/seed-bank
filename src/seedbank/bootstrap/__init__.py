@@ -19,14 +19,17 @@ from .dwh import (
     mirror_seed_types_to_dwh,
 )
 from .seed_types import SeedTypeSpec, bootstrap_seed_types
+from .suppliers import GlobalSupplierSpec, bootstrap_suppliers
 from .users import DemoUserSpec, bootstrap_users
 
 __all__ = [
     "DemoUserSpec",
+    "GlobalSupplierSpec",
     "SeedTypeSpec",
     "apply_dwh_schema",
     "bootstrap_clickhouse",
     "bootstrap_seed_types",
+    "bootstrap_suppliers",
     "bootstrap_users",
     "ensure_clickhouse_database",
     "mirror_seed_types_to_dwh",

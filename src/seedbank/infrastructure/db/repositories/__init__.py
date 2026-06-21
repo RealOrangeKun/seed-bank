@@ -20,6 +20,7 @@ from .refresh_token import RefreshTokenRepository
 from .scan_batch import CasResult, ScanBatchRepository
 from .scan_image import ScanImageRepository
 from .seed_detection import SeedDetectionRepository
+from .seed_type import SeedTypeRepository
 from .supplier import SupplierRepository
 from .user import UserRepository
 
@@ -39,6 +40,7 @@ __all__ = [
     "ScanBatchRepository",
     "ScanImageRepository",
     "SeedDetectionRepository",
+    "SeedTypeRepository",
     "SupplierRepository",
     "UserRepository",
 ]

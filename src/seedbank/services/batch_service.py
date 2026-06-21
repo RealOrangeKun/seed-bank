@@ -72,15 +72,17 @@ class BatchService:
         page_size: int,
         supplier_id: UUID | None = None,
         country_code: str | None = None,
-    ) -> tuple[list[ScanBatch], int]:
+    ) -> tuple[list[tuple[ScanBatch, int]], int]:
         """Return ``(rows, total)`` for the requested page.
 
-        ``total`` is the unpaginated count under the same filters so the
-        caller can build a ``Page[BatchOut]``. ``page`` is 1-indexed,
-        matching the schemas' :class:`PageMeta`.
+        Each row is a ``(batch, image_count)`` pair — ``scan_batches`` has
+        no ``image_count`` column, so the repository derives it in a single
+        grouped query (no N+1). ``total`` is the unpaginated count under the
+        same filters so the caller can build a ``Page[BatchOut]``. ``page``
+        is 1-indexed, matching the schemas' :class:`PageMeta`.
         """
         offset = (page - 1) * page_size
-        rows = await self.batches.list_for_user(
+        rows = await self.batches.list_for_user_with_counts(
             user_id,
             limit=page_size,
             offset=offset,

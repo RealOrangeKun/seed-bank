@@ -82,6 +82,53 @@ class ScanBatchRepository(Repository[ScanBatch]):
         stmt = stmt.order_by(desc(ScanBatch.submitted_at)).limit(limit).offset(offset)
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def list_for_user_with_counts(
+        self,
+        user_id: UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        supplier_id: UUID | None = None,
+        country_code: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> list[tuple[ScanBatch, int]]:
+        """Same page + filters as :meth:`list_for_user`, but each batch is
+        paired with its image count.
+
+        The count comes from a single LEFT JOIN + GROUP BY so the page costs
+        one query regardless of size — no N+1, and no denormalized column on
+        ``scan_batches`` (CLAUDE.md forbids both). ``LEFT`` keeps batches with
+        zero images; ``COUNT(scan_images.id)`` yields 0 for them rather than
+        dropping the row.
+        """
+        count_col = func.count(ScanImage.id)
+        stmt = (
+            select(ScanBatch, count_col)
+            .outerjoin(ScanImage, ScanImage.batch_id == ScanBatch.id)
+            .where(
+                ScanBatch.user_id == user_id,
+                ScanBatch.deleted_at.is_(None),
+            )
+        )
+        if supplier_id is not None:
+            stmt = stmt.where(ScanBatch.supplier_id == supplier_id)
+        if country_code is not None:
+            stmt = stmt.where(ScanBatch.geo_country_code == country_code)
+        if since is not None:
+            stmt = stmt.where(ScanBatch.submitted_at >= since)
+        if until is not None:
+            stmt = stmt.where(ScanBatch.submitted_at <= until)
+
+        stmt = (
+            stmt.group_by(ScanBatch.id)
+            .order_by(desc(ScanBatch.submitted_at))
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [(batch, int(count)) for batch, count in rows]
+
     async def count_for_user(
         self,
         user_id: UUID,
@@ -93,9 +140,13 @@ class ScanBatchRepository(Repository[ScanBatch]):
     ) -> int:
         """Total batches the user owns, filtered the same way as
         :meth:`list_for_user`. Used to populate the ``Page.meta.total``."""
-        stmt = select(func.count()).select_from(ScanBatch).where(
-            ScanBatch.user_id == user_id,
-            ScanBatch.deleted_at.is_(None),
+        stmt = (
+            select(func.count())
+            .select_from(ScanBatch)
+            .where(
+                ScanBatch.user_id == user_id,
+                ScanBatch.deleted_at.is_(None),
+            )
         )
         if supplier_id is not None:
             stmt = stmt.where(ScanBatch.supplier_id == supplier_id)
@@ -194,9 +245,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             return CasResult(won=False)
         return CasResult(won=True, started_at=row[0], finished_at=row[1])
 
-    async def list_detections_for_batch(
-        self, batch_id: UUID, user_id: UUID
-    ) -> list[SeedDetection]:
+    async def list_detections_for_batch(self, batch_id: UUID, user_id: UUID) -> list[SeedDetection]:
         """Flat list of every detection across the batch's images + models."""
         stmt = (
             select(SeedDetection)

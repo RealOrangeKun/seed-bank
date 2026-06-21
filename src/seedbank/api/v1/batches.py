@@ -30,9 +30,7 @@ async def list_batches(
     actor: CurrentUser,
     service: BatchServiceDep,
     supplier_id: Annotated[UUID | None, Query()] = None,
-    country_code: Annotated[
-        str | None, Query(min_length=2, max_length=2)
-    ] = None,
+    country_code: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> Page[BatchOut]:
@@ -43,7 +41,13 @@ async def list_batches(
         supplier_id=supplier_id,
         country_code=country_code,
     )
-    items = [BatchOut.model_validate(r) for r in rows]
+    # ``image_count`` isn't a column on ``scan_batches``; the service ships
+    # it back alongside each batch (one grouped query). Patch it onto the
+    # schema instance so the list view matches the analyze + detail shapes.
+    items = [
+        BatchOut.model_validate(batch).model_copy(update={"image_count": count})
+        for batch, count in rows
+    ]
     return paginate(items, total=total, page=page, page_size=page_size)
 
 

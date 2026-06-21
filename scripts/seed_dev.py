@@ -12,7 +12,8 @@ What it seeds:
    way an accidental ``make seed`` against a real environment cannot
    silently install a known-default credential.
 2. Three seed types: coffee, maize, lentil — each at confidence 0.5000.
-3. Mirrors the seed-type catalog into ClickHouse ``dim_seed_type`` via
+3. Three global demo suppliers, so the frontend dropdowns aren't empty.
+4. Mirrors the seed-type catalog into ClickHouse ``dim_seed_type`` via
    :func:`seedbank.bootstrap.dwh.mirror_seed_types_to_dwh`.
 
 Usage::
@@ -34,9 +35,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from seedbank.bootstrap import (
     DemoUserSpec,
+    GlobalSupplierSpec,
     SeedTypeSpec,
     bootstrap_clickhouse,
     bootstrap_seed_types,
+    bootstrap_suppliers,
     bootstrap_users,
 )
 from seedbank.core.config import get_settings
@@ -79,6 +82,12 @@ _SEED_TYPES: tuple[SeedTypeSpec, ...] = (
     SeedTypeSpec(code="lentil", display_name="Lentil"),
 )
 
+_SUPPLIERS: tuple[GlobalSupplierSpec, ...] = (
+    GlobalSupplierSpec(name="Kenya Seed Co"),
+    GlobalSupplierSpec(name="East African Seed"),
+    GlobalSupplierSpec(name="Demo Agritech"),
+)
+
 
 def _build_user_specs() -> tuple[list[DemoUserSpec], list[str]]:
     """Resolve passwords from env. Returns (specs, names_using_default)."""
@@ -89,9 +98,7 @@ def _build_user_specs() -> tuple[list[DemoUserSpec], list[str]]:
         if password is None:
             password = fallback
             used_default_for.append(env_var)
-        specs.append(
-            DemoUserSpec(email=email, role=role, password=password, full_name=full_name)
-        )
+        specs.append(DemoUserSpec(email=email, role=role, password=password, full_name=full_name))
     return specs, used_default_for
 
 
@@ -122,9 +129,8 @@ async def main() -> int:
     try:
         async with sm() as session, session.begin():
             users_inserted = await bootstrap_users(session, user_specs)
-            seed_types_inserted = await bootstrap_seed_types(
-                session, list(_SEED_TYPES)
-            )
+            seed_types_inserted = await bootstrap_seed_types(session, list(_SEED_TYPES))
+            suppliers_inserted = await bootstrap_suppliers(session, list(_SUPPLIERS))
     finally:
         await engine.dispose()
 
@@ -137,6 +143,7 @@ async def main() -> int:
         "seed_dev.done",
         users_inserted=users_inserted,
         seed_types_inserted=seed_types_inserted,
+        suppliers_inserted=suppliers_inserted,
     )
     return 0
 
