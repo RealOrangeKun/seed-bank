@@ -1,11 +1,22 @@
 """Helper functions for user management."""
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
-from app.models import User, ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel
+from sqlalchemy import func, and_, cast, case, Date
+from app.models import User, ScanBatch, ScanImage, SeedDetection, SeedCatalog, ProcessingStatus, QualityLabel
 from typing import Optional, Tuple, List, Dict
-import uuid
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+
+def _utcnow() -> datetime:
+    """Timezone-aware current UTC time (replaces the deprecated datetime.utcnow())."""
+    return datetime.now(timezone.utc)
+
+
+def _as_aware(dt: datetime) -> datetime:
+    """Coerce a possibly-naive datetime to timezone-aware UTC for safe comparison."""
+    if dt is None:
+        return dt
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 def generate_device_fingerprint(user_agent: str = None, remote_addr: str = None) -> str:
@@ -48,7 +59,7 @@ def get_or_create_guest_user(db: Session, device_fingerprint: str) -> User:
     # Try to find existing guest with this fingerprint
     user = db.query(User).filter(
         User.device_fingerprint == device_fingerprint,
-        User.is_guest == True
+        User.is_guest.is_(True)
     ).first()
     
     if user:
@@ -281,7 +292,7 @@ def get_user_statistics(db: Session, user_id: int, days: Optional[int] = None) -
     
     # Apply date filter if provided
     if days is not None and days > 0:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = _utcnow() - timedelta(days=days)
         query = query.filter(ScanBatch.created_at >= cutoff_date)
     
     batches = query.all()
@@ -341,43 +352,33 @@ def get_user_statistics(db: Session, user_id: int, days: Optional[int] = None) -
     
     # Recent activity (always calculate from all batches, not filtered)
     all_batches = db.query(ScanBatch).filter(ScanBatch.user_id == user_id).all()
-    now = datetime.utcnow()
-    
-    # Handle timezone-aware datetimes
+    now = _utcnow()
+
     batches_last_7_days = 0
     batches_last_30_days = 0
     for b in all_batches:
         if b.created_at:
-            # Handle both timezone-aware and naive datetimes
-            if hasattr(b.created_at, 'replace'):
-                created_at_naive = b.created_at.replace(tzinfo=None) if b.created_at.tzinfo else b.created_at
-            else:
-                created_at_naive = b.created_at
-            delta = now - created_at_naive
+            delta = now - _as_aware(b.created_at)
             if delta.days <= 7:
                 batches_last_7_days += 1
             if delta.days <= 30:
                 batches_last_30_days += 1
-    
+
     # Determine period
     if days:
-        start_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        start_date = (_utcnow() - timedelta(days=days)).isoformat()
     else:
         # Get earliest batch date, handle empty batches
         if batches:
             earliest_batches = [b.created_at for b in batches if b.created_at]
             if earliest_batches:
-                earliest = min(earliest_batches)
-                # Handle timezone-aware datetime
-                if hasattr(earliest, 'replace'):
-                    earliest = earliest.replace(tzinfo=None) if earliest.tzinfo else earliest
-                start_date = earliest.isoformat()
+                start_date = _as_aware(min(earliest_batches)).isoformat()
             else:
-                start_date = datetime.utcnow().isoformat()
+                start_date = _utcnow().isoformat()
         else:
-            start_date = datetime.utcnow().isoformat()
-    
-    end_date = datetime.utcnow().isoformat()
+            start_date = _utcnow().isoformat()
+
+    end_date = _utcnow().isoformat()
     
     return {
         "total_batches": total_batches,
@@ -400,4 +401,232 @@ def get_user_statistics(db: Session, user_id: int, days: Optional[int] = None) -
             "end_date": end_date
         }
     }
+
+
+def _histogram(values: List[float], bins: int = 10) -> Dict:
+    """Build a simple equal-width histogram from a list of numeric values.
+
+    Returns {"bins": [...edges...], "counts": [...], "min": x, "max": y} or empty dict.
+    """
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return {"bins": [], "counts": [], "min": None, "max": None}
+    lo, hi = min(vals), max(vals)
+    if hi == lo:
+        # All identical -> single populated bucket.
+        return {"bins": [lo, hi], "counts": [len(vals)], "min": lo, "max": hi}
+    width = (hi - lo) / bins
+    counts = [0] * bins
+    for v in vals:
+        idx = int((v - lo) / width)
+        if idx == bins:  # right edge
+            idx = bins - 1
+        counts[idx] += 1
+    edges = [round(lo + i * width, 3) for i in range(bins + 1)]
+    return {"bins": edges, "counts": counts, "min": round(lo, 3), "max": round(hi, 3)}
+
+
+def get_user_analytics(db: Session, user_id: int, days: Optional[int] = None) -> Dict:
+    """Rich analytics aggregated from the user's persisted detections and batches.
+
+    Powers the analytics dashboard: quality donut, daily trend, seed-type split, and
+    size / confidence distributions. All values are computed from real data.
+    """
+    batch_q = db.query(ScanBatch).filter(ScanBatch.user_id == user_id)
+    if days is not None and days > 0:
+        cutoff = _utcnow() - timedelta(days=days)
+        batch_q = batch_q.filter(ScanBatch.created_at >= cutoff)
+    batch_ids = [b.id for b in batch_q.all()]
+
+    empty = {
+        "totals": {"batches": 0, "images": 0, "seeds": 0, "good": 0, "bad": 0,
+                   "good_percentage": 0.0, "bad_percentage": 0.0},
+        "daily_trend": [],
+        "seed_type_split": [],
+        "size_distribution": {"bins": [], "counts": [], "min": None, "max": None},
+        "confidence_distribution": {"bins": [], "counts": [], "min": None, "max": None},
+        "top_batches": [],
+        "period": {"days": days},
+    }
+    if not batch_ids:
+        return empty
+
+    det_q = db.query(SeedDetection).filter(SeedDetection.batch_id.in_(batch_ids))
+
+    # Totals
+    total_seeds = det_q.count()
+    total_bad = det_q.filter(SeedDetection.quality_label == QualityLabel.BAD).count()
+    total_good = total_seeds - total_bad
+    total_images = db.query(func.count(ScanImage.id)).filter(
+        ScanImage.batch_id.in_(batch_ids)
+    ).scalar() or 0
+
+    # Daily trend: good/bad counts grouped by batch creation date.
+    trend_rows = (
+        db.query(
+            cast(ScanBatch.created_at, Date).label("day"),
+            func.count(SeedDetection.id).label("total"),
+            func.count(
+                case((SeedDetection.quality_label == QualityLabel.BAD, 1))
+            ).label("bad"),
+        )
+        .join(SeedDetection, SeedDetection.batch_id == ScanBatch.id)
+        .filter(ScanBatch.id.in_(batch_ids))
+        .group_by(cast(ScanBatch.created_at, Date))
+        .order_by(cast(ScanBatch.created_at, Date))
+        .all()
+    )
+    daily_trend = []
+    for row in trend_rows:
+        total = int(row.total or 0)
+        bad = int(row.bad or 0)
+        good = total - bad
+        daily_trend.append({
+            "date": row.day.isoformat() if row.day else None,
+            "total": total,
+            "good": good,
+            "bad": bad,
+            "good_percentage": round(good / total * 100, 2) if total else 0.0,
+        })
+
+    # Seed-type split (joined to catalog for names).
+    type_rows = (
+        db.query(
+            SeedCatalog.name.label("name"),
+            func.count(SeedDetection.id).label("total"),
+            func.count(
+                case((SeedDetection.quality_label == QualityLabel.BAD, 1))
+            ).label("bad"),
+        )
+        .join(SeedCatalog, SeedDetection.seed_type_id == SeedCatalog.id)
+        .filter(SeedDetection.batch_id.in_(batch_ids))
+        .group_by(SeedCatalog.name)
+        .order_by(func.count(SeedDetection.id).desc())
+        .all()
+    )
+    seed_type_split = []
+    for row in type_rows:
+        total = int(row.total or 0)
+        bad = int(row.bad or 0)
+        good = total - bad
+        seed_type_split.append({
+            "seed_type": row.name,
+            "total": total,
+            "good": good,
+            "bad": bad,
+            "good_percentage": round(good / total * 100, 2) if total else 0.0,
+        })
+
+    # Distributions (pull the raw columns once; histogram in Python).
+    areas = [r[0] for r in det_q.with_entities(SeedDetection.area).all()]
+    confs = [r[0] for r in det_q.with_entities(SeedDetection.confidence_score).all()]
+
+    # Top batches by seed count (for a quick leaderboard).
+    top = (
+        batch_q.order_by(ScanBatch.total_seeds.desc()).limit(5).all()
+    )
+    top_batches = [{
+        "id": b.id,
+        "total_seeds": b.total_seeds,
+        "bad_seeds_count": b.bad_seeds_count,
+        "good_percentage": round((b.total_seeds - b.bad_seeds_count) / b.total_seeds * 100, 2)
+                           if b.total_seeds else 0.0,
+        "created_at": b.created_at.isoformat() if b.created_at else None,
+    } for b in top]
+
+    return {
+        "totals": {
+            "batches": len(batch_ids),
+            "images": int(total_images),
+            "seeds": total_seeds,
+            "good": total_good,
+            "bad": total_bad,
+            "good_percentage": round(total_good / total_seeds * 100, 2) if total_seeds else 0.0,
+            "bad_percentage": round(total_bad / total_seeds * 100, 2) if total_seeds else 0.0,
+        },
+        "daily_trend": daily_trend,
+        "seed_type_split": seed_type_split,
+        "size_distribution": _histogram(areas, bins=12),
+        "confidence_distribution": _histogram([c for c in confs], bins=10),
+        "top_batches": top_batches,
+        "period": {"days": days},
+    }
+
+
+def compare_batches(db: Session, user_id: int, batch_ids: List[int]) -> List[Dict]:
+    """Return comparable summaries for a set of batches owned by the user.
+
+    Batches not owned by the user are silently skipped (ownership enforced).
+    """
+    summaries = []
+    for bid in batch_ids:
+        batch = get_batch_by_id_and_user(db, bid, user_id)
+        if not batch:
+            continue
+        good = batch.total_seeds - batch.bad_seeds_count if batch.total_seeds else 0
+        # Per-type breakdown for this batch.
+        type_rows = (
+            db.query(
+                SeedCatalog.name.label("name"),
+                func.count(SeedDetection.id).label("total"),
+            )
+            .join(SeedCatalog, SeedDetection.seed_type_id == SeedCatalog.id)
+            .filter(SeedDetection.batch_id == bid)
+            .group_by(SeedCatalog.name)
+            .all()
+        )
+        image_count = db.query(func.count(ScanImage.id)).filter(
+            ScanImage.batch_id == bid
+        ).scalar() or 0
+        summaries.append({
+            "id": batch.id,
+            "created_at": batch.created_at.isoformat() if batch.created_at else None,
+            "status": batch.status.value if batch.status else None,
+            "image_count": int(image_count),
+            "total_seeds": batch.total_seeds,
+            "good_seeds_count": good,
+            "bad_seeds_count": batch.bad_seeds_count,
+            "good_percentage": round(good / batch.total_seeds * 100, 2) if batch.total_seeds else 0.0,
+            "bad_percentage": round(batch.bad_seeds_count / batch.total_seeds * 100, 2) if batch.total_seeds else 0.0,
+            "avg_confidence_score": batch.avg_confidence_score,
+            "processing_duration_ms": batch.processing_duration_ms,
+            "seed_types": {row.name: int(row.total) for row in type_rows},
+        })
+    return summaries
+
+
+def iter_batch_detections_for_export(db: Session, batch_id: int, user_id: int):
+    """Yield detection rows for CSV/JSON export, or None if batch not owned."""
+    batch = get_batch_by_id_and_user(db, batch_id, user_id)
+    if not batch:
+        return None
+    dets = (
+        db.query(SeedDetection)
+        .filter(SeedDetection.batch_id == batch_id)
+        .order_by(SeedDetection.image_id.asc(), SeedDetection.id.asc())
+        .all()
+    )
+    rows = []
+    for d in dets:
+        rows.append({
+            "detection_id": d.id,
+            "image_id": d.image_id,
+            "seed_type": d.seed_type.name if d.seed_type else "unknown",
+            "quality": d.quality_label.value if d.quality_label else None,
+            "confidence_score": d.confidence_score,
+            "detection_confidence": d.detection_confidence,
+            "good_percentage": d.good_percentage,
+            "bad_percentage": d.bad_percentage,
+            "box_x_norm": d.box_x_norm,
+            "box_y_norm": d.box_y_norm,
+            "box_w_norm": d.box_w_norm,
+            "box_h_norm": d.box_h_norm,
+            "area": d.area,
+            "width": d.width,
+            "height": d.height,
+            "aspect_ratio": d.aspect_ratio,
+            "centroid_x": d.centroid_x,
+            "centroid_y": d.centroid_y,
+        })
+    return rows
 

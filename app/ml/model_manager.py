@@ -56,7 +56,7 @@ class ModelManager:
     def _load_models(self, db: Session):
         """Load all active models from database configuration."""
         # Get active models from database
-        active_models = db.query(AIModel).filter(AIModel.is_active == True).all()
+        active_models = db.query(AIModel).filter(AIModel.is_active.is_(True)).all()
         
         for model_config in active_models:
             if model_config.type == "detection":

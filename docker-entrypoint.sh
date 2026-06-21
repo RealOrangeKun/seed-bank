@@ -9,9 +9,10 @@ until python -c "
 import os
 import sys
 os.environ.setdefault('DATABASE_URL', 'postgresql+psycopg://seedbank:seedbank_dev_password@postgres:5432/seedbank_db')
+from sqlalchemy import text
 from app.database import engine
 with engine.connect() as conn:
-    conn.execute('SELECT 1')
+    conn.execute(text('SELECT 1'))
 " 2>/dev/null; do
   ATTEMPT=$((ATTEMPT + 1))
   if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then

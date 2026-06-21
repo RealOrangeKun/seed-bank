@@ -170,6 +170,18 @@ const App = {
         // Export
         btnExport.addEventListener('click', () => this.generatePDF());
 
+        // Data export (CSV / JSON) of the current batch's detections.
+        const btnCsv = document.getElementById('btn-export-csv');
+        const btnJson = document.getElementById('btn-export-json');
+        if (btnCsv) btnCsv.addEventListener('click', () => {
+            if (this.state.currentBatchId && window.SBExport) window.SBExport(this.state.currentBatchId, 'csv');
+            else if (window.SBToast) window.SBToast.show('No saved batch to export', 'info');
+        });
+        if (btnJson) btnJson.addEventListener('click', () => {
+            if (this.state.currentBatchId && window.SBExport) window.SBExport(this.state.currentBatchId, 'json');
+            else if (window.SBToast) window.SBToast.show('No saved batch to export', 'info');
+        });
+
         // History navigation - check if elements exist
         if (btnHistory) {
             btnHistory.addEventListener('click', () => {
@@ -325,6 +337,7 @@ const App = {
             console.log('Response data:', data);
 
             this.state.results = data.results;
+            this.state.currentBatchId = data.batch_id ?? null;
             this.state.reportMetadata = {
                 processingDurationMs: data.processing_duration_ms ?? null,
                 overallStatistics: data.overall_statistics ?? null
@@ -333,6 +346,7 @@ const App = {
             // Initialize view
             this.state.currentTabIndex = 0;
             this.showResults();
+            this.updateExportButtons();
             this.renderTabs();
             this.updateView();
 
@@ -483,11 +497,18 @@ const App = {
         const stats = result.statistics;
         const { statGoodCount, statGoodPercent, statBadCount, statBadPercent, statTotal, statProgressBar, statExecutionTime } = this.elements;
 
-        statGoodCount.textContent = stats.good_seeds;
+        // Animated count-up for the headline numbers (falls back to plain text).
+        if (window.SBCountUp) {
+            window.SBCountUp(statGoodCount, stats.good_seeds);
+            window.SBCountUp(statBadCount, stats.bad_seeds);
+            window.SBCountUp(statTotal, result.total_seeds);
+        } else {
+            statGoodCount.textContent = stats.good_seeds;
+            statBadCount.textContent = stats.bad_seeds;
+            statTotal.textContent = result.total_seeds;
+        }
         statGoodPercent.textContent = `${stats.good_percentage}%`;
-        statBadCount.textContent = stats.bad_seeds;
         statBadPercent.textContent = `${stats.bad_percentage}%`;
-        statTotal.textContent = result.total_seeds;
 
         if (statExecutionTime) {
             const ms = this.state.reportMetadata?.processingDurationMs;
@@ -498,6 +519,35 @@ const App = {
         setTimeout(() => {
             statProgressBar.style.width = `${stats.good_percentage}%`;
         }, 100);
+
+        // Quality donut (Chart.js). Repaint per render so it tracks tab/theme changes.
+        this.renderResultDonut(stats);
+    },
+
+    renderResultDonut(stats) {
+        const el = document.getElementById('result-donut');
+        if (!el || !window.Chart) return;
+        const dark = document.documentElement.classList.contains('dark');
+        if (this._resultDonut) this._resultDonut.destroy();
+        this._resultDonut = new Chart(el, {
+            type: 'doughnut',
+            data: {
+                labels: ['Good', 'Bad'],
+                datasets: [{
+                    data: [stats.good_seeds, stats.bad_seeds],
+                    backgroundColor: ['#16a34a', '#dc2626'],
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                cutout: '70%',
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: dark ? '#cbd5e1' : '#475569' } },
+                },
+                animation: { animateRotate: true },
+            },
+        });
     },
 
     renderSeedsList(filter = 'all') {
@@ -675,13 +725,31 @@ const App = {
     },
 
     showResults() {
+        // Hide every other section so results render on a clean view regardless of
+        // where we came from (upload, history, analytics, compare).
+        this.elements.uploadSection.classList.add('hidden');
         this.elements.loadingSection.classList.add('hidden');
+        if (this.elements.historySection) this.elements.historySection.classList.add('hidden');
+        document.getElementById('analytics-section')?.classList.add('hidden');
+        document.getElementById('compare-section')?.classList.add('hidden');
         this.elements.resultsSection.classList.remove('hidden');
     },
 
     showError(msg) {
         this.elements.errorMessage.classList.remove('hidden');
         this.elements.errorText.textContent = msg;
+        if (window.SBToast) window.SBToast.show(msg, 'error');
+    },
+
+    updateExportButtons() {
+        const enabled = !!this.state.currentBatchId;
+        ['btn-export-csv', 'btn-export-json'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = !enabled;
+            el.style.opacity = enabled ? '1' : '.5';
+            el.style.cursor = enabled ? 'pointer' : 'not-allowed';
+        });
     },
 
     hideError() {
@@ -698,6 +766,7 @@ const App = {
         this.state.offsetX = 0;
         this.state.offsetY = 0;
         this.state.reportMetadata = null;
+        this.state.currentBatchId = null;
 
         this.elements.fileInput.value = '';
         this.elements.resultsSection.classList.add('hidden');
@@ -1229,7 +1298,7 @@ const App = {
                 : 0;
 
             return `
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group overflow-hidden" data-batch-id="${batch.id}">
+                <div class="sb-selectable bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group overflow-hidden" data-batch-id="${batch.id}">
                     <div class="p-5">
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex-1">
@@ -1239,6 +1308,11 @@ const App = {
                                         <i data-lucide="${status.icon}" class="w-3 h-3"></i>
                                         ${batch.status}
                                     </span>
+                                    <button type="button" data-compare-id="${batch.id}" title="Select to compare"
+                                        class="ml-auto text-gray-400 hover:text-seed-green-600 transition-colors flex items-center gap-1 text-xs font-medium">
+                                        <i data-lucide="git-compare" class="w-4 h-4"></i>
+                                        <span class="hidden sm:inline">Compare</span>
+                                    </button>
                                 </div>
                                 <p class="text-sm text-gray-500 flex items-center gap-1">
                                     <i data-lucide="calendar" class="w-4 h-4"></i>
@@ -1308,11 +1382,23 @@ const App = {
         this.elements.batchesList.innerHTML = batchesHtml;
         lucide.createIcons();
 
-        // Add click handlers
+        // Add click handlers (open details on card click)
         this.elements.batchesList.querySelectorAll('[data-batch-id]').forEach(el => {
-            el.addEventListener('click', () => {
+            el.addEventListener('click', (e) => {
+                // Ignore clicks that originate from the compare toggle.
+                if (e.target.closest('[data-compare-id]')) return;
                 const batchId = parseInt(el.getAttribute('data-batch-id'));
                 this.loadBatchDetails(batchId);
+            });
+        });
+
+        // Compare-select toggles (do not open details)
+        this.elements.batchesList.querySelectorAll('[data-compare-id]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.getAttribute('data-compare-id');
+                const card = btn.closest('[data-batch-id]');
+                if (window.SBCompare) window.SBCompare.toggle(id, card);
             });
         });
     },
@@ -1386,6 +1472,7 @@ const App = {
     async loadBatchDetails(batchId) {
         try {
             this.showLoading(true);
+            this.state.currentBatchId = batchId;
 
             // Fetch batch details
             const batchResponse = await fetch(`${this.API_URL}/api/batches/${batchId}`);
@@ -1549,6 +1636,7 @@ const App = {
             };
 
             this.showResults();
+            this.updateExportButtons();
             this.renderTabs();
             this.updateView();
 
