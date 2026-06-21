@@ -44,8 +44,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the current directory contents into the container at /app
 COPY . .
 
+# Run as a non-root user (created after deps are installed). /app and the writable
+# uploads dir are chowned so the app can persist images.
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/uploads/batches \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Make port 8000 available to the world outside this container
 EXPOSE 8000
 
-# Run app.py when the container launches
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Container healthcheck hits the liveness probe (falls back to / on older images).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || curl -fsS http://localhost:8000/ || exit 1
+
+# Use the entrypoint (waits for DB, runs migrations) then starts the server.
+ENTRYPOINT ["./docker-entrypoint.sh"]
