@@ -182,6 +182,30 @@ const App = {
             else if (window.SBToast) window.SBToast.show('No saved batch to export', 'info');
         });
 
+        // Share link for the current batch.
+        const btnShare = document.getElementById('btn-share');
+        if (btnShare) btnShare.addEventListener('click', () => {
+            if (this.state.currentBatchId && window.SBShare) window.SBShare.create(this.state.currentBatchId);
+            else if (window.SBToast) window.SBToast.show('No saved batch to share', 'info');
+        });
+
+        // Annotated PNG download of the current image (resolves image id from batch detail).
+        const btnAnnot = document.getElementById('btn-annotated');
+        if (btnAnnot) btnAnnot.addEventListener('click', async () => {
+            const bid = this.state.currentBatchId;
+            if (!bid) { if (window.SBToast) window.SBToast.show('No saved batch', 'info'); return; }
+            try {
+                const res = await fetch(`${this.API_URL}/api/batches/${bid}`);
+                const detail = (await res.json()).batch;
+                const imgs = detail.images || [];
+                const img = imgs[this.state.currentTabIndex] || imgs[0];
+                if (img && window.SBDownloadAnnotated) window.SBDownloadAnnotated(bid, img.id);
+                else if (window.SBToast) window.SBToast.show('No image to annotate', 'info');
+            } catch (e) {
+                if (window.SBToast) window.SBToast.show('Could not load image info', 'error');
+            }
+        });
+
         // History navigation - check if elements exist
         if (btnHistory) {
             btnHistory.addEventListener('click', () => {
@@ -743,7 +767,7 @@ const App = {
 
     updateExportButtons() {
         const enabled = !!this.state.currentBatchId;
-        ['btn-export-csv', 'btn-export-json'].forEach(id => {
+        ['btn-export-csv', 'btn-export-json', 'btn-annotated', 'btn-share'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             el.disabled = !enabled;
@@ -1308,11 +1332,21 @@ const App = {
                                         <i data-lucide="${status.icon}" class="w-3 h-3"></i>
                                         ${batch.status}
                                     </span>
-                                    <button type="button" data-compare-id="${batch.id}" title="Select to compare"
-                                        class="ml-auto text-gray-400 hover:text-seed-green-600 transition-colors flex items-center gap-1 text-xs font-medium">
-                                        <i data-lucide="git-compare" class="w-4 h-4"></i>
-                                        <span class="hidden sm:inline">Compare</span>
-                                    </button>
+                                    <div class="ml-auto flex items-center gap-2">
+                                        <button type="button" data-compare-id="${batch.id}" title="Select to compare"
+                                            class="sb-icon-btn">
+                                            <i data-lucide="git-compare" class="w-4 h-4"></i>
+                                            <span class="hidden sm:inline">Compare</span>
+                                        </button>
+                                        <button type="button" data-share-id="${batch.id}" title="Create share link" aria-label="Share batch ${batch.id}"
+                                            class="sb-icon-btn">
+                                            <i data-lucide="share-2" class="w-4 h-4"></i>
+                                        </button>
+                                        <button type="button" data-delete-id="${batch.id}" title="Delete batch" aria-label="Delete batch ${batch.id}"
+                                            class="sb-icon-btn danger">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <p class="text-sm text-gray-500 flex items-center gap-1">
                                     <i data-lucide="calendar" class="w-4 h-4"></i>
@@ -1385,8 +1419,8 @@ const App = {
         // Add click handlers (open details on card click)
         this.elements.batchesList.querySelectorAll('[data-batch-id]').forEach(el => {
             el.addEventListener('click', (e) => {
-                // Ignore clicks that originate from the compare toggle.
-                if (e.target.closest('[data-compare-id]')) return;
+                // Ignore clicks that originate from the card action buttons.
+                if (e.target.closest('[data-compare-id],[data-share-id],[data-delete-id]')) return;
                 const batchId = parseInt(el.getAttribute('data-batch-id'));
                 this.loadBatchDetails(batchId);
             });
@@ -1399,6 +1433,22 @@ const App = {
                 const id = btn.getAttribute('data-compare-id');
                 const card = btn.closest('[data-batch-id]');
                 if (window.SBCompare) window.SBCompare.toggle(id, card);
+            });
+        });
+
+        // Share link
+        this.elements.batchesList.querySelectorAll('[data-share-id]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (window.SBShare) window.SBShare.create(parseInt(btn.getAttribute('data-share-id')));
+            });
+        });
+
+        // Delete (with confirm + reload)
+        this.elements.batchesList.querySelectorAll('[data-delete-id]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (window.SBDeleteBatch) window.SBDeleteBatch(parseInt(btn.getAttribute('data-delete-id')));
             });
         });
     },

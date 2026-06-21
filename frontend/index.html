@@ -48,8 +48,11 @@
                     <i data-lucide="history" class="w-5 h-5"></i>
                     <span class="text-sm font-medium hidden sm:inline">History</span>
                 </button>
-                <button type="button" id="sb-theme-toggle" title="Toggle theme (Ctrl/Cmd+D)" class="text-gray-500 hover:text-gray-700 transition-colors p-2 rounded-lg hover:bg-gray-50">
+                <button type="button" id="sb-theme-toggle" title="Toggle theme (Ctrl/Cmd+D)" aria-label="Toggle theme" class="text-gray-500 hover:text-gray-700 transition-colors p-2 rounded-lg hover:bg-gray-50">
                     <i data-lucide="moon" class="w-5 h-5"></i>
+                </button>
+                <button type="button" id="sb-settings-btn" title="Settings" aria-label="Open settings" class="text-gray-500 hover:text-gray-700 transition-colors p-2 rounded-lg hover:bg-gray-50">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
                 </button>
                 <div class="h-8 w-px bg-gray-200"></div>
                 <div class="flex items-center gap-2">
@@ -259,6 +262,16 @@
                         class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
                         <i data-lucide="braces" class="w-4 h-4"></i>
                         JSON
+                    </button>
+                    <button type="button" id="btn-annotated"
+                        class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                        <i data-lucide="image-down" class="w-4 h-4"></i>
+                        Image
+                    </button>
+                    <button type="button" id="btn-share"
+                        class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                        <i data-lucide="share-2" class="w-4 h-4"></i>
+                        Share
                     </button>
                 </div>
             </div>
