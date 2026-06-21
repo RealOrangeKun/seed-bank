@@ -4,7 +4,7 @@ import uuid
 import pytest
 
 from app import crud
-from app.models import User, ScanBatch, ProcessingStatus
+from app.models import ScanBatch, ProcessingStatus
 
 pytestmark = pytest.mark.integration
 
