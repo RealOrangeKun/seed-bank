@@ -1,168 +1,194 @@
-"""Shared pytest fixtures for the Seed Bank test suite.
+"""Test-suite fixtures.
 
-Strategy: model weights are not available in CI/dev, so we mock the ModelManager and the
-inference functions. DB-backed tests run against a real PostgreSQL (host port 5433 by default,
-overridable via TEST_DATABASE_URL) and are marked ``integration`` so they can be skipped.
+The integration tier uses `testcontainers` to spin up real Postgres / Redis /
+MinIO / ClickHouse — never mocks. Unit tests don't need any of these.
 """
+
+from __future__ import annotations
+
 import os
-import sys
+from collections.abc import AsyncIterator, Iterator
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import pytest
-
-# Ensure project root is importable
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+psycopg://seedbank:seedbank_dev_password@localhost:5433/seedbank_db",
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
 )
-# main/app.database read DATABASE_URL at import time.
-os.environ.setdefault("DATABASE_URL", TEST_DATABASE_URL)
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 
-class FakeModelManager:
-    """Stand-in for app.ml.model_manager.ModelManager without real weights."""
-
-    def __init__(self):
-        self.detection_model = object()
-        self.quality_models = {1: object(), 2: object()}
-        self.seed_type_name_to_id = {"maize": 1, "coffee": 2}
-        self.seed_type_id_to_name = {1: "maize", 2: "coffee"}
-
-    def get_quality_model(self, seed_type_id):
-        return self.quality_models[seed_type_id], 5.0
-
-    def get_detection_threshold(self):
-        return 0.0
-
-    def get_seed_type_id(self, name):
-        return self.seed_type_name_to_id.get(name)
-
-    def get_seed_type_name(self, seed_type_id):
-        return self.seed_type_id_to_name.get(seed_type_id)
-
-    def get_config_summary(self):
-        return {
-            "detection_model": {"name": "fake-detect", "version": "v1", "threshold": 0.0},
-            "quality_models": {
-                "maize": {"name": "fake-maize", "version": "v4", "threshold": 5.0},
-                "coffee": {"name": "fake-coffee", "version": "v3", "threshold": 0.0},
-            },
-            "seed_types": ["maize", "coffee"],
-        }
+@pytest.fixture(scope="session")
+def anyio_backend() -> str:
+    return "asyncio"
 
 
-def _fake_classified_seed(box, seed_type_id=1, seed_type_name="maize", quality="Good"):
-    x1, y1, x2, y2 = box
-    w, h = x2 - x1, y2 - y1
-    return {
-        "box": box,
-        "detection_confidence": 0.95,
-        "seed_type_id": seed_type_id,
-        "seed_type_name": seed_type_name,
-        "quality": quality,
-        "good_percentage": 80.0 if quality == "Good" else 20.0,
-        "bad_percentage": 20.0 if quality == "Good" else 80.0,
-        "classification_confidence": 90.0,
-        "raw_logits": 7.0 if quality == "Good" else 2.0,
-        "area": w * h,
-        "width": w,
-        "height": h,
-        "aspect_ratio": round(w / h, 2) if h else 1.0,
-        "centroid": {"x": (x1 + x2) // 2, "y": (y1 + y2) // 2},
-    }
+@pytest.fixture(scope="session")
+def postgres_container() -> Iterator[Any]:
+    """Session-scoped Postgres container. Skipped automatically when the
+    integration extras aren't installed."""
+    pytest.importorskip("testcontainers.postgres")
+    from testcontainers.postgres import PostgresContainer
+
+    with PostgresContainer("postgres:16-alpine") as pg:
+        yield pg
 
 
-@pytest.fixture
-def fake_seeds():
-    """Two detected seeds (one good maize, one bad coffee)."""
-    return [
-        {"box": (10, 10, 40, 50), "detection_confidence": 0.95, "seed_type_id": 1, "seed_type_name": "maize"},
-        {"box": (60, 60, 90, 100), "detection_confidence": 0.91, "seed_type_id": 2, "seed_type_name": "coffee"},
-    ]
+@pytest.fixture(scope="session")
+def clickhouse_container() -> Iterator[Any]:
+    """Session-scoped ClickHouse container for the DWH integration tier.
 
-
-@pytest.fixture
-def client(monkeypatch):
-    """FastAPI TestClient with a mocked model manager + patched inference.
-
-    Avoids the startup event (which would try to load real weights) by importing the app
-    and overriding globals directly.
+    Pinned to 24.10-alpine to match what compose runs in dev/prod —
+    keeps the test surface honest. Skipped automatically when the
+    integration extras aren't installed (so the unit + e2e tiers, which
+    don't import this fixture, never pay the spin-up cost).
     """
-    from fastapi.testclient import TestClient
-    import main
+    pytest.importorskip("testcontainers.clickhouse")
+    from testcontainers.clickhouse import ClickHouseContainer
 
-    fake_mm = FakeModelManager()
-
-    # Neutralize the registered startup model-loading handler so TestClient startup does
-    # not try to load real .pth weights. The handler was registered at import time, so we
-    # strip startup handlers from the router and install our fake manager directly.
-    monkeypatch.setattr(main.app.router, "on_startup", [], raising=False)
-    monkeypatch.setattr(main, "model_manager", fake_mm, raising=False)
-    monkeypatch.setattr(main, "device", "cpu", raising=False)
-
-    def fake_detect(rgb_img):
-        h, w, _ = rgb_img.shape
-        return (
-            [
-                {"box": (10, 10, 40, 50), "detection_confidence": 0.95, "seed_type_id": 1, "seed_type_name": "maize"},
-                {"box": (60, 60, 90, 100), "detection_confidence": 0.91, "seed_type_id": 2, "seed_type_name": "coffee"},
-            ],
-            (h, w),
-        )
-
-    def fake_classify(rgb_img, detected_seeds):
-        out = []
-        for i, s in enumerate(detected_seeds):
-            out.append(
-                _fake_classified_seed(
-                    s["box"],
-                    seed_type_id=s.get("seed_type_id") or 1,
-                    seed_type_name=s.get("seed_type_name") or "maize",
-                    quality="Good" if i % 2 == 0 else "Bad",
-                )
-            )
-        return out
-
-    monkeypatch.setattr(main, "detect_seeds", fake_detect)
-    monkeypatch.setattr(main, "classify_seeds", fake_classify)
-
-    with TestClient(main.app) as c:
-        yield c
+    # Username/password/dbname default to "test" inside the container; we
+    # override CLICKHOUSE_DB explicitly so the dim/fact DDL has somewhere
+    # to land on first apply.
+    with ClickHouseContainer(
+        "clickhouse/clickhouse-server:24.10-alpine",
+        username="test",
+        password="test",
+        dbname="seedbank_test",
+    ) as ch:
+        yield ch
 
 
-@pytest.fixture(autouse=True)
-def _reset_rate_limiter():
-    """Reset the in-process rate limiter between tests for isolation."""
+def _migrate_to_head(sync_dsn: str) -> None:
+    """Apply alembic migrations using sync drivers.
+
+    `alembic/env.py` calls `asyncio.run` in online mode, so this MUST NOT be
+    invoked from a running event loop. Callers in async fixtures must wrap
+    this in `asyncio.to_thread(...)`.
+    """
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine
+
+    sync_engine = create_engine(sync_dsn, future=True)
+    with sync_engine.begin() as conn:
+        conn.exec_driver_sql('CREATE EXTENSION IF NOT EXISTS "citext"')
+        conn.exec_driver_sql('CREATE EXTENSION IF NOT EXISTS "pg_trgm"')
+    sync_engine.dispose()
+
+    repo_root = Path(__file__).resolve().parents[1]
+    cfg = Config(str(repo_root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(repo_root / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", sync_dsn)
+    command.upgrade(cfg, "head")
+
+
+@pytest_asyncio.fixture
+async def async_engine(postgres_container: Any) -> AsyncIterator[AsyncEngine]:
+    """Async engine pointing at the testcontainer; baseline migration applied."""
+    import asyncio
+
+    sync_dsn = postgres_container.get_connection_url().replace(
+        "postgresql+psycopg2://", "postgresql+psycopg://"
+    )
+    async_dsn = sync_dsn.replace("postgresql+psycopg://", "postgresql+asyncpg://")
+
+    os.environ["POSTGRES_DSN"] = async_dsn
+    from seedbank.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    # Migrate in a worker thread so alembic's `asyncio.run(...)` can spin
+    # up its own loop without colliding with our test loop.
+    await asyncio.to_thread(_migrate_to_head, sync_dsn)
+
+    engine = create_async_engine(async_dsn, future=True)
     try:
-        from app.limits import analyze_limiter
-        analyze_limiter.reset()
-    except Exception:
-        pass
-    yield
-
-
-@pytest.fixture
-def db_session():
-    """A real DB session against the test database (rolled back after the test)."""
-    from app.database import SessionLocal
-
-    session = SessionLocal()
-    try:
-        yield session
+        yield engine
     finally:
-        session.rollback()
-        session.close()
+        await engine.dispose()
 
 
-@pytest.fixture
-def png_bytes():
-    """A small valid PNG encoded in-memory (no external files needed)."""
-    import cv2
+async def _truncate_all_tables(engine: AsyncEngine) -> None:
+    """TRUNCATE every user table in the public schema (preserves
+    ``alembic_version`` so migrations are not re-run).
 
-    img = np.zeros((120, 120, 3), dtype=np.uint8)
-    img[:] = (40, 80, 160)
-    ok, buf = cv2.imencode(".png", img)
-    assert ok
-    return buf.tobytes()
+    Called from the function-scoped autouse fixtures in
+    ``tests/integration/conftest.py`` and ``tests/e2e/conftest.py``. Lives
+    here because both tiers need the same SQL and the same exclusion list.
+
+    Why TRUNCATE instead of session-rollback: integration/e2e helpers call
+    ``await session.commit()`` (the production code paths they exercise
+    commit). A rollback at fixture teardown can't undo what another
+    connection has already committed; TRUNCATE on the engine can.
+    """
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        rows = await conn.execute(
+            text(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' AND tablename != 'alembic_version'"
+            )
+        )
+        tables = [r[0] for r in rows]
+        if tables:
+            quoted = ", ".join(f'"{t}"' for t in tables)
+            await conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
+
+
+@pytest_asyncio.fixture
+async def db_session(async_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+    sm = async_sessionmaker(bind=async_engine, expire_on_commit=False, class_=AsyncSession)
+    async with sm() as session:
+        yield session
+        await session.rollback()
+
+
+@pytest_asyncio.fixture
+async def app_client(async_engine: AsyncEngine) -> AsyncIterator["AsyncClient"]:
+    """FastAPI app wired to the testcontainer Postgres + a fake Redis.
+
+    Lives at the top-level conftest so both ``tests/integration/`` (HTTP
+    contract tests) and ``tests/e2e/`` (full flows) can depend on it.
+    """
+    from fakeredis import aioredis as fakeredis_aio
+    from httpx import ASGITransport, AsyncClient
+
+    fake_redis = fakeredis_aio.FakeRedis(decode_responses=True)
+
+    sm: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        bind=async_engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
+
+    async def _override_db() -> AsyncIterator[AsyncSession]:
+        async with sm() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+
+    def _override_redis():
+        return fake_redis
+
+    from seedbank.api.deps import db_session as db_session_dep, redis_dep
+    from seedbank.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[db_session_dep] = _override_db
+    app.dependency_overrides[redis_dep] = _override_redis
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+    await fake_redis.aclose()

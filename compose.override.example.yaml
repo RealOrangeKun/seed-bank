@@ -1,0 +1,44 @@
+# Local dev overlay TEMPLATE.
+#
+# `compose.override.yaml` is auto-loaded by `docker compose`, but it is
+# gitignored (different developers want different host ports) so this file
+# is the checked-in starting point. `make env` copies it to
+# `compose.override.yaml` if missing.
+#
+# Purpose: keep `make up` usable on machines where the standard ports are
+# already taken by other dev stacks. Compose merges this on top of
+# compose.yaml, so we only need to override what conflicts.
+#
+# Service-to-service traffic still uses the in-network container ports
+# (postgres:5432, redis:6379, etc.). Only the *host-published* ports change.
+# `!override` is required (compose 2.20+) — without it, sequences are
+# concatenated and the original bindings would still apply.
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:55432:5432"
+
+  redis:
+    ports: !override
+      - "127.0.0.1:56379:6379"
+
+  minio:
+    ports: !override
+      - "127.0.0.1:59000:9000"
+      - "127.0.0.1:59001:9001"
+
+  clickhouse:
+    ports: !override
+      - "127.0.0.1:58123:8123"
+
+  mlflow:
+    ports: !override
+      - "127.0.0.1:55000:5000"
+
+  api:
+    ports: !override
+      - "127.0.0.1:58080:8000"
+
+  adminer:
+    ports: !override
+      - "127.0.0.1:58081:8080"

@@ -1,6 +1,0 @@
-# Test / dev dependencies (kept separate from the runtime requirements.txt).
-# NOTE: the pinned fastapi==0.109.0 ships starlette 0.35 whose TestClient is
-# incompatible with httpx>=0.28, so pin httpx below that for the test client.
-pytest>=8.0
-httpx<0.28
-ruff>=0.5

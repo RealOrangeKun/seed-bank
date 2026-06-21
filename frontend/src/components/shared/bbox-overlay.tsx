@@ -1,0 +1,84 @@
+import { useState } from "react";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { formatConfidence, humanize, toNumber } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import type { SeedDetectionOut } from "@/lib/api/types";
+
+interface BBoxOverlayProps {
+  src: string;
+  detections: SeedDetectionOut[];
+  /** Optional map of seed_type_id → display label. */
+  seedTypeLabels?: Record<string, string>;
+  alt?: string;
+}
+
+function boxColor(d: SeedDetectionOut): string {
+  if (d.quality === "good") return "hsl(var(--success))";
+  if (d.quality === "bad") return "hsl(var(--destructive))";
+  return "hsl(var(--primary))";
+}
+
+/**
+ * Renders an image with detection boxes overlaid. Boxes are stored normalized
+ * (0–1), so we position them with CSS percentages — resolution-independent,
+ * scales with the rendered image.
+ */
+export function BBoxOverlay({ src, detections, seedTypeLabels, alt }: BBoxOverlayProps) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <div className="relative inline-block max-w-full overflow-hidden rounded-lg border bg-muted">
+        <img src={src} alt={alt ?? "Scan image"} className="block max-w-full" />
+        {detections.map((d, i) => {
+          const left = toNumber(d.box_x_norm) * 100;
+          const top = toNumber(d.box_y_norm) * 100;
+          const width = toNumber(d.box_w_norm) * 100;
+          const height = toNumber(d.box_h_norm) * 100;
+          const label = d.seed_type_id ? seedTypeLabels?.[d.seed_type_id] : undefined;
+          return (
+            <Tooltip key={d.id} open={hovered === i}>
+              <TooltipTrigger asChild>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Detection ${i + 1}`}
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered((h) => (h === i ? null : h))}
+                  onFocus={() => setHovered(i)}
+                  onBlur={() => setHovered((h) => (h === i ? null : h))}
+                  className={cn(
+                    "absolute cursor-pointer rounded-sm border-2 transition-all",
+                    hovered === i ? "z-10 shadow-lg" : "opacity-80",
+                  )}
+                  style={{
+                    left: `${left}%`,
+                    top: `${top}%`,
+                    width: `${width}%`,
+                    height: `${height}%`,
+                    borderColor: boxColor(d),
+                    backgroundColor:
+                      hovered === i ? `${boxColor(d)}22` : "transparent",
+                  }}
+                />
+              </TooltipTrigger>
+              <TooltipContent className="space-y-0.5">
+                <div className="font-medium">
+                  {label ?? (d.quality ? humanize(d.quality) : "Detection")}
+                </div>
+                <div>Confidence: {formatConfidence(d.confidence)}</div>
+                {d.quality ? <div>Quality: {humanize(d.quality)}</div> : null}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </TooltipProvider>
+  );
+}

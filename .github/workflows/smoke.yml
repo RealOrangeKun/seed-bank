@@ -1,0 +1,41 @@
+# End-to-end smoke against a real compose stack.
+# This is the gate that testcontainers can't catch (image-level issues:
+# missing psycopg2 in mlflow, worker concurrency/OOM, the analyze pipeline
+# actually running). Heavy (builds the CPU-torch inference worker), so it
+# runs on master and on demand — not on every PR.
+name: smoke
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Provision .env + compose.override.yaml
+        run: make env
+
+      - name: Build and start the full stack
+        run: make up
+
+      - name: Apply migrations
+        run: make migrate
+
+      - name: Seed catalog, models, demo users
+        run: make seed
+
+      - name: Run smoke
+        run: make smoke
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --tail=300
+
+      - name: Tear down
+        if: always()
+        run: make down-volumes

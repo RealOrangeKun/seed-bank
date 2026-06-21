@@ -1,0 +1,206 @@
+[project]
+name = "seedbank"
+version = "0.1.0"
+description = "Seed-Bank — production-grade seed quality analysis API"
+requires-python = ">=3.12,<3.13"
+readme = "README.md"
+license = { text = "Proprietary" }
+authors = [{ name = "Mohamed Amr" }]
+
+dependencies = [
+  # Web
+  "fastapi>=0.115,<1.0",
+  "uvicorn[standard]>=0.32,<1.0",
+  "python-multipart>=0.0.20",
+  # Validation / config
+  "pydantic>=2.9,<3.0",
+  "pydantic-settings>=2.6,<3.0",
+  "email-validator>=2.2,<3.0",
+  # DB
+  "sqlalchemy[asyncio]>=2.0.36,<3.0",
+  "asyncpg>=0.30,<1.0",
+  "alembic>=1.14,<2.0",
+  "psycopg[binary]>=3.2,<4.0",        # for sync alembic offline
+  # HTTP / object storage / cache
+  "httpx>=0.28,<1.0",
+  "miniopy-async>=1.21,<2.0",
+  "redis[hiredis]>=5.2,<6.0",
+  # Queue
+  "celery[redis]>=5.4,<6.0",
+  # Auth
+  "passlib[bcrypt]>=1.7.4,<2.0",
+  "bcrypt==4.0.1",                    # passlib pin for compatibility
+  "python-jose[cryptography]>=3.3,<4.0",
+  "authlib>=1.3,<2.0",
+  "itsdangerous>=2.2,<3.0",
+  # Observability
+  "structlog>=24.4,<25.0",
+  "prometheus-client>=0.21,<1.0",
+  "sentry-sdk[fastapi]>=2.18,<3.0",
+  "opentelemetry-api>=1.28,<2.0",
+  "opentelemetry-sdk>=1.28,<2.0",
+  "opentelemetry-exporter-otlp>=1.28,<2.0",
+  "opentelemetry-instrumentation-fastapi>=0.49b0",
+  "opentelemetry-instrumentation-sqlalchemy>=0.49b0",
+  "opentelemetry-instrumentation-asyncpg>=0.49b0",
+  "opentelemetry-instrumentation-redis>=0.49b0",
+  "opentelemetry-instrumentation-httpx>=0.49b0",
+  "opentelemetry-instrumentation-celery>=0.49b0",
+  # Rate limiting / security
+  "slowapi>=0.1.9,<1.0",
+  "secure>=1.0.1,<2.0",
+  # Analytics / ML platform
+  "clickhouse-connect>=0.8,<1.0",
+  "mlflow-skinny>=2.18,<3.0",
+  # File handling
+  "python-magic>=0.4.27,<1.0",
+  "pillow>=11.0,<12.0",
+  # Utilities
+  "uuid7>=0.1.0",
+  "tenacity>=9.0,<10.0",
+]
+
+[project.optional-dependencies]
+# Default inference stack — what the torch_local backend (FasterRCNN /
+# ResNet builders, the only wired models) actually loads. Kept deliberately
+# lean so the worker-inference image stays ~1.6 GB instead of ~3.1 GB.
+inference = [
+  "torch>=2.5,<3.0",
+  "torchvision>=0.20,<1.0",
+  "numpy>=1.26,<3.0",
+  "opencv-python-headless>=4.10,<5.0",
+]
+# Full inference stack — adds the optional YOLO (ultralytics) and Roboflow
+# (inference-sdk) backends. Both are lazily imported (manager.py / backends/
+# roboflow.py), so the slim worker boots fine without them; install this extra
+# (and build the `*-full` image targets) only when a YOLO/Roboflow model is
+# actually deployed. ultralytics drags in non-headless OpenCV + matplotlib/
+# pandas/scipy, which is the bulk of the size difference.
+inference-full = [
+  "seedbank[inference]",
+  "ultralytics>=8.3,<9.0",
+  "inference-sdk>=0.30,<1.0",         # Roboflow client
+]
+dev = [
+  "ruff>=0.7,<1.0",
+  "mypy>=1.13,<2.0",
+  "types-passlib",
+  "types-python-jose",
+  "pytest>=8.3,<9.0",
+  "pytest-asyncio>=0.24,<1.0",
+  "pytest-cov>=6.0,<7.0",
+  "pytest-mock>=3.14,<4.0",
+  "anyio>=4.6,<5.0",
+  "testcontainers[postgres,minio,redis]>=4.8,<5.0",
+  "fakeredis>=2.26,<3.0",
+  "factory-boy>=3.3,<4.0",
+  "faker>=33.0,<34.0",
+  "freezegun>=1.5,<2.0",
+  "locust>=2.32,<3.0",
+  "pre-commit>=4.0,<5.0",
+  "mutmut>=3.2,<4.0",
+  "pip-audit>=2.7,<3.0",
+]
+
+[project.scripts]
+seedbank = "seedbank.main:cli"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/seedbank"]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Tooling
+# ──────────────────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+extend-exclude = ["legacy", "alembic/versions", ".venv"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",      # pycodestyle / pyflakes
+  "I",                 # isort
+  "B",                 # bugbear
+  "UP",                # pyupgrade
+  "SIM",               # simplify
+  "TCH",               # type-checking
+  "ASYNC",             # async correctness
+  "S",                 # bandit
+  "PL",                # pylint subset
+  "RUF",               # ruff-specific
+  "N",                 # pep8-naming
+  "PT",                # pytest style
+  "ARG",               # unused arguments
+  "RET",               # return statements
+  "PTH",               # pathlib
+  "T20",               # no print
+]
+ignore = [
+  "S101",   # asserts in tests
+  "PLR0913", # too many args — common in service constructors with DI
+  "PLR2004", # magic numbers in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PLR", "ARG", "T20"]
+"scripts/**" = ["T20"]
+"alembic/**" = ["I", "T20"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
+files = ["src", "tests", "scripts"]
+exclude = ["legacy/", "\\.venv/", "alembic/versions/"]
+
+[[tool.mypy.overrides]]
+module = ["miniopy_async.*", "clickhouse_connect.*", "inference_sdk.*", "ultralytics.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--cov=src/seedbank",
+  "--cov-report=term-missing:skip-covered",
+  "--cov-report=xml",
+]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+  "unit: fast, isolated",
+  "integration: requires testcontainers",
+  "e2e: full stack",
+  "slow: > 5s",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/seedbank"]
+omit = ["*/__init__.py", "src/seedbank/main.py"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "\\.\\.\\.$",
+]

@@ -1,0 +1,423 @@
+# Lean dev stack. Healthchecks everywhere, named volumes, no `latest` for
+# first-party images, no secrets in plain env (uses `${VAR}` references that
+# resolve from `.env`). The GPU worker is opt-in via the `gpu` profile so a
+# laptop without CUDA can still bring up the rest.
+
+name: seedbank
+
+x-app-env: &app-env
+  ENV: ${ENV:-dev}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-seedbank}:${POSTGRES_PASSWORD:-seedbank}@postgres:5432/${POSTGRES_DB:-seedbank}
+  REDIS_DSN: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+  MINIO_ENDPOINT: minio:9000
+  # Host the browser reaches MinIO on, used only to sign GET URLs. MinIO is
+  # published on the host at 127.0.0.1:9000, so ``localhost:9000`` works for a
+  # frontend running on the same machine; override for remote access.
+  MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-localhost:9000}
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-seedbank}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-seedbank-dev-secret}
+  CLICKHOUSE_HOST: clickhouse
+  CLICKHOUSE_PORT: 8123
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-seedbank-dev-secret}
+  CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB:-seedbank}
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+  ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-cpu
+    image: seedbank/api:0.1.0
+    container_name: seedbank-api
+    environment:
+      <<: *app-env
+      # Allow the Vite dev server (and any deployed frontend) to call the API
+      # cross-origin. Comma-separated; defaults to the local dev frontend.
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.5", memory: 768M}
+
+  # ``worker-cpu`` runs CDC, housekeeping, experiments, and DWH dual-write
+  # tasks. It does NOT serve the ``inference`` queue — torch / torchvision
+  # live in the ``[inference]`` extra and are intentionally absent from the
+  # CPU runtime image. Inference jobs go to ``worker-inference``.
+  worker-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-cpu
+    image: seedbank/worker-cpu:0.1.0
+    container_name: seedbank-worker-cpu
+    # Explicit ``--concurrency``: Celery defaults to host CPU count, which on
+    # a developer laptop is often 8–16. Each prefork child loads SQLAlchemy +
+    # boto + pydantic etc. (~50 MB), so the default would blow past the 512M
+    # cap and the container is OOM-killed (exit 137). The CPU limit is 1.0
+    # and these are I/O-bound DWH/CDC tasks — concurrency=2 is plenty.
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "default,cdc,housekeeping,experiments,dwh", "--concurrency=${WORKER_CPU_CONCURRENCY:-2}", "--max-tasks-per-child=${WORKER_CPU_MAX_TASKS_PER_CHILD:-100}"]
+    environment:
+      <<: *app-env
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A seedbank.workers.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  # ``worker-inference`` serves the ``inference`` + ``evaluation`` queues.
+  # Default build target is ``runtime-inference-cpu`` — the SLIM torch stack
+  # (torch CPU + torchvision + headless cv2, ~1.6 GB) that the wired models'
+  # torch_local backend needs. To run a YOLO or Roboflow model, switch the
+  # target to ``runtime-inference-cpu-full`` (adds ultralytics + inference-sdk).
+  # The prod overlay swaps the target to ``runtime-gpu`` and re-adds the GPU
+  # device reservation.
+  worker-inference:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-inference-cpu
+    image: seedbank/worker-inference:0.1.0
+    container_name: seedbank-worker-inference
+    # Explicit ``--concurrency``: matches the 2-CPU cap. Celery's host-CPU
+    # default would fork ~12 children, each lazily loading torch + a full
+    # model when its first inference task arrives (~500 MB peak); with a
+    # bigger model that would OOM the 4 GB cap. Two children give the right
+    # parallelism for the available CPUs without burning RAM on idle forks.
+    command: ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference,evaluation", "--concurrency=${WORKER_INFERENCE_CONCURRENCY:-2}", "--max-tasks-per-child=${WORKER_INFERENCE_MAX_TASKS_PER_CHILD:-50}"]
+    environment:
+      <<: *app-env
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A seedbank.workers.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    restart: unless-stopped
+    deploy:
+      resources:
+        # CPU torch is the default. Cap memory generously — FasterRCNN
+        # + ResNet18 on CPU can spike to ~2 GB at first inference.
+        limits: {cpus: "2.0", memory: 4G}
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: seedbank-postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=4"
+      - "-c"
+      - "max_wal_senders=4"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-seedbank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seedbank}
+      POSTGRES_DB: ${POSTGRES_DB:-seedbank}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./ops/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  redis:
+    image: redis:7-alpine
+    container_name: seedbank-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 320M}
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: seedbank-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-seedbank}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-seedbank-dev-secret}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.10-alpine
+    container_name: seedbank-clickhouse
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-seedbank}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-seedbank-dev-secret}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ports:
+      - "127.0.0.1:8123:8123"
+    ulimits:
+      nofile: {soft: 262144, hard: 262144}
+    healthcheck:
+      # Use 127.0.0.1 not localhost — the alpine image resolves localhost to
+      # ::1 first and clickhouse-server binds IPv4 only.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 1G}
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mlflow
+    image: seedbank/mlflow:0.1.0
+    container_name: seedbank-mlflow
+    command:
+      - "mlflow"
+      - "server"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "5000"
+      - "--backend-store-uri"
+      - "postgresql://${POSTGRES_USER:-seedbank}:${POSTGRES_PASSWORD:-seedbank}@postgres:5432/mlflow"
+      - "--artifacts-destination"
+      - "s3://seedbank-experiments/mlflow"
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-seedbank}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-seedbank-dev-secret}
+    ports:
+      - "127.0.0.1:5000:5000"
+    healthcheck:
+      # The slim mlflow image doesn't ship curl; use the Python interpreter
+      # we know is there. ``urlopen`` raises on non-2xx, so we don't need
+      # an explicit status check.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; urllib.request.urlopen('http://localhost:5000/health').read()"
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  adminer:
+    profiles: ["dev"]
+    image: adminer:4.8.1
+    container_name: seedbank-adminer
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+
+  # Web UI for the ClickHouse DWH (what Adminer is for Postgres). ch-ui's
+  # server proxies ClickHouse over the compose network, so the browser only
+  # talks to ch-ui — ``CLICKHOUSE_URL`` is the INTERNAL host and no ClickHouse
+  # CORS config is needed. Opt-in via the ``dev`` profile.
+  ch-ui:
+    profiles: ["dev"]
+    image: ghcr.io/caioricciuti/ch-ui:v2.5.1
+    container_name: seedbank-ch-ui
+    environment:
+      # Credentials travel in the URL (HTTP basic auth) — our ClickHouse has no
+      # usable ``default`` user, only ``seedbank``. Same vars the app uses.
+      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-seedbank}:${CLICKHOUSE_PASSWORD:-seedbank-dev-secret}@clickhouse:8123
+      CONNECTION_NAME: Seed-Bank DWH
+      # Encrypts stored connection creds in the data volume. Dev-only default;
+      # set CH_UI_SECRET_KEY in a real environment.
+      APP_SECRET_KEY: ${CH_UI_SECRET_KEY:-seedbank-dev-ch-ui-secret}
+    ports:
+      - "127.0.0.1:3488:3488"
+    volumes:
+      - ch-ui-data:/app/data
+    depends_on:
+      clickhouse: {condition: service_healthy}
+    healthcheck:
+      # 127.0.0.1 not localhost — busybox wget resolves localhost to ::1 first.
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://127.0.0.1:3488/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+  # ── Observability (opt-in, Phase 9) ────────────────────────────────────
+  # Bring up with ``docker compose --profile obs up`` (or
+  # ``COMPOSE_PROFILES=obs make up``). Default ``make up`` stays lean.
+  # Prometheus scrapes ``api:8000/metrics``; Grafana auto-loads the
+  # provisioned datasource + Seed-Bank Overview dashboard.
+  prometheus:
+    profiles: ["obs"]
+    # TODO(infra): bump to current 2.x stable (or evaluate 3.x adoption) — verify tag on quay.io/prom/prometheus before bumping.
+    image: prom/prometheus:v2.55.1
+    container_name: seedbank-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  grafana:
+    profiles: ["obs"]
+    # TODO(infra): bump to 11.5.x or 11.6.x stable — verify exact patch tag on hub.docker.com/r/grafana/grafana before bumping.
+    image: grafana/grafana:11.3.0
+    container_name: seedbank-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      # Fail-closed: no fallback. Container refuses to start if unset.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set in .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_SECURITY_COOKIE_SAMESITE: "strict"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_X_CONTENT_TYPE_OPTIONS: "true"
+      GF_SECURITY_X_XSS_PROTECTION: "true"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      prometheus: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  # React frontend served by nginx. Opt-in via the `frontend` profile so the
+  # default `make up` stays lean. ``VITE_API_BASE_URL`` is baked at build time
+  # (Vite inlines it), so set it to the API origin the *browser* will reach.
+  frontend:
+    profiles: ["frontend"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${FRONTEND_API_BASE_URL:-http://localhost:8000}
+    image: seedbank/frontend:0.1.0
+    container_name: seedbank-frontend
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      # Use 127.0.0.1 not localhost — busybox wget resolves localhost to ::1
+      # first and nginx binds IPv4 only (same gotcha as the clickhouse check).
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://127.0.0.1:80/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  clickhouse-data:
+  prometheus-data:
+  grafana-data:
+  ch-ui-data:
+
+networks:
+  default:
+    name: seedbank-net

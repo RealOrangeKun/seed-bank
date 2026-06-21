@@ -1,0 +1,35 @@
+# Prometheus scrape config for the lean dev stack.
+#
+# Mounted into the prometheus container by ``compose.yaml`` (obs profile).
+# The API exposes ``/metrics`` only — workers do not run an embedded HTTP
+# server so the per-worker Celery counters surface via the API process via
+# the shared registry on production deployments. For dev we just scrape
+# the API container; worker-side timings (``seedbank_dwh_task_duration_seconds``)
+# show up when ``celery_task_always_eager=True`` runs them in-process,
+# which is the integration-test path.
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: seedbank-dev
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: seedbank-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: seedbank-api
+    # Defensive cardinality guard: the API replaces raw URL paths with
+    # route templates ({id}, etc.) before recording metrics, but if that
+    # ever fails open we drop the time series here instead of letting a
+    # per-UUID label explode storage.
+    metric_relabel_configs:
+      - source_labels: [path]
+        regex: ".*[0-9a-f]{8}-[0-9a-f]{4}-.*"
+        action: drop
