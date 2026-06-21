@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateTime, formatDuration, shortId } from "@/lib/format";
+import { formatDateTime, formatDuration } from "@/lib/format";
 import { usePagination } from "@/hooks/use-pagination";
 
 import { useBatches } from "../api";
@@ -59,10 +59,9 @@ export function BatchesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Batch</TableHead>
+                  <TableHead>Scan</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Images</TableHead>
-                  <TableHead>Submitted</TableHead>
                   <TableHead>Duration</TableHead>
                 </TableRow>
               </TableHeader>
@@ -73,14 +72,13 @@ export function BatchesPage() {
                     className="cursor-pointer"
                     onClick={() => navigate(`/batches/${b.id}`)}
                   >
-                    <TableCell className="font-mono text-xs">{shortId(b.id)}</TableCell>
+                    <TableCell className="font-medium">
+                      {formatDateTime(b.submitted_at)}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={b.status} />
                     </TableCell>
                     <TableCell>{b.image_count}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDateTime(b.submitted_at)}
-                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDuration(b.duration_ms)}
                     </TableCell>

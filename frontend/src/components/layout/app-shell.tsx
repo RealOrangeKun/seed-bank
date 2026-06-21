@@ -12,7 +12,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-64 shrink-0 border-r bg-card/40 md:block">
+      <aside className="hidden w-64 shrink-0 border-r bg-surface md:block">
         <div className="sticky top-0 h-screen overflow-y-auto">
           <SidebarNav />
         </div>

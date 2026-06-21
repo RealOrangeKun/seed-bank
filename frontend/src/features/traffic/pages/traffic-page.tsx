@@ -1,13 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { CopyButton } from "@/components/shared/copy-button";
 import { Field } from "@/components/shared/field";
 import { PageHeader } from "@/components/shared/page-header";
+import { ModelSelect, SeedTypeSelect } from "@/components/shared/resource-select";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,7 @@ import { applyApiError } from "@/lib/form";
 import { useReplaceTrafficSplits, useTrafficSplits, type TrafficSegment } from "../api";
 
 const entrySchema = z.object({
-  model_id: z.string().uuid("Must be a valid model UUID"),
+  model_id: z.string().uuid("Select a model"),
   weight: z.coerce
     .number({ invalid_type_error: "Weight is required" })
     .int("Whole number")
@@ -141,15 +142,15 @@ export function TrafficPage() {
               </Field>
               <Field
                 id="segment-seed-type"
-                label="Seed type ID"
-                hint="Optional UUID; leave blank for the default segment"
+                label="Seed type"
+                hint="Leave as default to route all seed types"
                 className="flex-1"
               >
-                <Input
+                <SeedTypeSelect
                   id="segment-seed-type"
-                  placeholder="(default)"
                   value={seedTypeId}
-                  onChange={(e) => setSeedTypeId(e.target.value)}
+                  onChange={setSeedTypeId}
+                  includeNone
                 />
               </Field>
               <Button type="button" onClick={loadSegment}>
@@ -230,14 +231,21 @@ export function TrafficPage() {
                   <div key={field.id} className="flex items-start gap-3">
                     <Field
                       id={`entries.${index}.model_id`}
-                      label="Model ID"
+                      label="Model"
                       className="flex-1"
                       error={form.formState.errors.entries?.[index]?.model_id?.message}
                     >
-                      <Input
-                        id={`entries.${index}.model_id`}
-                        placeholder="Model UUID"
-                        {...form.register(`entries.${index}.model_id`)}
+                      <Controller
+                        control={form.control}
+                        name={`entries.${index}.model_id`}
+                        render={({ field: f }) => (
+                          <ModelSelect
+                            id={`entries.${index}.model_id`}
+                            value={f.value}
+                            onChange={f.onChange}
+                            kind={segment?.kind ?? kind}
+                          />
+                        )}
                       />
                     </Field>
                     <Field

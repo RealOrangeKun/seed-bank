@@ -1,13 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FlaskConical } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { Field } from "@/components/shared/field";
 import { PageHeader } from "@/components/shared/page-header";
+import { DatasetSelect, ModelSelect } from "@/components/shared/resource-select";
 import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
@@ -44,6 +45,8 @@ import type { ExperimentStatus } from "@/lib/api/types";
 import { applyApiError } from "@/lib/form";
 import { formatDateTime, formatDuration, humanize, shortId } from "@/lib/format";
 import { usePagination } from "@/hooks/use-pagination";
+import { useDatasets } from "@/features/datasets/api";
+import { useModels } from "@/features/models/api";
 
 import { useCreateExperiment, useExperiments } from "../api";
 
@@ -51,8 +54,8 @@ const ALL = "all";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
-  modelId: z.string().uuid("Must be a valid UUID"),
-  datasetId: z.string().uuid("Must be a valid UUID"),
+  modelId: z.string().uuid("Select a model to evaluate"),
+  datasetId: z.string().uuid("Select a dataset"),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -114,21 +117,33 @@ function RunExperimentDialog() {
           </Field>
           <Field
             id="modelId"
-            label="Model ID"
+            label="Model"
             required
-            hint="UUID of the model to evaluate"
+            hint="The model to evaluate"
             error={form.formState.errors.modelId?.message}
           >
-            <Input id="modelId" {...form.register("modelId")} />
+            <Controller
+              control={form.control}
+              name="modelId"
+              render={({ field }) => (
+                <ModelSelect id="modelId" value={field.value} onChange={field.onChange} />
+              )}
+            />
           </Field>
           <Field
             id="datasetId"
-            label="Dataset ID"
+            label="Dataset"
             required
-            hint="UUID of the frozen dataset"
+            hint="The frozen dataset to evaluate against"
             error={form.formState.errors.datasetId?.message}
           >
-            <Input id="datasetId" {...form.register("datasetId")} />
+            <Controller
+              control={form.control}
+              name="datasetId"
+              render={({ field }) => (
+                <DatasetSelect id="datasetId" value={field.value} onChange={field.onChange} />
+              )}
+            />
           </Field>
 
           <DialogFooter>
@@ -152,6 +167,12 @@ export function ExperimentsPage() {
     pageSize: pagination.pageSize,
     status,
   });
+  const models = useModels({ page: 1, pageSize: 100 });
+  const datasets = useDatasets({ page: 1, pageSize: 100 });
+  const modelMap = new Map(
+    (models.data?.data ?? []).map((m) => [m.id, `${m.name} ${m.version}`]),
+  );
+  const datasetMap = new Map((datasets.data?.data ?? []).map((d) => [d.id, d.name]));
 
   return (
     <>
@@ -218,11 +239,11 @@ export function ExperimentsPage() {
                     <TableCell>
                       <StatusBadge status={e.status} />
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {shortId(e.model_id)}
+                    <TableCell>
+                      {modelMap.get(e.model_id) ?? `model ${shortId(e.model_id)}`}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {shortId(e.dataset_id)}
+                    <TableCell>
+                      {datasetMap.get(e.dataset_id) ?? `dataset ${shortId(e.dataset_id)}`}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDuration(e.duration_ms)}

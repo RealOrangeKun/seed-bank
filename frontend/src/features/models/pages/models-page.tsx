@@ -1,13 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { Field } from "@/components/shared/field";
 import { PageHeader } from "@/components/shared/page-header";
+import { SeedTypeSelect } from "@/components/shared/resource-select";
 import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
@@ -177,11 +178,21 @@ function RegisterModelDialog() {
           </Field>
           <Field
             id="seedTypeId"
-            label="Seed type ID"
-            hint="Optional UUID; targets a specific seed type"
+            label="Seed type"
+            hint="Optional; scope this model to one seed type"
             error={form.formState.errors.seedTypeId?.message}
           >
-            <Input id="seedTypeId" {...form.register("seedTypeId")} />
+            <Controller
+              control={form.control}
+              name="seedTypeId"
+              render={({ field }) => (
+                <SeedTypeSelect
+                  id="seedTypeId"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           </Field>
           <DialogFooter>
             <Button

@@ -22,8 +22,13 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatDuration, humanize, shortId } from "@/lib/format";
 import type { ScanImageOut } from "@/lib/api/types";
+import { useSeedTypes } from "@/features/catalog/api";
+import { useModels } from "@/features/models/api";
 
 import { useBatch, useBatchImageUrls } from "../api";
+
+/** Resolve a seed-type id to its display name, falling back to a dash. */
+type Labeler = (id: string | null | undefined) => string;
 
 function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -34,7 +39,17 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function ImageCard({ image, url }: { image: ScanImageOut; url: string | undefined }) {
+function ImageCard({
+  image,
+  url,
+  seedTypeName,
+  modelName,
+}: {
+  image: ScanImageOut;
+  url: string | undefined;
+  seedTypeName: Labeler;
+  modelName: Labeler;
+}) {
   const inferences = image.inferences ?? [];
   const detections = inferences.flatMap((inf) => inf.detections ?? []);
 
@@ -64,7 +79,7 @@ function ImageCard({ image, url }: { image: ScanImageOut; url: string | undefine
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant="outline">{humanize(inf.backend)}</Badge>
                   <span className="inline-flex items-center gap-1">
-                    model {shortId(inf.model_id)}
+                    {modelName(inf.model_id)}
                     <CopyButton value={inf.model_id} label="Copy model id" />
                   </span>
                   <span>·</span>
@@ -85,9 +100,7 @@ function ImageCard({ image, url }: { image: ScanImageOut; url: string | undefine
                     <TableBody>
                       {dets.map((d) => (
                         <TableRow key={d.id}>
-                          <TableCell className="font-mono text-xs">
-                            {d.seed_type_id ? shortId(d.seed_type_id) : "—"}
-                          </TableCell>
+                          <TableCell>{seedTypeName(d.seed_type_id)}</TableCell>
                           <TableCell>
                             {d.quality ? <StatusBadge status={d.quality} /> : "—"}
                           </TableCell>
@@ -118,12 +131,25 @@ export function BatchDetailPage() {
     batch.data && ["succeeded", "partial", "failed"].includes(batch.data.status);
   const imageUrls = useBatchImageUrls(batchId, Boolean(isTerminal));
 
+  const seedTypes = useSeedTypes();
+  const models = useModels({ page: 1, pageSize: 100 });
+
   const urlMap = new Map((imageUrls.data ?? []).map((u) => [u.image_id, u.url]));
+  const seedTypeMap = new Map((seedTypes.data ?? []).map((s) => [s.id, s.display_name]));
+  const modelMap = new Map(
+    (models.data?.data ?? []).map((m) => [m.id, `${m.name} ${m.version}`]),
+  );
+  const seedTypeName: Labeler = (id) => (id ? (seedTypeMap.get(id) ?? "Unclassified") : "—");
+  const modelName: Labeler = (id) => (id ? (modelMap.get(id) ?? `model ${shortId(id)}`) : "—");
+
+  const title = batch.data
+    ? `Scan · ${formatDateTime(batch.data.submitted_at)}`
+    : "Scan";
 
   return (
     <>
       <PageHeader
-        title={`Scan ${shortId(batchId)}`}
+        title={title}
         description="Detection and quality results."
         actions={
           <Button variant="outline" asChild>
@@ -149,6 +175,15 @@ export function BatchDetailPage() {
                 value={formatDateTime(batch.data.submitted_at)}
               />
               <MetaRow label="Duration" value={formatDuration(batch.data.duration_ms)} />
+              <MetaRow
+                label="Scan ID"
+                value={
+                  <span className="inline-flex items-center gap-1 font-mono text-xs">
+                    {shortId(batch.data.id)}
+                    <CopyButton value={batch.data.id} label="Copy scan id" />
+                  </span>
+                }
+              />
               {batch.data.geo_country_code ? (
                 <MetaRow
                   label="Location"
@@ -183,7 +218,13 @@ export function BatchDetailPage() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {(batch.data.images ?? []).map((image) => (
-                <ImageCard key={image.id} image={image} url={urlMap.get(image.id)} />
+                <ImageCard
+                  key={image.id}
+                  image={image}
+                  url={urlMap.get(image.id)}
+                  seedTypeName={seedTypeName}
+                  modelName={modelName}
+                />
               ))}
             </div>
           )}

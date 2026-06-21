@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBatches } from "@/features/batches/api";
 import { hasRole, useAuth } from "@/features/auth/use-auth";
-import { formatDateTime, shortId } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 
 function QuickAction({
   to,
@@ -107,10 +107,10 @@ export function DashboardPage() {
                     to={`/batches/${b.id}`}
                     className="flex items-center justify-between gap-3 py-3 text-sm hover:text-primary"
                   >
-                    <span className="font-mono text-xs">{shortId(b.id)}</span>
+                    <span className="font-medium">{formatDateTime(b.submitted_at)}</span>
                     <StatusBadge status={b.status} />
                     <span className="text-muted-foreground">
-                      {b.image_count} img · {formatDateTime(b.submitted_at)}
+                      {b.image_count} image{b.image_count === 1 ? "" : "s"}
                     </span>
                   </Link>
                 </li>

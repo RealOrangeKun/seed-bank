@@ -43,6 +43,10 @@ export type ExperimentSummaryOut = S["ExperimentSummaryOut"];
 export type ExperimentDetailOut = S["ExperimentDetailOut"];
 export type TrafficSplitOut = S["TrafficSplitOut"];
 
+// ── Catalog (reference data) ──────────────────────────────────────────────────
+export type SeedTypeOut = S["SeedTypeOut"];
+export type SupplierOut = S["SupplierOut"];
+
 // ── Shared response envelopes (generic; defined here to avoid the bracketed
 //    generic names openapi-typescript emits) ─────────────────────────────────
 export interface Envelope<T> {

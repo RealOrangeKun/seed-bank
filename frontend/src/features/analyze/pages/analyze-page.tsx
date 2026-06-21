@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -9,6 +9,11 @@ import { z } from "zod";
 import { Field } from "@/components/shared/field";
 import { FileDropzone } from "@/components/shared/file-dropzone";
 import { PageHeader } from "@/components/shared/page-header";
+import {
+  ModelSelect,
+  SeedTypeSelect,
+  SupplierSelect,
+} from "@/components/shared/resource-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -110,19 +115,39 @@ export function AnalyzePage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
                   id="seedTypeId"
-                  label="Seed type ID"
-                  hint="Optional UUID; targets a specific seed type"
+                  label="Seed type"
+                  hint="Helps pick the right grading model"
                   error={form.formState.errors.seedTypeId?.message}
                 >
-                  <Input id="seedTypeId" {...form.register("seedTypeId")} />
+                  <Controller
+                    control={form.control}
+                    name="seedTypeId"
+                    render={({ field }) => (
+                      <SeedTypeSelect
+                        id="seedTypeId"
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                      />
+                    )}
+                  />
                 </Field>
                 <Field
                   id="supplierId"
-                  label="Supplier ID"
-                  hint="Optional UUID"
+                  label="Supplier"
+                  hint="Where the seeds came from"
                   error={form.formState.errors.supplierId?.message}
                 >
-                  <Input id="supplierId" {...form.register("supplierId")} />
+                  <Controller
+                    control={form.control}
+                    name="supplierId"
+                    render={({ field }) => (
+                      <SupplierSelect
+                        id="supplierId"
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                      />
+                    )}
+                  />
                 </Field>
                 <Field
                   id="countryCode"
@@ -152,11 +177,22 @@ export function AnalyzePage() {
                   <Field
                     id="modelId"
                     label="Model override"
-                    hint="Developer-only: force a specific model UUID"
+                    hint="Developer-only: force a specific model instead of the traffic router"
                     error={form.formState.errors.modelId?.message}
                     className="sm:col-span-2"
                   >
-                    <Input id="modelId" {...form.register("modelId")} />
+                    <Controller
+                      control={form.control}
+                      name="modelId"
+                      render={({ field }) => (
+                        <ModelSelect
+                          id="modelId"
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          includeNone
+                        />
+                      )}
+                    />
                   </Field>
                 ) : null}
               </div>

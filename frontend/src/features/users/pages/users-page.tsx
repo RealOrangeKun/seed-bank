@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/table";
 import { ROLES } from "@/lib/api/types";
 import type { Role, UserListOut } from "@/lib/api/types";
-import { humanize, shortId } from "@/lib/format";
+import { humanize } from "@/lib/format";
 import { usePagination } from "@/hooks/use-pagination";
 
 import { useUpdateRole, useUsers } from "../api";
@@ -94,12 +94,7 @@ export function UsersPage() {
               <TableBody>
                 {users.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell className="font-medium">
-                      {u.email}
-                      <span className="ml-2 font-mono text-xs text-muted-foreground">
-                        {shortId(u.id)}
-                      </span>
-                    </TableCell>
+                    <TableCell className="font-medium">{u.email}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {u.full_name ?? "—"}
                     </TableCell>
