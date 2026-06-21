@@ -7,13 +7,16 @@ distribution logic without spinning up Postgres.
 from __future__ import annotations
 
 from collections import Counter
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
 
 from seedbank.core.exceptions import ModelNotReadyError
 from seedbank.infrastructure.db.enums import ModelKind
-from seedbank.services.traffic_router import TrafficRouter, _bucket_for
+from seedbank.infrastructure.db.models import ModelArtifact
+from seedbank.infrastructure.db.repositories import ModelArtifactRepository
+from seedbank.services.traffic_router import TrafficRouter, _bucket_for, _SplitEntry
 
 # ── Fakes ────────────────────────────────────────────────────────────────────
 
@@ -36,27 +39,33 @@ class _FakeRouter(TrafficRouter):
     """Subclass that swaps the DB query for an in-memory fixture so we can
     exercise the routing math without spinning up Postgres."""
 
-    def __init__(self, *, splits, production_id, redis):
+    def __init__(
+        self,
+        *,
+        splits: list[tuple[UUID, int]],
+        production_id: UUID | None,
+        redis: _FakeRedis,
+    ) -> None:
         self._splits_fixture = splits
         self._production_id = production_id
-        self.redis = redis
+        self.redis = redis  # type: ignore[assignment]
 
-    async def _query_splits(self, kind, seed_type_id):  # type: ignore[override]
-        from seedbank.services.traffic_router import _SplitEntry
-
+    async def _query_splits(self, kind: ModelKind, seed_type_id: UUID | None) -> list[_SplitEntry]:
         return [_SplitEntry(model_id=mid, weight=w) for mid, w in self._splits_fixture]
 
     @property
-    def models(self):  # type: ignore[override]
+    def models(self) -> ModelArtifactRepository:  # type: ignore[override]
         production_id = self._production_id
 
         class _M:
-            async def get_production(self, kind, seed_type_id):
+            async def get_production(
+                self, kind: ModelKind, seed_type_id: UUID | None
+            ) -> ModelArtifact | None:
                 if production_id is None:
                     return None
-                return type("R", (), {"id": production_id})()
+                return cast("ModelArtifact", type("R", (), {"id": production_id})())
 
-        return _M()
+        return cast("ModelArtifactRepository", _M())
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────

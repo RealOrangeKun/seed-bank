@@ -9,7 +9,7 @@ doesn't ripple through 50 test files.
 from __future__ import annotations
 
 import factory
-from factory import Faker
+from factory import Faker  # type: ignore[attr-defined]
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.core.security import hash_password
@@ -26,7 +26,7 @@ DEFAULT_TEST_PASSWORD = "StrongPasswd1A"
 _HASHED_DEFAULT = hash_password(DEFAULT_TEST_PASSWORD)
 
 
-class UserFactory(factory.Factory):
+class UserFactory(factory.Factory):  # type: ignore[name-defined, misc]
     """Build (don't persist) a ``User`` ORM instance.
 
     Use ``UserFactory.build(...)`` for the in-memory object; persistence is
@@ -37,9 +37,9 @@ class UserFactory(factory.Factory):
     class Meta:
         model = User
 
-    email = Faker("email")
+    email = Faker("email")  # type: ignore[no-untyped-call]
     hashed_password = _HASHED_DEFAULT
-    full_name = Faker("name")
+    full_name = Faker("name")  # type: ignore[no-untyped-call]
     role = UserRole.END_USER.value
     is_active = True
     is_verified = True
@@ -59,7 +59,7 @@ async def make_user(
     that the bcrypt hash, role-string conversion, and commit semantics live
     in exactly one place.
     """
-    user = UserFactory.build(
+    user: User = UserFactory.build(
         role=role.value,
         is_active=is_active,
         is_verified=is_verified,

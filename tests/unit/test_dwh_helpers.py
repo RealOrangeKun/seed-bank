@@ -14,13 +14,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from seedbank.core import metrics
 from seedbank.core.exceptions import NotFoundError
+from seedbank.infrastructure.db.models import ModelArtifact, SeedType, User
+from seedbank.workers.celery_app import celery_app
 from seedbank.workers.tasks import dwh as dwh_module
 from seedbank.workers.tasks.dwh import (
     DWH_QUEUE,
@@ -49,7 +52,8 @@ def _duration_count(task: str, result: str) -> float:
 
 
 def _dispatch_counter(task: str, result: str) -> float:
-    return metrics.DWH_DISPATCH.labels(task=task, result=result)._value.get()
+    value: float = metrics.DWH_DISPATCH.labels(task=task, result=result)._value.get()
+    return value
 
 
 pytestmark = pytest.mark.unit
@@ -60,7 +64,7 @@ pytestmark = pytest.mark.unit
 
 def test_dispatch_after_commit_calls_celery_send_task() -> None:
     inf_id = str(uuid4())
-    with patch.object(dwh_module.celery_app, "send_task") as send:
+    with patch.object(celery_app, "send_task") as send:
         dispatch_after_commit(SYNC_INFERENCE, inf_id)
     send.assert_called_once_with(SYNC_INFERENCE, args=[inf_id], queue=DWH_QUEUE)
 
@@ -69,9 +73,7 @@ def test_dispatch_after_commit_swallows_broker_failures() -> None:
     """A Redis outage must NOT propagate into the commit-then-dispatch
     call site — the OLTP write is already durable; losing the warehouse
     delta is recoverable via backfill."""
-    with patch.object(
-        dwh_module.celery_app, "send_task", side_effect=ConnectionError("redis down")
-    ):
+    with patch.object(celery_app, "send_task", side_effect=ConnectionError("redis down")):
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))  # must not raise
 
 
@@ -83,7 +85,7 @@ def test_dispatch_after_commit_short_circuits_when_dwh_disabled() -> None:
     fake_settings = SimpleNamespace(dwh_enabled=False)
     with (
         patch.object(dwh_module, "get_settings", return_value=fake_settings),
-        patch.object(dwh_module.celery_app, "send_task") as send,
+        patch.object(celery_app, "send_task") as send,
     ):
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
     send.assert_not_called()
@@ -94,7 +96,7 @@ def test_dispatch_after_commit_short_circuits_when_dwh_disabled() -> None:
 
 def test_dispatch_counter_ticks_on_success() -> None:
     before = _dispatch_counter(SYNC_INFERENCE, "ok")
-    with patch.object(dwh_module.celery_app, "send_task"):
+    with patch.object(celery_app, "send_task"):
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
     after = _dispatch_counter(SYNC_INFERENCE, "ok")
     assert after - before == 1
@@ -104,9 +106,7 @@ def test_dispatch_counter_ticks_on_broker_error() -> None:
     """A broker failure must record an ``error`` tick — that's the alert
     surface operators wire up for Finding #5."""
     before = _dispatch_counter(SYNC_INFERENCE, "error")
-    with patch.object(
-        dwh_module.celery_app, "send_task", side_effect=ConnectionError("redis down")
-    ):
+    with patch.object(celery_app, "send_task", side_effect=ConnectionError("redis down")):
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
     after = _dispatch_counter(SYNC_INFERENCE, "error")
     assert after - before == 1
@@ -120,7 +120,7 @@ def test_dispatch_counter_records_disabled_state() -> None:
     before = _dispatch_counter(SYNC_INFERENCE, "disabled")
     with (
         patch.object(dwh_module, "get_settings", return_value=fake_settings),
-        patch.object(dwh_module.celery_app, "send_task"),
+        patch.object(celery_app, "send_task"),
     ):
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))
     after = _dispatch_counter(SYNC_INFERENCE, "disabled")
@@ -144,7 +144,7 @@ def test_dim_user_maps_orm_fields() -> None:
         created_at=_ts(),
         updated_at=_ts(2026),
     )
-    row = _dim_user(user)
+    row = _dim_user(cast("User", user))
     assert row.user_id == user.id
     assert row.email == "x@y.com"
     assert row.role == "ai_developer"
@@ -165,7 +165,7 @@ def test_dim_model_preserves_nullable_seed_type() -> None:
         created_at=_ts(),
         updated_at=_ts(),
     )
-    row = _dim_model(model)
+    row = _dim_model(cast("ModelArtifact", model))
     assert row.seed_type_id is None
     assert row.status == "production"
     assert row.kind == "classification"
@@ -178,7 +178,7 @@ def test_run_timed_records_ok_on_clean_return() -> None:
     """Happy path: histogram count delta == 1 with ``result="ok"``."""
     task = "seedbank.dwh.test_ok"
 
-    async def _inner(_uuid):
+    async def _inner(_uuid: UUID) -> None:
         return None
 
     before = _duration_count(task, "ok")
@@ -192,7 +192,7 @@ def test_run_timed_records_not_found_and_reraises() -> None:
     re-raise so Celery's ack semantics see the failure."""
     task = "seedbank.dwh.test_not_found"
 
-    async def _inner(_uuid):
+    async def _inner(_uuid: UUID) -> None:
         raise NotFoundError("missing")
 
     before = _duration_count(task, "not_found")
@@ -207,7 +207,7 @@ def test_run_timed_records_error_and_reraises_on_generic_exception() -> None:
     operators wire to a retry-driving condition."""
     task = "seedbank.dwh.test_error"
 
-    async def _inner(_uuid):
+    async def _inner(_uuid: UUID) -> None:
         raise RuntimeError("boom")
 
     before = _duration_count(task, "error")
@@ -248,7 +248,7 @@ def test_dim_seed_type_preserves_decimal_threshold() -> None:
         created_at=_ts(),
         updated_at=_ts(),
     )
-    row = _dim_seed_type(st)
+    row = _dim_seed_type(cast("SeedType", st))
     assert isinstance(row.default_confidence_threshold, Decimal)
     assert row.default_confidence_threshold == Decimal("0.7000")
     assert row.code == "coffee"

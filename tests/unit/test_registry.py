@@ -6,13 +6,15 @@ and lookup against an isolated registry state via ``_reset_for_tests``.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
 from seedbank.infrastructure.ml import registry
 
 
 @pytest.fixture(autouse=True)
-def _isolate_registry() -> None:
+def _isolate_registry() -> Iterator[None]:
     registry._reset_for_tests()
     # Pretend autodiscovery already ran so tests don't import the builder
     # files (which need torch).

@@ -34,7 +34,8 @@ async def _login(client: AsyncClient, email: str) -> str:
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["data"]["access_token"]
+    token: str = r.json()["data"]["access_token"]
+    return token
 
 
 async def test_end_user_cannot_list_users(

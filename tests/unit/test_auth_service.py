@@ -24,7 +24,8 @@ from seedbank.services.auth_service import AuthService
 
 
 def _auth_login_count(result: str) -> float:
-    return metrics.AUTH_LOGIN.labels(result=result)._value.get()
+    value: float = metrics.AUTH_LOGIN.labels(result=result)._value.get()
+    return value
 
 
 class _FakeSession:

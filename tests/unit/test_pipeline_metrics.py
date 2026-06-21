@@ -80,7 +80,10 @@ def _cls_cfg() -> ClassificationConfig:
 
 
 def _inf_total(kind: str, backend: str, status: str) -> float:
-    return metrics.INFERENCE_TOTAL.labels(kind=kind, backend=backend, status=status)._value.get()
+    value: float = metrics.INFERENCE_TOTAL.labels(
+        kind=kind, backend=backend, status=status
+    )._value.get()
+    return value
 
 
 def _inf_dur_count(kind: str, backend: str) -> float:

@@ -73,9 +73,9 @@ class RoboflowBackend:
         b64 = base64.b64encode(image).decode("ascii")
         try:
             result = await asyncio.to_thread(
-                client.infer,
+                client.infer,  # type: ignore[attr-defined]
                 b64,
-                model_id=model_id,  # type: ignore[attr-defined]
+                model_id=model_id,
             )
         except Exception as exc:
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc
@@ -114,9 +114,9 @@ class RoboflowBackend:
         b64 = base64.b64encode(crop).decode("ascii")
         try:
             result = await asyncio.to_thread(
-                client.infer,
+                client.infer,  # type: ignore[attr-defined]
                 b64,
-                model_id=model_id,  # type: ignore[attr-defined]
+                model_id=model_id,
             )
         except Exception as exc:
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc

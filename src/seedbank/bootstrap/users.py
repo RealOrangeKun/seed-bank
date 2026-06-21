@@ -62,6 +62,6 @@ async def bootstrap_users(session: AsyncSession, specs: list[DemoUserSpec]) -> i
     ]
     stmt = pg_insert(User).values(rows).on_conflict_do_nothing(index_elements=[User.email])
     result = await session.execute(stmt)
-    inserted = result.rowcount or 0
+    inserted = result.rowcount or 0  # type: ignore[attr-defined]
     log.info("bootstrap.users", requested=len(rows), inserted=inserted)
     return inserted

@@ -213,8 +213,24 @@ mypy_path = "src"
 files = ["src", "tests", "scripts"]
 exclude = ["legacy/", "\\.venv/", "alembic/versions/"]
 
+# Third-party modules that ship no type stubs / py.typed. The ML stack
+# (torch/torchvision/numpy) lives in the [inference] extra and is intentionally
+# NOT installed in the lean typecheck env (CI runs `pip install -e .[dev]`), so
+# mypy must treat these as untyped rather than erroring on the missing import.
 [[tool.mypy.overrides]]
-module = ["miniopy_async.*", "clickhouse_connect.*", "inference_sdk.*", "ultralytics.*"]
+module = [
+  "miniopy_async.*",
+  "clickhouse_connect.*",
+  "inference_sdk.*",
+  "ultralytics.*",
+  "torch.*",
+  "torchvision.*",
+  "numpy.*",
+  "uuid_extensions.*",
+  "authlib.*",
+  "celery.*",
+  "testcontainers.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

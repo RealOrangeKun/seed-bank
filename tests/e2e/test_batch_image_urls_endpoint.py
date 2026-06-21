@@ -17,6 +17,7 @@ S3 signature.
 from __future__ import annotations
 
 import io
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
@@ -69,7 +70,7 @@ def _short_circuit_minio_and_celery(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def _stub_storage(app_client: AsyncClient) -> None:
+def _stub_storage(app_client: AsyncClient) -> Iterator[None]:
     """Override ``storage_dep`` so ``BatchService`` presigns through the
     stub rather than dialing the (absent) MinIO endpoint.
 
@@ -92,7 +93,8 @@ async def _submit(client: AsyncClient, token: str, *, n: int = 1) -> str:
         files=files,
     )
     assert r.status_code == 202, r.text
-    return r.json()["data"]["id"]
+    batch_id: str = r.json()["data"]["id"]
+    return batch_id
 
 
 # ── Happy path ─────────────────────────────────────────────────────────────

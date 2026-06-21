@@ -6,6 +6,8 @@ GET / POST / PATCH.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,11 +48,12 @@ async def _login(client: AsyncClient, email: str) -> str:
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["data"]["access_token"]
+    token: str = r.json()["data"]["access_token"]
+    return token
 
 
 @pytest.fixture
-def _override_storage(app_client: AsyncClient) -> None:
+def _override_storage(app_client: AsyncClient) -> Iterator[None]:
     # The fixture creates the app inside its own scope, but exposes the
     # client; we reach into the app to override the storage dep for these
     # tests so the registry's existence check is a no-op.

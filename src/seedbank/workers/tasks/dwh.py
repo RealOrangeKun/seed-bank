@@ -21,7 +21,7 @@ to be eventually consistent on hard deletes.
 from __future__ import annotations
 
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
@@ -77,7 +77,9 @@ SYNC_SCAN_BATCH = "seedbank.dwh.sync_scan_batch"
 # ── Celery wrappers (sync) ─────────────────────────────────────────────────
 
 
-def _run_timed(task_name: str, fn: Callable[[UUID], Awaitable[None]], arg_id: str) -> None:
+def _run_timed(
+    task_name: str, fn: Callable[[UUID], Coroutine[Any, Any, None]], arg_id: str
+) -> None:
     """Run an async sync-task body and observe its duration + outcome.
 
     The label ``result`` lets dashboards split healthy throughput

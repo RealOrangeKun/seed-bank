@@ -76,8 +76,8 @@ class Settings(BaseSettings):
     oauth_redirect_base_url: str = "http://localhost:8000"
 
     # ── Postgres ─────────────────────────────────────────────────────────────
-    postgres_dsn: PostgresDsn = Field(
-        default="postgresql+asyncpg://seedbank:seedbank@postgres:5432/seedbank"  # type: ignore[arg-type]
+    postgres_dsn: PostgresDsn = Field(  # type: ignore[assignment]
+        default="postgresql+asyncpg://seedbank:seedbank@postgres:5432/seedbank"
     )
     postgres_pool_size: int = 10
     postgres_max_overflow: int = 5
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     postgres_echo: bool = False
 
     # ── Redis ────────────────────────────────────────────────────────────────
-    redis_dsn: RedisDsn = Field(default="redis://redis:6379/0")  # type: ignore[arg-type]
+    redis_dsn: RedisDsn = Field(default="redis://redis:6379/0")  # type: ignore[assignment]
 
     # ── Celery ───────────────────────────────────────────────────────────────
     celery_broker_url: str = "redis://redis:6379/1"

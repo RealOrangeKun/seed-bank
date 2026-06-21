@@ -54,7 +54,7 @@ def init_sentry(settings: Settings) -> None:
             # OAuth callback codes. ``never`` switches the body capture off
             # entirely; the structured-log request_id is enough correlation.
             max_request_body_size="never",
-            before_send=_before_send,
+            before_send=_before_send,  # type: ignore[arg-type]
             traces_sample_rate=settings.sentry_traces_sample_rate,
             profiles_sample_rate=settings.sentry_profiles_sample_rate,
             integrations=[

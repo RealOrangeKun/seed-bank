@@ -519,6 +519,7 @@ async def test_sync_experiment_results_writes_one_row_per_result(
     actual_dt = ok["occurred_at"]
     if actual_dt.tzinfo is not None:
         actual_dt = actual_dt.replace(tzinfo=None)
+    assert exp.finished_at is not None
     assert actual_dt == exp.finished_at.replace(tzinfo=None)
 
     # Dim joinability — model and user upserted as side-effects of the sync.

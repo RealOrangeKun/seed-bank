@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from PIL import Image
 
 from tests.e2e.conftest import SeededUser, auth_header
@@ -57,13 +57,14 @@ def _short_circuit_minio_and_celery(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(celery_module.celery_app, "send_task", _fake_send_task)
 
 
-def _assert_problem(response, *, status_code: int, code: str) -> dict:
+def _assert_problem(response: Response, *, status_code: int, code: str) -> dict[str, Any]:
     assert response.status_code == status_code, response.text
     assert response.headers.get("content-type", "").startswith("application/problem+json")
     body = response.json()
     assert body["status"] == status_code
     assert body["code"] == code
-    return body
+    result: dict[str, Any] = body
+    return result
 
 
 # ── Happy path ─────────────────────────────────────────────────────────────

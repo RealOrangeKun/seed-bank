@@ -55,7 +55,8 @@ async def _submit(client: AsyncClient, token: str) -> str:
         files=[("files", ("a.png", _png(), "image/png"))],
     )
     assert r.status_code == 202, r.text
-    return r.json()["data"]["id"]
+    batch_id: str = r.json()["data"]["id"]
+    return batch_id
 
 
 # ── List ───────────────────────────────────────────────────────────────────

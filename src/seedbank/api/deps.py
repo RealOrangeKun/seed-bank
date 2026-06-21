@@ -7,7 +7,7 @@ dependencies live here too so RBAC is one decoration away on any route.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Annotated
 from uuid import UUID
 
@@ -334,7 +334,7 @@ async def current_user(
 CurrentUser = Annotated[AuthenticatedUser, Depends(current_user)]
 
 
-def require_role(*roles: Role):
+def require_role(*roles: Role) -> Callable[..., Awaitable[AuthenticatedUser]]:
     """Dependency factory: require the actor's role to be one of `roles`.
 
     Admins implicitly satisfy any role check (see `AuthenticatedUser.has_role`).
@@ -358,7 +358,7 @@ def require_role(*roles: Role):
     return _checker
 
 
-def require_scope(*scopes: str):
+def require_scope(*scopes: str) -> Callable[..., Awaitable[AuthenticatedUser]]:
     """Dependency factory: require all `scopes` on an API-key actor (JWT
     actors are gated by `require_role`)."""
     required = frozenset(scopes)

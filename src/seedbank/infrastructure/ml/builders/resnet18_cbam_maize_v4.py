@@ -42,7 +42,7 @@ def build() -> nn.Module:
         x = torch.flatten(x, 1)
         return model.fc(x)
 
-    model.forward = forward_impl  # type: ignore[assignment]
+    model.forward = forward_impl
     return model
 
 

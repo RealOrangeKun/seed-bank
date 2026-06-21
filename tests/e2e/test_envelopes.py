@@ -9,8 +9,10 @@ tests prove the wire format end-to-end.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 
 from seedbank.infrastructure.db.enums import UserRole
 from tests.e2e.conftest import SeedAndLogin, SeededUser, auth_header
@@ -22,8 +24,8 @@ pytestmark = pytest.mark.e2e
 
 
 def _assert_problem_shape(
-    response, *, status_code: int, code: str, has_request_id: bool = True
-) -> dict:
+    response: Response, *, status_code: int, code: str, has_request_id: bool = True
+) -> dict[str, Any]:
     """Assert a response is a well-formed RFC 9457 Problem Details document.
 
     Returned to the caller so individual tests can layer code-specific
@@ -42,7 +44,8 @@ def _assert_problem_shape(
     # Error responses must NOT carry a success envelope.
     assert "data" not in body
     assert "meta" not in body
-    return body
+    result: dict[str, Any] = body
+    return result
 
 
 # ── Success envelope ────────────────────────────────────────────────────────

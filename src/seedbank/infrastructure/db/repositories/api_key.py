@@ -56,7 +56,7 @@ class ApiKeyRepository(Repository[ApiKey]):
             .values(revoked_at=datetime.now(tz=UTC))
         )
         result = await self.session.execute(stmt)
-        return (result.rowcount or 0) > 0
+        return (result.rowcount or 0) > 0  # type: ignore[attr-defined]
 
     async def touch_last_used(self, key_id: UUID) -> None:
         stmt = update(ApiKey).where(ApiKey.id == key_id).values(last_used_at=datetime.now(tz=UTC))

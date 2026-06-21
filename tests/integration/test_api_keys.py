@@ -31,7 +31,8 @@ async def _seed_and_login(client: AsyncClient, db_session: AsyncSession, email: 
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["data"]["access_token"]
+    token: str = r.json()["data"]["access_token"]
+    return token
 
 
 async def test_create_use_revoke_api_key(app_client: AsyncClient, db_session: AsyncSession) -> None:

@@ -19,23 +19,28 @@ from __future__ import annotations
 
 import sys
 from types import ModuleType, SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
 from pydantic import SecretStr
 
 from seedbank.core import sentry as sentry_module
+from seedbank.core.config import Settings
 
 pytestmark = pytest.mark.unit
 
 
-def _settings(*, dsn: str | None) -> SimpleNamespace:
-    return SimpleNamespace(
-        sentry_dsn=SecretStr(dsn) if dsn is not None else None,
-        env="test",
-        service_name="seedbank-api",
-        sentry_traces_sample_rate=0.1,
-        sentry_profiles_sample_rate=0.0,
+def _settings(*, dsn: str | None) -> Settings:
+    return cast(
+        "Settings",
+        SimpleNamespace(
+            sentry_dsn=SecretStr(dsn) if dsn is not None else None,
+            env="test",
+            service_name="seedbank-api",
+            sentry_traces_sample_rate=0.1,
+            sentry_profiles_sample_rate=0.0,
+        ),
     )
 
 
@@ -59,7 +64,8 @@ def _install_fake_sentry_sdk(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     monkeypatch.setitem(sys.modules, "sentry_sdk.integrations.celery", celery_mod)
     monkeypatch.setitem(sys.modules, "sentry_sdk.integrations.fastapi", fastapi_mod)
     monkeypatch.setitem(sys.modules, "sentry_sdk.integrations.starlette", starlette_mod)
-    return fake_sentry.init  # type: ignore[attr-defined,return-value]
+    init_mock: MagicMock = fake_sentry.init
+    return init_mock
 
 
 @pytest.fixture(autouse=True)

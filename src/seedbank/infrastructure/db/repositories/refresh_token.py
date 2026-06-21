@@ -50,7 +50,7 @@ class RefreshTokenRepository(Repository[RefreshToken]):
             .values(revoked_at=now, replaced_by_id=new_id)
         )
         result = await self.session.execute(stmt)
-        return result.rowcount or 0
+        return result.rowcount or 0  # type: ignore[attr-defined]
 
     async def revoke_all_for_user(self, user_id: UUID) -> int:
         """Force-logout — used on password change or admin action."""
@@ -61,4 +61,4 @@ class RefreshTokenRepository(Repository[RefreshToken]):
             .values(revoked_at=now)
         )
         result = await self.session.execute(stmt)
-        return result.rowcount or 0
+        return result.rowcount or 0  # type: ignore[attr-defined]

@@ -57,7 +57,7 @@ class SeedDetectionRepository(Repository[SeedDetection]):
                 .execution_options(synchronize_session=False)
             )
             result = await self.session.execute(stmt)
-            total += result.rowcount or 0
+            total += result.rowcount or 0  # type: ignore[attr-defined]
         log.info(
             "seed_detection.update_quality_many",
             requested=len(updates),

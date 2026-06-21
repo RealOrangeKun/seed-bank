@@ -35,7 +35,7 @@ class UserRepository(Repository[User]):
             .where(User.id == user_id, User.is_verified.is_(False))
             .values(is_verified=True)
         )
-        return (await self.session.execute(stmt)).rowcount or 0
+        return (await self.session.execute(stmt)).rowcount or 0  # type: ignore[attr-defined]
 
     async def update_password(self, user_id: UUID, hashed_password: str) -> None:
         stmt = update(User).where(User.id == user_id).values(hashed_password=hashed_password)
@@ -43,7 +43,7 @@ class UserRepository(Repository[User]):
 
     async def set_role(self, user_id: UUID, role: str) -> int:
         stmt = update(User).where(User.id == user_id).values(role=role)
-        return (await self.session.execute(stmt)).rowcount or 0
+        return (await self.session.execute(stmt)).rowcount or 0  # type: ignore[attr-defined]
 
     async def list_active(self, *, limit: int = 50, offset: int = 0) -> list[User]:
         stmt = (

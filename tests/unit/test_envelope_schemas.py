@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 
 from seedbank.schemas.common import (
     Envelope,
+    Page,
     PageMeta,
     Problem,
     ProblemFieldError,
@@ -62,7 +63,7 @@ def test_page_meta_rejects_below_minimum_values(field: str, value: int) -> None:
 
 
 def test_paginate_empty_collection_reports_no_more_pages() -> None:
-    page = paginate([], total=0, page=1, page_size=50)
+    page: Page[_Item] = paginate([], total=0, page=1, page_size=50)
 
     assert page.data == []
     assert page.meta.total == 0

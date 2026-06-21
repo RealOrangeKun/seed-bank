@@ -14,6 +14,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from seedbank.api.errors import build_problem
 from seedbank.core.config import get_settings
@@ -57,7 +58,7 @@ def install_rate_limiter(app: FastAPI) -> None:
     """
     app.state.limiter = limiter
 
-    async def _handler(request: Request, exc: RateLimitExceeded):
+    async def _handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
         # Compute Retry-After from the limit's window. slowapi's
         # RateLimitExceeded does not expose an `exc.retry_after`; the
         # underlying `limits.RateLimitItem.get_expiry()` returns the
@@ -84,7 +85,7 @@ def install_rate_limiter(app: FastAPI) -> None:
             extra_headers=extra_headers,
         )
 
-    app.add_exception_handler(RateLimitExceeded, _handler)
+    app.add_exception_handler(RateLimitExceeded, _handler)  # type: ignore[arg-type]
 
 
 __all__ = ["install_rate_limiter", "limiter"]

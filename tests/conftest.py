@@ -177,7 +177,7 @@ async def app_client(async_engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
                 await session.rollback()
                 raise
 
-    def _override_redis():
+    def _override_redis() -> fakeredis_aio.FakeRedis:
         return fake_redis
 
     from seedbank.api.deps import db_session as db_session_dep

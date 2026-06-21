@@ -14,10 +14,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from seedbank.core.config import Settings
 
 
-def test_jwt_secret_read_from_secrets_dir(tmp_path: Path, monkeypatch) -> None:
+def test_jwt_secret_read_from_secrets_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Drop a file whose stem matches the Pydantic field name. Pydantic
     # strips the trailing newline; we keep the value bare to mirror the
     # `printf '%s' ...` recipe in `secrets/README.md`.
@@ -30,6 +32,6 @@ def test_jwt_secret_read_from_secrets_dir(tmp_path: Path, monkeypatch) -> None:
     # `_secrets_dir` is the documented init-kwarg override in
     # pydantic-settings v2.x. Don't load the host .env so the test is
     # hermetic.
-    settings = Settings(_secrets_dir=str(tmp_path), _env_file=None)  # type: ignore[call-arg]
+    settings = Settings(_secrets_dir=str(tmp_path), _env_file=None)
 
     assert settings.jwt_secret.get_secret_value() == "from-file-secret"
