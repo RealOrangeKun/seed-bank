@@ -60,7 +60,9 @@ def _build_app(detections: list[SimpleNamespace]) -> FastAPI:
     app = FastAPI()
     app.include_router(batches_module.router, prefix="/api/v1")
 
-    async def _fake_detections_for_export(*, batch_id: UUID, actor: object) -> list[SimpleNamespace]:
+    async def _fake_detections_for_export(
+        *, batch_id: UUID, actor: object
+    ) -> list[SimpleNamespace]:
         return detections
 
     service_stub = SimpleNamespace(detections_for_export=_fake_detections_for_export)

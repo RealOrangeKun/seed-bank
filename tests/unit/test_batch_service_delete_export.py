@@ -134,9 +134,7 @@ class TestDeleteForUser:
         """An already soft-deleted batch is invisible even to admin delete."""
         svc, batches, _images, session = _build_service()
         actor = _make_actor(Role.ADMIN)
-        batches.get.return_value = SimpleNamespace(
-            id=uuid4(), user_id=uuid4(), deleted_at=object()
-        )
+        batches.get.return_value = SimpleNamespace(id=uuid4(), user_id=uuid4(), deleted_at=object())
 
         with pytest.raises(NotFoundError):
             await svc.delete_for_user(batch_id=uuid4(), actor=actor)
@@ -243,9 +241,7 @@ class TestDetectionsForExport:
         actor = _make_actor(Role.ADMIN)
         batch_id = uuid4()
         owner = uuid4()
-        batches.get.return_value = SimpleNamespace(
-            id=batch_id, user_id=owner, deleted_at=None
-        )
+        batches.get.return_value = SimpleNamespace(id=batch_id, user_id=owner, deleted_at=None)
         batches.list_detections_for_batch.return_value = []
 
         await svc.detections_for_export(batch_id=batch_id, actor=actor)
