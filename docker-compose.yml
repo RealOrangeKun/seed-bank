@@ -8,7 +8,8 @@ services:
       POSTGRES_DB: seedbank_db
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      # Host port is configurable to avoid clashing with a local Postgres (default 5432).
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +22,7 @@ services:
     image: adminer:latest
     container_name: seed_bank_adminer
     ports:
-      - "8081:8080"
+      - "${ADMINER_HOST_PORT:-8081}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,7 +32,7 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "${API_HOST_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data
       - ./models:/app/models
@@ -56,7 +57,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "8080:80"
+      - "${WEB_HOST_PORT:-8080}:80"
     volumes:
       - ./frontend:/usr/share/nginx/html
     depends_on:
