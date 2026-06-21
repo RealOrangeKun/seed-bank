@@ -1,9 +1,12 @@
-"""Batch query service — read-only side of ``/api/v1/batches``.
+"""Batch management service — the read + lifecycle side of ``/api/v1/batches``.
 
 Split from :class:`AnalysisService` deliberately: writing a batch
-(multipart upload, MinIO, Celery dispatch) and reading one (eager-load
-the nested graph) have nothing in common. Two thin services beat one
-god class with two unrelated halves.
+(multipart upload, MinIO, Celery dispatch) and reading/managing one
+(eager-load the nested graph, soft-delete, export detections) have nothing
+in common. Two thin services beat one god class with two unrelated halves.
+
+The deletes here are *soft* deletes (``deleted_at`` stamp) — hard delete is
+forbidden on this aggregate (see ``SoftDeleteMixin``). Export is read-only.
 
 The service raises domain exceptions only — the router maps to HTTP.
 ``HTTPException`` is forbidden here.
@@ -27,7 +30,7 @@ if TYPE_CHECKING:
 
     from seedbank.core.config import Settings
     from seedbank.domain.user import AuthenticatedUser
-    from seedbank.infrastructure.db.models import ScanBatch
+    from seedbank.infrastructure.db.models import ScanBatch, SeedDetection
     from seedbank.infrastructure.db.repositories import (
         ScanBatchRepository,
         ScanImageRepository,
@@ -151,6 +154,107 @@ class BatchService:
             )
             urls.append(ImageUrl(image_id=image.id, url=url, expires_at=expires_at))
         return urls
+
+    async def delete_for_user(
+        self,
+        *,
+        batch_id: UUID,
+        actor: AuthenticatedUser,
+    ) -> None:
+        """Soft-delete a batch the actor may delete.
+
+        Owners may delete their own batches; admins may delete any. The miss
+        case raises ``NotFoundError`` (never ``ForbiddenError``) so a caller
+        cannot distinguish "doesn't exist" from "exists but not yours" — same
+        non-enumeration rule as :meth:`get_for_user`.
+
+        Idempotent only at the storage layer: a second delete of an
+        already-soft-deleted batch finds no live row and raises
+        ``NotFoundError``, matching the read endpoints which also hide
+        soft-deleted batches.
+        """
+        # Admins aren't scoped to ownership; resolve the owner so the
+        # user-scoped repository UPDATE still matches the row.
+        owner_id = await self._owner_id_for(batch_id=batch_id, actor=actor)
+        deleted = await self.batches.soft_delete_for_user(batch_id, owner_id)
+        if not deleted:
+            raise NotFoundError("Batch not found.")
+        await self.session.commit()
+        log.info("batch.deleted", batch_id=str(batch_id), actor_id=str(actor.id))
+
+    async def bulk_delete_for_user(
+        self,
+        *,
+        batch_ids: list[UUID],
+        actor: AuthenticatedUser,
+    ) -> int:
+        """Soft-delete every owned, still-live batch in ``batch_ids``.
+
+        Returns the number actually deleted. Unowned / unknown / already-deleted
+        IDs are silently skipped — bulk delete is best-effort by design, so a
+        partially-stale selection doesn't fail the whole request. Admins may
+        delete across users.
+
+        Note: a non-admin's IDs are filtered to their own rows in the repo
+        ``WHERE``; an admin's selection may span users, so we don't pre-resolve
+        a single owner for them — instead we widen the scope below.
+        """
+        if not batch_ids:
+            return 0
+        # De-dupe so a repeated ID can't be counted twice and the IN-list stays
+        # tight.
+        unique_ids = list(dict.fromkeys(batch_ids))
+        if actor.role is Role.ADMIN:
+            deleted = await self.batches.soft_delete_many_any_owner(unique_ids)
+        else:
+            deleted = await self.batches.soft_delete_many_for_user(unique_ids, actor.id)
+        await self.session.commit()
+        log.info(
+            "batch.bulk_deleted",
+            requested=len(unique_ids),
+            deleted=deleted,
+            actor_id=str(actor.id),
+        )
+        return deleted
+
+    async def detections_for_export(
+        self,
+        *,
+        batch_id: UUID,
+        actor: AuthenticatedUser,
+    ) -> list[SeedDetection]:
+        """Flat, ordered list of every detection in a batch the actor may read.
+
+        Backs both the CSV and JSON export endpoints — the router decides the
+        wire format; the service only owns access control + ordering. Ownership
+        and the ``NotFoundError``-on-miss rule mirror :meth:`get_for_user`.
+        """
+        owner_id = await self._owner_id_for(batch_id=batch_id, actor=actor)
+        return await self.batches.list_detections_for_batch(batch_id, owner_id)
+
+    async def _owner_id_for(
+        self,
+        *,
+        batch_id: UUID,
+        actor: AuthenticatedUser,
+    ) -> UUID:
+        """Resolve the owning ``user_id`` for a batch the actor may act on.
+
+        For a non-admin this is just ``actor.id`` — but we still confirm the
+        batch exists and is live (and owned), raising ``NotFoundError`` if not,
+        so callers get a uniform miss. For an admin we look the batch up
+        unscoped and return its real owner, letting the user-scoped repository
+        methods operate on any batch without leaking ownership in the error.
+        """
+        if actor.role is Role.ADMIN:
+            batch = await self.batches.get(batch_id)
+            if batch is None or batch.deleted_at is not None:
+                raise NotFoundError("Batch not found.")
+            return batch.user_id
+        batch = await self.batches.get_for_user(batch_id, actor.id)
+        if batch is None:
+            raise NotFoundError("Batch not found.")
+        return actor.id
 
 
 __all__ = ["BatchService", "ImageUrl"]

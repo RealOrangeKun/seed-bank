@@ -246,7 +246,13 @@ class ScanBatchRepository(Repository[ScanBatch]):
         return CasResult(won=True, started_at=row[0], finished_at=row[1])
 
     async def list_detections_for_batch(self, batch_id: UUID, user_id: UUID) -> list[SeedDetection]:
-        """Flat list of every detection across the batch's images + models."""
+        """Flat list of every detection across the batch's images + models.
+
+        Ordered by image then detection id so export output is stable across
+        repeated calls (CSV diffs stay clean). Soft-deleted batches yield no
+        rows — the ownership + ``deleted_at`` filter doubles as the access
+        check for the export endpoints.
+        """
         stmt = (
             select(SeedDetection)
             .join(Inference, SeedDetection.inference_id == Inference.id)
@@ -257,5 +263,87 @@ class ScanBatchRepository(Repository[ScanBatch]):
                 ScanBatch.user_id == user_id,
                 ScanBatch.deleted_at.is_(None),
             )
+            .order_by(ScanImage.id, SeedDetection.id)
         )
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def soft_delete_for_user(self, batch_id: UUID, user_id: UUID) -> bool:
+        """Soft-delete one batch the caller owns. Returns ``True`` iff a live
+        row was flipped.
+
+        Hard delete is forbidden on soft-delete tables (see ``SoftDeleteMixin``):
+        we stamp ``deleted_at`` instead, so the row drops out of every default
+        read (all of which filter ``deleted_at IS NULL``). The ``WHERE`` already
+        requires ownership and a still-live row, so a second delete — or a
+        cross-user attempt — affects zero rows and returns ``False``.
+        """
+        stmt = (
+            update(ScanBatch)
+            .where(
+                ScanBatch.id == batch_id,
+                ScanBatch.user_id == user_id,
+                ScanBatch.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+            .execution_options(synchronize_session=False)
+        )
+        result = await self.session.execute(stmt)
+        won = (result.rowcount or 0) > 0
+        log.info("scan_batch.soft_delete", batch_id=str(batch_id), deleted=won)
+        return won
+
+    async def soft_delete_many_for_user(self, batch_ids: list[UUID], user_id: UUID) -> int:
+        """Soft-delete every owned, still-live batch in ``batch_ids`` in one
+        statement. Returns how many rows were actually flipped.
+
+        IDs the caller doesn't own, already-deleted ones, and unknown ones are
+        silently skipped by the ``WHERE`` — the count tells the caller how many
+        of the requested IDs took effect without leaking which ones existed.
+        """
+        if not batch_ids:
+            return 0
+        stmt = (
+            update(ScanBatch)
+            .where(
+                ScanBatch.id.in_(batch_ids),
+                ScanBatch.user_id == user_id,
+                ScanBatch.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+            .execution_options(synchronize_session=False)
+        )
+        result = await self.session.execute(stmt)
+        deleted = result.rowcount or 0
+        log.info(
+            "scan_batch.soft_delete_many",
+            requested=len(batch_ids),
+            deleted=deleted,
+        )
+        return deleted
+
+    async def soft_delete_many_any_owner(self, batch_ids: list[UUID]) -> int:
+        """Admin-only bulk soft-delete across owners. Returns rows flipped.
+
+        Identical to :meth:`soft_delete_many_for_user` minus the ``user_id``
+        filter — callers are responsible for the admin authorization check.
+        Already-deleted and unknown IDs are still skipped by the ``WHERE``.
+        """
+        if not batch_ids:
+            return 0
+        stmt = (
+            update(ScanBatch)
+            .where(
+                ScanBatch.id.in_(batch_ids),
+                ScanBatch.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+            .execution_options(synchronize_session=False)
+        )
+        result = await self.session.execute(stmt)
+        deleted = result.rowcount or 0
+        log.info(
+            "scan_batch.soft_delete_many_any_owner",
+            requested=len(batch_ids),
+            deleted=deleted,
+        )
+        return deleted

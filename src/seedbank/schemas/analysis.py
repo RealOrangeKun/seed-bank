@@ -47,12 +47,8 @@ class AnalyzeQueryIn(BaseModel):
     supplier_id: UUID | None = None
     seed_type_id: UUID | None = None
     model_id: UUID | None = None
-    gps_lat: Annotated[
-        Decimal | None, Field(default=None, max_digits=9, decimal_places=6)
-    ] = None
-    gps_long: Annotated[
-        Decimal | None, Field(default=None, max_digits=9, decimal_places=6)
-    ] = None
+    gps_lat: Annotated[Decimal | None, Field(default=None, max_digits=9, decimal_places=6)] = None
+    gps_long: Annotated[Decimal | None, Field(default=None, max_digits=9, decimal_places=6)] = None
     country_code: Annotated[
         str | None,
         Field(default=None, min_length=2, max_length=2, pattern="^[A-Z]{2}$"),
@@ -154,8 +150,29 @@ class ImageUrlOut(BaseModel):
     expires_at: datetime
 
 
+class BatchBulkDeleteIn(BaseModel):
+    """Request body for ``POST /batches/delete`` — bulk soft-delete.
+
+    Capped so a single call can't fan out an unbounded ``IN (...)``. IDs the
+    caller doesn't own (or that are already deleted) are silently skipped; the
+    response reports how many actually took effect.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    batch_ids: Annotated[list[UUID], Field(min_length=1, max_length=200)]
+
+
+class BatchDeleteResult(BaseModel):
+    """How many batches a (bulk) delete actually soft-deleted."""
+
+    deleted: int
+
+
 __all__ = [
     "AnalyzeQueryIn",
+    "BatchBulkDeleteIn",
+    "BatchDeleteResult",
     "BatchDetailOut",
     "BatchOut",
     "ImageUrlOut",
