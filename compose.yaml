@@ -94,9 +94,12 @@ services:
         limits: {cpus: "1.0", memory: 512M}
 
   # ``worker-inference`` serves the ``inference`` + ``evaluation`` queues.
-  # Default build target is ``runtime-inference-cpu`` (torch CPU wheels) so
-  # the dev stack works on a laptop without CUDA. The prod overlay swaps
-  # the target to ``runtime-gpu`` and re-adds the GPU device reservation.
+  # Default build target is ``runtime-inference-cpu`` — the SLIM torch stack
+  # (torch CPU + torchvision + headless cv2, ~1.6 GB) that the wired models'
+  # torch_local backend needs. To run a YOLO or Roboflow model, switch the
+  # target to ``runtime-inference-cpu-full`` (adds ultralytics + inference-sdk).
+  # The prod overlay swaps the target to ``runtime-gpu`` and re-adds the GPU
+  # device reservation.
   worker-inference:
     build:
       context: .
@@ -280,6 +283,39 @@ services:
       postgres: {condition: service_healthy}
     restart: unless-stopped
 
+  # Web UI for the ClickHouse DWH (what Adminer is for Postgres). ch-ui's
+  # server proxies ClickHouse over the compose network, so the browser only
+  # talks to ch-ui — ``CLICKHOUSE_URL`` is the INTERNAL host and no ClickHouse
+  # CORS config is needed. Opt-in via the ``dev`` profile.
+  ch-ui:
+    profiles: ["dev"]
+    image: ghcr.io/caioricciuti/ch-ui:v2.5.1
+    container_name: seedbank-ch-ui
+    environment:
+      # Credentials travel in the URL (HTTP basic auth) — our ClickHouse has no
+      # usable ``default`` user, only ``seedbank``. Same vars the app uses.
+      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-seedbank}:${CLICKHOUSE_PASSWORD:-seedbank-dev-secret}@clickhouse:8123
+      CONNECTION_NAME: Seed-Bank DWH
+      # Encrypts stored connection creds in the data volume. Dev-only default;
+      # set CH_UI_SECRET_KEY in a real environment.
+      APP_SECRET_KEY: ${CH_UI_SECRET_KEY:-seedbank-dev-ch-ui-secret}
+    ports:
+      - "127.0.0.1:3488:3488"
+    volumes:
+      - ch-ui-data:/app/data
+    depends_on:
+      clickhouse: {condition: service_healthy}
+    healthcheck:
+      # 127.0.0.1 not localhost — busybox wget resolves localhost to ::1 first.
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://127.0.0.1:3488/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
   # ── Observability (opt-in, Phase 9) ────────────────────────────────────
   # Bring up with ``docker compose --profile obs up`` (or
   # ``COMPOSE_PROFILES=obs make up``). Default ``make up`` stays lean.
@@ -362,7 +398,9 @@ services:
     depends_on:
       api: {condition: service_healthy}
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://localhost:80/ || exit 1"]
+      # Use 127.0.0.1 not localhost — busybox wget resolves localhost to ::1
+      # first and nginx binds IPv4 only (same gotcha as the clickhouse check).
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://127.0.0.1:80/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 6
@@ -378,6 +416,7 @@ volumes:
   clickhouse-data:
   prometheus-data:
   grafana-data:
+  ch-ui-data:
 
 networks:
   default:

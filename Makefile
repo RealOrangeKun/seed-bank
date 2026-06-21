@@ -20,16 +20,22 @@ help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 
 # ── Local Python env ────────────────────────────────────────────────────────
-.PHONY: venv install install-inference
+.PHONY: venv install install-inference sync lock
 venv: ## Create a local virtualenv.
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip uv
 
-install: venv ## Install runtime + dev deps locally.
+install: venv ## Install runtime + dev deps locally (unpinned; fast iteration).
 	$(VENV)/bin/uv pip install -e ".[dev]"
 
 install-inference: venv ## Install ML deps locally (heavy).
 	$(VENV)/bin/uv pip install -e ".[dev,inference]"
+
+sync: ## Reproducible install pinned by uv.lock (add --extra inference for ML). Creates .venv.
+	uv sync --frozen --extra dev
+
+lock: ## Re-resolve and update uv.lock after changing dependencies.
+	uv lock
 
 # ── Compose lifecycle ───────────────────────────────────────────────────────
 .PHONY: env up up-infra up-gpu up-dev up-obs up-front front up-prod down down-prod restart logs logs-prod ps wait secrets-check
@@ -54,8 +60,8 @@ up-no-inference: env ## Start without the (heavy) torch worker. Only api + worke
 	$(COMPOSE) up -d --build api worker-cpu postgres redis minio clickhouse mlflow
 	@$(MAKE) wait
 
-up-dev: env ## Start with adminer for quick DB poking.
-	$(COMPOSE) --profile dev up -d --build api postgres redis minio clickhouse mlflow adminer
+up-dev: env ## Start the lean stack PLUS DB UIs (adminer for Postgres, ch-ui for the DWH).
+	$(COMPOSE) --profile dev up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow adminer ch-ui
 	@$(MAKE) wait
 
 up-obs: env ## Start the lean stack PLUS prometheus + grafana (obs profile).
@@ -181,9 +187,13 @@ cov: ## Open coverage report (xml in CI, html locally).
 	@echo "htmlcov/index.html"
 
 # ── Image hygiene ────────────────────────────────────────────────────────────
-.PHONY: image-bloat
-image-bloat: ## Print top 30 largest files in the api image.
-	docker run --rm seedbank/api:0.1.0 sh -c "du -ah /opt/venv /app 2>/dev/null | sort -rh | head -30"
+.PHONY: image-bloat image-sizes
+IMAGE ?= seedbank/api:0.1.0
+image-bloat: ## Print top 30 largest files in $(IMAGE) (override IMAGE=...).
+	docker run --rm $(IMAGE) sh -c "du -ah /opt/venv /app 2>/dev/null | sort -rh | head -30"
+
+image-sizes: ## Show on-disk sizes of all seedbank images.
+	docker images "seedbank/*" --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}"
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 .PHONY: clean

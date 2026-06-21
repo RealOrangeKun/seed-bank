@@ -24,8 +24,11 @@ jobs:
 
       - name: Install dev dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip uv
           pip install -e ".[dev]"
+
+      - name: uv.lock is in sync with pyproject.toml
+        run: uv lock --check
 
       - name: ruff format (check only)
         run: ruff format --check .
