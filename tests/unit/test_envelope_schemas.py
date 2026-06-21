@@ -13,7 +13,6 @@ from pydantic import BaseModel, ValidationError
 
 from seedbank.schemas.common import (
     Envelope,
-    Page,
     PageMeta,
     Problem,
     ProblemFieldError,

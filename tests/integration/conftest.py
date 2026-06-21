@@ -47,15 +47,15 @@ async def _reset_rate_limiter() -> None:
     both are tolerable when the suite runs without infra. Any other
     exception is a real bug and surfaces.
     """
+    import contextlib
+
     from limits.errors import StorageError
     from redis.exceptions import ConnectionError as RedisConnectionError
 
     from seedbank.api.rate_limit import limiter
 
-    try:
+    with contextlib.suppress(StorageError, RedisConnectionError):
         limiter.reset()
-    except (StorageError, RedisConnectionError):
-        pass
 
 
 # ── ClickHouse fixtures (Phase 8 dual-write) ──────────────────────────────

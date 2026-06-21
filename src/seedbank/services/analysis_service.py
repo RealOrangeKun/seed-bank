@@ -193,7 +193,8 @@ class AnalysisService:
 
         # Phase 6 — DWH dual-write. Best-effort; broker failures are logged
         # but never break the API response (the OLTP commit already won).
-        from seedbank.workers.tasks.dwh import (  # local import: workers package may not be importable in test contexts
+        # Local import: the workers package may not be importable in test contexts.
+        from seedbank.workers.tasks.dwh import (
             SYNC_SCAN_BATCH,
             dispatch_after_commit,
         )

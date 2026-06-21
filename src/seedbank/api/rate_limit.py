@@ -47,7 +47,7 @@ limiter = Limiter(
 )
 
 
-def install_rate_limiter(app: "FastAPI") -> None:
+def install_rate_limiter(app: FastAPI) -> None:
     """Mount the limiter on the app and register the 429 handler.
 
     The 429 response shares the RFC 9457 Problem Details shape with every

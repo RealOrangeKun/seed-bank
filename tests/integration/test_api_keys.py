@@ -48,7 +48,8 @@ async def test_create_use_revoke_api_key(app_client: AsyncClient, db_session: As
     plaintext = body["key"]
     key_id = body["id"]
     assert plaintext.startswith("seedbank_")
-    assert body["prefix"] and len(body["prefix"]) == 8
+    assert body["prefix"]
+    assert len(body["prefix"]) == 8
 
     # /me via X-API-Key
     r = await app_client.get("/api/v1/users/me", headers={"X-API-Key": plaintext})

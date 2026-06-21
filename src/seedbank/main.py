@@ -6,8 +6,8 @@ expose `/healthz`, `/readyz`, `/metrics`. Business logic lives in services.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     get_storage()
     try:
         await bootstrap_buckets()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("minio.bootstrap_failed", error=str(exc))
     yield
     log.info("app.shutdown")
@@ -131,28 +131,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             async with sm() as session:
                 await session.execute(text("SELECT 1"))
             checks["postgres"] = "ok"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             checks["postgres"] = f"down: {exc}"
 
         # Redis
         try:
             await get_redis().ping()
             checks["redis"] = "ok"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             checks["redis"] = f"down: {exc}"
 
         # MinIO
         try:
             await get_storage().ensure_bucket(settings.minio_bucket_images)
             checks["minio"] = "ok"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             checks["minio"] = f"down: {exc}"
 
         # ClickHouse — non-blocking; analytics endpoints can degrade.
         try:
             ch = await get_clickhouse()
             checks["clickhouse"] = "ok" if await ch.ping() else "down"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             checks["clickhouse"] = f"down: {exc}"
 
         ok = all(v == "ok" for k, v in checks.items() if k != "clickhouse")

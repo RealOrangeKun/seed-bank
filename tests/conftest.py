@@ -152,7 +152,7 @@ async def db_session(async_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 
 
 @pytest_asyncio.fixture
-async def app_client(async_engine: AsyncEngine) -> AsyncIterator["AsyncClient"]:
+async def app_client(async_engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
     """FastAPI app wired to the testcontainer Postgres + a fake Redis.
 
     Lives at the top-level conftest so both ``tests/integration/`` (HTTP
@@ -180,7 +180,8 @@ async def app_client(async_engine: AsyncEngine) -> AsyncIterator["AsyncClient"]:
     def _override_redis():
         return fake_redis
 
-    from seedbank.api.deps import db_session as db_session_dep, redis_dep
+    from seedbank.api.deps import db_session as db_session_dep
+    from seedbank.api.deps import redis_dep
     from seedbank.main import create_app
 
     app = create_app()

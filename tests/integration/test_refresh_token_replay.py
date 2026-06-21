@@ -7,7 +7,7 @@ non-reentrant — a second rotation of the same old token returns 0.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +32,7 @@ async def _seed_user(db_session: AsyncSession) -> User:
 
 async def test_rotate_is_idempotent_failure(db_session: AsyncSession) -> None:
     user = await _seed_user(db_session)
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     old = RefreshToken(user_id=user.id, token_hash="hash-old", expires_at=now + timedelta(days=7))
     new = RefreshToken(user_id=user.id, token_hash="hash-new", expires_at=now + timedelta(days=7))

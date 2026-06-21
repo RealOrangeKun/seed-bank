@@ -29,7 +29,7 @@ class MLflowAdapter:
         self._default_experiment = default_experiment
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "MLflowAdapter":
+    def from_settings(cls, settings: Settings) -> MLflowAdapter:
         mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
         return cls(MlflowClient(settings.mlflow_tracking_uri), settings.mlflow_experiment_name)
 

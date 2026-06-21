@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -16,7 +16,7 @@ class ApiKeyRepository(Repository[ApiKey]):
     model = ApiKey
 
     async def get_active_by_hash(self, key_hash: str) -> ApiKey | None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         stmt = select(ApiKey).where(
             ApiKey.key_hash == key_hash,
             ApiKey.revoked_at.is_(None),
@@ -53,15 +53,11 @@ class ApiKeyRepository(Repository[ApiKey]):
                 ApiKey.user_id == user_id,
                 ApiKey.revoked_at.is_(None),
             )
-            .values(revoked_at=datetime.now(tz=timezone.utc))
+            .values(revoked_at=datetime.now(tz=UTC))
         )
         result = await self.session.execute(stmt)
         return (result.rowcount or 0) > 0
 
     async def touch_last_used(self, key_id: UUID) -> None:
-        stmt = (
-            update(ApiKey)
-            .where(ApiKey.id == key_id)
-            .values(last_used_at=datetime.now(tz=timezone.utc))
-        )
+        stmt = update(ApiKey).where(ApiKey.id == key_id).values(last_used_at=datetime.now(tz=UTC))
         await self.session.execute(stmt)

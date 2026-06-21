@@ -15,7 +15,7 @@ import hashlib
 import hmac
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 from jose import JWTError, jwt
@@ -90,7 +90,7 @@ JWT_TYPE_REFRESH: Final[str] = "refresh"
 
 
 def _now_utc() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def encode_jwt(

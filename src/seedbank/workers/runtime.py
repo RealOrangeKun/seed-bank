@@ -18,7 +18,7 @@ That avoids two real bugs the prior per-task pattern had:
   are bound to that loop, so a process-wide cached client crashed on the
   *second* task with ``RuntimeError('Event loop is closed')``.
 * ``create_async_engine`` per task created (and disposed) a connection
-  pool on every invocation — under load that's pool-creation churn × N.
+  pool on every invocation — under load that's pool-creation churn x N.
 
 Why not reuse ``seedbank.infrastructure.db.session.get_engine``? Because
 that one is bound to the API process's loop via ``@lru_cache``. Workers

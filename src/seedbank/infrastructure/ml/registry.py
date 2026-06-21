@@ -25,7 +25,8 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import threading
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover — torch is in the [inference] extra
     from torch import nn

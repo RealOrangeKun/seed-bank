@@ -49,7 +49,7 @@ def test_duplicate_key_raises() -> None:
     with pytest.raises(registry.BuilderAlreadyRegisteredError):
 
         @registry.register_builder("dup-v1")
-        def second() -> object:  # noqa: F811
+        def second() -> object:
             return object()
 
 
@@ -59,8 +59,8 @@ def test_unknown_key_raises() -> None:
 
 
 def test_empty_key_rejected() -> None:
-    with pytest.raises(ValueError):
-        registry.register_builder("")(lambda: object())
+    with pytest.raises(ValueError, match="non-empty string"):
+        registry.register_builder("")(object)
 
 
 def test_re_registering_same_function_is_idempotent() -> None:

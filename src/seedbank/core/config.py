@@ -61,7 +61,7 @@ class Settings(BaseSettings):
         return v
 
     # ── Auth ─────────────────────────────────────────────────────────────────
-    jwt_secret: SecretStr = SecretStr("change-me-in-prod")  # noqa: S106
+    jwt_secret: SecretStr = SecretStr("change-me-in-prod")
     jwt_algorithm: str = "HS256"
     jwt_access_ttl_seconds: int = 60 * 15  # 15 min
     jwt_refresh_ttl_seconds: int = 60 * 60 * 24 * 7  # 7 days

@@ -107,7 +107,7 @@ class TestModelIdOverrideAuthz:
 
     @pytest.mark.asyncio
     async def test_ai_developer_with_override_proceeds(self) -> None:
-        svc, session, batches, images, storage = _build_service()
+        svc, session, _batches, _images, _storage = _build_service()
         with patch("seedbank.services.analysis_service.celery_app.send_task") as send:
             await svc.create_and_dispatch(
                 actor=_make_actor(Role.AI_DEVELOPER),
@@ -265,7 +265,7 @@ class TestPerFileValidation:
 class TestHappyPath:
     @pytest.mark.asyncio
     async def test_single_file_writes_minio_then_commits_then_dispatches(self) -> None:
-        svc, session, batches, images, storage = _build_service()
+        svc, session, _batches, _images, storage = _build_service()
         with patch("seedbank.services.analysis_service.celery_app.send_task") as send:
             await svc.create_and_dispatch(
                 actor=_make_actor(),

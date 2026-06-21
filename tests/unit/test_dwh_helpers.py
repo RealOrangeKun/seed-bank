@@ -11,7 +11,7 @@ integration tier. This file pins the small, pure pieces:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -131,7 +131,7 @@ def test_dispatch_counter_records_disabled_state() -> None:
 
 
 def _ts(year: int = 2026) -> datetime:
-    return datetime(year, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(year, 1, 1, 12, 0, 0, tzinfo=UTC)
 
 
 def test_dim_user_maps_orm_fields() -> None:
@@ -150,7 +150,7 @@ def test_dim_user_maps_orm_fields() -> None:
     assert row.role == "ai_developer"
     assert row.is_active is True
     assert row.is_verified is False
-    assert row.created_at.tzinfo is timezone.utc
+    assert row.created_at.tzinfo is UTC
 
 
 def test_dim_model_preserves_nullable_seed_type() -> None:

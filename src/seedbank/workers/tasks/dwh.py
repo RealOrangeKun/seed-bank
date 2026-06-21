@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
 from uuid import UUID
@@ -265,7 +265,7 @@ async def _async_sync_experiment_results(experiment_id: UUID) -> None:
         )
         return
 
-    occurred_at = experiment.finished_at or experiment.started_at or datetime.now(timezone.utc)
+    occurred_at = experiment.finished_at or experiment.started_at or datetime.now(UTC)
     user_id = user.id if user is not None else None
 
     client = await get_clickhouse()
@@ -429,7 +429,7 @@ def dispatch_after_commit(task_name: str, *args: Any) -> None:
         return
     try:
         celery_app.send_task(task_name, args=list(args), queue=DWH_QUEUE)
-    except Exception as exc:  # noqa: BLE001 — broker driver can raise anything
+    except Exception as exc:
         DWH_DISPATCH.labels(task=task_name, result="error").inc()
         # ``repr(exc)`` on a redis-py / kombu exception can carry the broker
         # URL with credentials. Log the exception class + the scrubbed

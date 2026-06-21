@@ -41,7 +41,7 @@ class TorchLocalBackend:
 
     name = "torch_local"
 
-    def __init__(self, manager: "object | None" = None) -> None:
+    def __init__(self, manager: object | None = None) -> None:
         # The manager is injected lazily to avoid a circular import; we keep
         # it as a generic object since the protocol is duck-typed.
         self._manager = manager
@@ -61,8 +61,8 @@ class TorchLocalBackend:
 
     @staticmethod
     def _detect_sync(
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         image: bytes,
         cfg: DetectionConfig,
     ) -> list[Detection]:
@@ -119,8 +119,8 @@ class TorchLocalBackend:
 
     @staticmethod
     def _classify_sync(
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         crop: bytes,
         cfg: ClassificationConfig,
     ) -> Classification:

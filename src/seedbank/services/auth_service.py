@@ -17,7 +17,7 @@ Hard rules enforced here:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -239,7 +239,7 @@ class AuthService:
                 raise NotFoundError("User no longer exists.")
         else:
             user = await self.users.get(user_id)
-            assert user is not None  # noqa: S101
+            assert user is not None
 
         await self.session.commit()
         return user
@@ -343,7 +343,7 @@ class AuthService:
         if existing is None:
             await self.session.commit()
             return
-        existing.revoked_at = datetime.now(tz=timezone.utc)
+        existing.revoked_at = datetime.now(tz=UTC)
         await self.session.commit()
 
     # ── Password change ──────────────────────────────────────────────────────
@@ -452,7 +452,7 @@ class AuthService:
         if rowcount == 0:
             raise NotFoundError("Target user not found.")
         target = await self.users.get(target_user_id)
-        assert target is not None  # noqa: S101
+        assert target is not None
         await self._audit(
             actor_id=actor_id,
             action="user.role_change",

@@ -19,8 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 from uuid import UUID
 
 from redis.asyncio import Redis
@@ -29,8 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.core.exceptions import ModelNotReadyError
 from seedbank.core.logging import get_logger
-from seedbank.infrastructure.db.enums import ModelKind, ModelStatus
-from seedbank.infrastructure.db.models import ModelArtifact, TrafficSplit
+from seedbank.infrastructure.db.enums import ModelKind
+from seedbank.infrastructure.db.models import TrafficSplit
 from seedbank.infrastructure.db.repositories import ModelArtifactRepository
 
 log = get_logger(__name__)
@@ -93,9 +92,8 @@ class TrafficRouter:
                     if total >= 100:
                         if bucket < cumulative:
                             return entry.model_id
-                    else:
-                        if bucket * total // 100 < cumulative:
-                            return entry.model_id
+                    elif bucket * total // 100 < cumulative:
+                        return entry.model_id
                 # Defensive fallback: last entry wins (rounding rounding).
                 return splits[-1].model_id
 
@@ -143,7 +141,7 @@ class TrafficRouter:
             if seed_type_id is None
             else TrafficSplit.seed_type_id == seed_type_id
         )
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         stmt = (
             select(TrafficSplit)
             .where(

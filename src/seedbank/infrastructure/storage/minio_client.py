@@ -35,7 +35,7 @@ class MinioStorage:
         self._presign_client = presign_client or client
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "MinioStorage":
+    def from_settings(cls, settings: Settings) -> MinioStorage:
         client = Minio(
             settings.minio_endpoint,
             access_key=settings.minio_access_key.get_secret_value(),
@@ -80,7 +80,8 @@ class MinioStorage:
         import aiohttp
 
         try:
-            async with aiohttp.ClientSession() as session:
+            # Nested, not combined: the inner CM needs `session` from the outer.
+            async with aiohttp.ClientSession() as session:  # noqa: SIM117
                 async with await self._client.get_object(bucket, key, session) as resp:
                     return await resp.read()
         except S3Error as exc:
@@ -102,7 +103,11 @@ class MinioStorage:
             raise ExternalServiceError(f"minio: stat {bucket}/{key}: {exc}") from exc
 
     async def presigned_put_url(
-        self, bucket: str, key: str, ttl: timedelta, content_type: str | None = None
+        self,
+        bucket: str,
+        key: str,
+        ttl: timedelta,
+        content_type: str | None = None,  # noqa: ARG002
     ) -> str:
         # `content_type` is enforced by the client headers when uploading; the
         # presign just authorizes the operation.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,18 +33,19 @@ async def test_get_by_email_roundtrip(db_session: AsyncSession) -> None:
 
     # Email is citext — uppercase lookup must match.
     fetched_upper = await repo.get_by_email("ALICE@example.com")
-    assert fetched_upper is not None and fetched_upper.id == user.id
+    assert fetched_upper is not None
+    assert fetched_upper.id == user.id
 
 
 async def test_soft_deleted_user_is_invisible(db_session: AsyncSession) -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     repo = UserRepository(db_session)
     user = User(
         email="bob@example.com",
         hashed_password="bcrypt$irrelevant",
         role=UserRole.END_USER.value,
-        deleted_at=datetime.now(tz=timezone.utc),
+        deleted_at=datetime.now(tz=UTC),
     )
     db_session.add(user)
     await db_session.commit()

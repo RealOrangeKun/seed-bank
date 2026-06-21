@@ -39,7 +39,7 @@ def init_sentry(settings: Settings) -> None:
         from sentry_sdk.integrations.celery import CeleryIntegration
         from sentry_sdk.integrations.fastapi import FastApiIntegration
         from sentry_sdk.integrations.starlette import StarletteIntegration
-    except Exception as exc:  # noqa: BLE001 — sentry must never crash boot
+    except Exception as exc:
         log.warning("sentry.import_failed", error=repr(exc))
         return
 
@@ -63,7 +63,7 @@ def init_sentry(settings: Settings) -> None:
                 CeleryIntegration(),
             ],
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("sentry.init_failed", error=repr(exc))
         return
 

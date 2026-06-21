@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.infrastructure.db.enums import UserRole
 from tests.e2e.conftest import SeedAndLogin, SeededUser, auth_header
@@ -38,7 +37,8 @@ def _assert_problem_shape(
     assert body["status"] == status_code
     assert body["code"] == code
     if has_request_id:
-        assert isinstance(body["request_id"], str) and body["request_id"]
+        assert isinstance(body["request_id"], str)
+        assert body["request_id"]
     # Error responses must NOT carry a success envelope.
     assert "data" not in body
     assert "meta" not in body
@@ -146,7 +146,8 @@ async def test_validation_error_returns_per_field_errors(
 
     body = _assert_problem_shape(r, status_code=422, code="validation_error")
     errors = body["errors"]
-    assert isinstance(errors, list) and errors
+    assert isinstance(errors, list)
+    assert errors
     fields = {e["field"] for e in errors}
     assert "password" in fields
     for entry in errors:

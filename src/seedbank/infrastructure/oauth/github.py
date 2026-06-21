@@ -25,7 +25,7 @@ def register(oauth: OAuth, settings: Settings) -> None:
         name=PROVIDER_NAME,
         client_id=settings.oauth_github_client_id.get_secret_value(),
         client_secret=settings.oauth_github_client_secret.get_secret_value(),
-        access_token_url="https://github.com/login/oauth/access_token",
+        access_token_url="https://github.com/login/oauth/access_token",  # noqa: S106
         authorize_url="https://github.com/login/oauth/authorize",
         api_base_url="https://api.github.com/",
         client_kwargs={"scope": "read:user user:email"},

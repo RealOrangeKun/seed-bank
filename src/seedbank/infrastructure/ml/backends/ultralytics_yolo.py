@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import io
-from typing import TYPE_CHECKING
 
 from seedbank.core.exceptions import ExternalServiceError
 from seedbank.core.logging import get_logger
@@ -20,9 +19,6 @@ from seedbank.infrastructure.ml.backends.base import (
     Detection,
     DetectionConfig,
 )
-
-if TYPE_CHECKING:  # pragma: no cover
-    pass
 
 log = get_logger(__name__)
 
@@ -65,7 +61,7 @@ class UltralyticsYoloBackend:
                 imgsz=cfg.image_size or 640,
                 verbose=False,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"yolo predict failed: {exc}") from exc
 
         detections: list[Detection] = []
@@ -116,7 +112,7 @@ class UltralyticsYoloBackend:
                 imgsz=cfg.image_size,
                 verbose=False,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"yolo classify failed: {exc}") from exc
         if not results:
             raise ExternalServiceError("yolo classify: empty results.")

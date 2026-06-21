@@ -24,7 +24,6 @@ from seedbank.core.security import (
     verify_password,
 )
 
-
 # ── Password hashing ────────────────────────────────────────────────────────
 
 

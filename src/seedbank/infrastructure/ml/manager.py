@@ -37,12 +37,12 @@ log = get_logger(__name__)
 
 
 class _CacheEntry:
-    __slots__ = ("module", "device", "loaded_at", "updated_at")
+    __slots__ = ("device", "loaded_at", "module", "updated_at")
 
     def __init__(
         self,
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         loaded_at: datetime,
         updated_at: datetime | None,
     ) -> None:
@@ -108,7 +108,7 @@ class ModelManager:
         bucket = bucket or self._bucket
         try:
             return await self._storage.get_object(bucket, key)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"manager: fetch {bucket}/{key}: {exc}") from exc
 
     # ── Torch (registry-built) loading ───────────────────────────────────────
@@ -119,7 +119,7 @@ class ModelManager:
         builder_key: str,
         artifact_uri: str,
         updated_at: datetime | None = None,
-    ) -> tuple["nn.Module", "torch.device"]:
+    ) -> tuple[nn.Module, torch.device]:
         """Return the cached ``(module, device)`` for ``model_id``, loading
         from MinIO + builder if missing or stale."""
         async with self._lock_for(model_id):
@@ -152,9 +152,7 @@ class ModelManager:
             return module, device
 
     @staticmethod
-    def _build_and_load_sync(
-        builder_key: str, weights: bytes
-    ) -> tuple["nn.Module", "torch.device"]:
+    def _build_and_load_sync(builder_key: str, weights: bytes) -> tuple[nn.Module, torch.device]:
         import torch
 
         builder = get_builder(builder_key)

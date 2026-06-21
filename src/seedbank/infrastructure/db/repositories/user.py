@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -26,11 +26,7 @@ class UserRepository(Repository[User]):
         return user
 
     async def touch_last_login(self, user_id: UUID) -> None:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(last_login_at=datetime.now(tz=timezone.utc))
-        )
+        stmt = update(User).where(User.id == user_id).values(last_login_at=datetime.now(tz=UTC))
         await self.session.execute(stmt)
 
     async def mark_verified(self, user_id: UUID) -> int:

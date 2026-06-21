@@ -15,7 +15,6 @@ from seedbank.core.exceptions import ModelNotReadyError
 from seedbank.infrastructure.db.enums import ModelKind
 from seedbank.services.traffic_router import TrafficRouter, _bucket_for
 
-
 # ── Fakes ────────────────────────────────────────────────────────────────────
 
 
@@ -77,8 +76,8 @@ async def test_50_50_split_is_balanced() -> None:
         u = uuid4()
         chosen = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=u)
         counter[chosen] += 1
-    # Each side should land near 500. ±50 is comfortably inside ±2σ for n=1000
-    # and p=0.5 (σ ≈ 15.8 → 2σ ≈ 32; allow 50 for headroom in CI).
+    # Each side should land near 500. ±50 is comfortably inside ±2 sigma for n=1000
+    # and p=0.5 (sigma ≈ 15.8 → 2 sigma ≈ 32; allow 50 for headroom in CI).
     assert abs(counter[a] - 500) < 60
     assert abs(counter[b] - 500) < 60
     assert counter[a] + counter[b] == 1000

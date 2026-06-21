@@ -316,7 +316,7 @@ class TestPasswordOrOauthInvariant:
         svc, _s, _u, _r, oauth, _redis = _build_service()
         oauth.find_by = AsyncMock(return_value=MagicMock())
         # Should not raise.
-        await svc._assert_password_or_oauth(u)  # noqa: SLF001
+        await svc._assert_password_or_oauth(u)
 
     @pytest.mark.asyncio
     async def test_no_password_no_oauth_rejected(self) -> None:
@@ -334,7 +334,7 @@ class TestPasswordOrOauthInvariant:
         )
         svc, *_ = _build_service()
         with pytest.raises(ValidationError):
-            await svc._assert_password_or_oauth(u)  # noqa: SLF001
+            await svc._assert_password_or_oauth(u)
 
 
 class TestLoginMetrics:

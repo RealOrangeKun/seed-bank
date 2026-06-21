@@ -20,7 +20,6 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 from PIL import Image
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.infrastructure.db.enums import UserRole
 from tests.e2e.conftest import SeedAndLogin, SeededUser, auth_header
@@ -74,7 +73,8 @@ async def test_list_batches_returns_page_envelope(
     )
     assert r.status_code == 200, r.text
     body = r.json()
-    assert "data" in body and "meta" in body
+    assert "data" in body
+    assert "meta" in body
     assert body["meta"]["page"] == 1
     assert body["meta"]["page_size"] == 10
     assert body["meta"]["total"] == 2

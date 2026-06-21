@@ -49,12 +49,12 @@ class _StubBackend:
         self._raise_on_detect = raise_on_detect
         self._raise_on_classify = raise_on_classify
 
-    async def detect(self, image: bytes, cfg: DetectionConfig) -> list[Detection]:  # noqa: ARG002
+    async def detect(self, image: bytes, cfg: DetectionConfig) -> list[Detection]:
         if self._raise_on_detect:
             raise RuntimeError("detect blew up")
         return self._detection
 
-    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:  # noqa: ARG002
+    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:
         if self._raise_on_classify:
             raise RuntimeError("classify blew up")
         return self._classification

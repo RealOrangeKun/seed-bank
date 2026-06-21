@@ -29,7 +29,7 @@ class ClickHouseClient:
         self._client = client
 
     @classmethod
-    async def from_settings(cls, settings: Settings) -> "ClickHouseClient":
+    async def from_settings(cls, settings: Settings) -> ClickHouseClient:
         client = await clickhouse_connect.get_async_client(
             host=settings.clickhouse_host,
             port=settings.clickhouse_port,
@@ -45,7 +45,7 @@ class ClickHouseClient:
         try:
             await self._client.query("SELECT 1")
             return True
-        except Exception as exc:  # noqa: BLE001 — driver raises various
+        except Exception as exc:
             log.warning("clickhouse.ping_failed", error=str(exc))
             return False
 

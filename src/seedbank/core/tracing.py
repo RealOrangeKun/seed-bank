@@ -117,7 +117,7 @@ def _instrument_common() -> None:
 def _try_instrument(name: str, fn: object) -> None:
     try:
         fn()  # type: ignore[operator]
-    except Exception as exc:  # noqa: BLE001 — instrumenting must never crash boot
+    except Exception as exc:
         log.warning("otel.instrument_failed", instrument=name, error=repr(exc))
 
 

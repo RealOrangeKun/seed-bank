@@ -11,7 +11,7 @@ worker should ever load this builder.
 from __future__ import annotations
 
 import torchvision
-from torch import nn  # noqa: TCH002 — required at builder-build time
+from torch import nn  # required at builder-build time (runtime use, not just typing)
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 from seedbank.infrastructure.ml.registry import register_builder

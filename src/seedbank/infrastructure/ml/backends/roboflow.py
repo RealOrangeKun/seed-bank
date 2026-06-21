@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from typing import TYPE_CHECKING
 
 from seedbank.core.config import get_settings
 from seedbank.core.exceptions import ExternalServiceError
@@ -24,9 +23,6 @@ from seedbank.infrastructure.ml.backends.base import (
     Detection,
     DetectionConfig,
 )
-
-if TYPE_CHECKING:  # pragma: no cover
-    pass
 
 log = get_logger(__name__)
 
@@ -81,7 +77,7 @@ class RoboflowBackend:
                 b64,
                 model_id=model_id,  # type: ignore[attr-defined]
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc
 
         predictions = result.get("predictions", []) if isinstance(result, dict) else []
@@ -122,7 +118,7 @@ class RoboflowBackend:
                 b64,
                 model_id=model_id,  # type: ignore[attr-defined]
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc
 
         # Single-label classifier output: top-1 prediction.

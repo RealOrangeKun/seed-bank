@@ -55,7 +55,7 @@ def _override_storage(app_client: AsyncClient) -> None:
     # client; we reach into the app to override the storage dep for these
     # tests so the registry's existence check is a no-op.
     app = app_client._transport.app  # type: ignore[attr-defined]
-    app.dependency_overrides[storage_dep] = lambda: _StubStorage()
+    app.dependency_overrides[storage_dep] = _StubStorage
     yield
     app.dependency_overrides.pop(storage_dep, None)
 

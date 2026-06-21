@@ -78,7 +78,7 @@ def _stub_storage(app_client: AsyncClient) -> None:
     up so the override doesn't leak into other tests.
     """
     app = app_client._transport.app  # type: ignore[attr-defined]
-    app.dependency_overrides[storage_dep] = lambda: _StubStorage()
+    app.dependency_overrides[storage_dep] = _StubStorage
     yield
     app.dependency_overrides.pop(storage_dep, None)
 

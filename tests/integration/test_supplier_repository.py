@@ -54,7 +54,9 @@ async def test_user_sees_globals_plus_own_private(db_session: AsyncSession) -> N
     repo = SupplierRepository(db_session)
     visible = await repo.list_visible_to(alice.id)
     names = {s.name.lower() for s in visible}
-    assert "acme" in names and "alice's local" in names and "bob's local" not in names
+    assert "acme" in names
+    assert "alice's local" in names
+    assert "bob's local" not in names
 
 
 async def test_global_xor_owner_check_constraint(db_session: AsyncSession) -> None:
