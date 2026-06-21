@@ -56,10 +56,26 @@ so `make wait` polls the right address.
 | `minio` | `minio:RELEASE.2024-11-07` | Object storage (images, models, experiments, datasets) |
 | `clickhouse` | `clickhouse-server:24.10-alpine` | Analytics warehouse (Phase 8) |
 | `mlflow` | `ghcr.io/mlflow/mlflow:v2.18.0` | Experiment tracking + model registry mirror |
-| `adminer` | `adminer:4.8.1` | Web SQL UI. Opt-in via `--profile dev` |
+| `adminer` | `adminer:4.8.1` | Web SQL UI for **Postgres**. Opt-in via `--profile dev` |
+| `ch-ui` | `ghcr.io/caioricciuti/ch-ui:v2.5.1` | Web UI for the **ClickHouse DWH** (`:3488`). Opt-in via `--profile dev` |
 
 Resource caps live in `compose.yaml`. The full lean stack fits in
 roughly 3.5 GB RAM at idle.
+
+### Viewing the ClickHouse DWH
+
+`ch-ui` is what Adminer is for Postgres — a browser UI for the warehouse. Its
+**server** proxies ClickHouse over the compose network (`CLICKHOUSE_URL` points
+at the internal `clickhouse:8123`, credentials from `CLICKHOUSE_USER`/
+`CLICKHOUSE_PASSWORD`), so the browser only ever talks to ch-ui and no ClickHouse
+CORS config is needed. Bring it up with `make up-dev`, open
+<http://localhost:3488>, and sign in with the ClickHouse credentials
+(`seedbank` / `seedbank-dev-secret` in dev).
+
+Two zero-dependency alternatives are always available on the ClickHouse server
+itself: the built-in **Play** editor at `/play` and a **dashboard** at
+`/dashboard` (host port `58123` under the override, `8123` otherwise), plus
+`docker compose exec clickhouse clickhouse-client`.
 
 ## Healthchecks
 
