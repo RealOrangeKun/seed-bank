@@ -177,36 +177,50 @@ def get_user_batches(
     # Apply pagination
     offset = (page - 1) * limit
     batches = query.order_by(sort_col).offset(offset).limit(limit).all()
-    
+
+    # Batch-fetch image data for this page in 2 queries instead of 2N (#29).
+    batch_ids = [b.id for b in batches]
+    image_counts: Dict[int, int] = {}
+    first_image_path: Dict[int, str] = {}
+    if batch_ids:
+        for bid, cnt in (
+            db.query(ScanImage.batch_id, func.count(ScanImage.id))
+            .filter(ScanImage.batch_id.in_(batch_ids))
+            .group_by(ScanImage.batch_id)
+            .all()
+        ):
+            image_counts[bid] = cnt
+        # Earliest image per batch (id asc as a stable tiebreaker on equal timestamps).
+        for img in (
+            db.query(ScanImage)
+            .filter(ScanImage.batch_id.in_(batch_ids))
+            .order_by(ScanImage.batch_id.asc(), ScanImage.created_at.asc(), ScanImage.id.asc())
+            .all()
+        ):
+            first_image_path.setdefault(img.batch_id, img.storage_path)
+
     # Format batches with image counts and calculations
     formatted_batches = []
     for batch in batches:
-        # Get image count
-        image_count = db.query(func.count(ScanImage.id)).filter(
-            ScanImage.batch_id == batch.id
-        ).scalar() or 0
-        
+        image_count = image_counts.get(batch.id, 0)
+
         # Calculate good seeds count
         good_seeds_count = batch.total_seeds - batch.bad_seeds_count if batch.total_seeds else 0
-        
+
         # Calculate percentages
         good_percentage = 0.0
         bad_percentage = 0.0
         if batch.total_seeds > 0:
             good_percentage = round((good_seeds_count / batch.total_seeds) * 100, 2)
             bad_percentage = round((batch.bad_seeds_count / batch.total_seeds) * 100, 2)
-        
-        # Get first image URL if exists
-        first_image = db.query(ScanImage).filter(
-            ScanImage.batch_id == batch.id
-        ).order_by(ScanImage.created_at.asc()).first()
-        
+
+        # First image URL (from the pre-fetched map)
         first_image_url = None
-        if first_image:
-            # Extract filename from storage_path
-            filename = first_image.storage_path.split('/')[-1]
+        storage_path = first_image_path.get(batch.id)
+        if storage_path:
+            filename = storage_path.split('/')[-1]
             first_image_url = f"/api/images/{batch.id}/{filename}"
-        
+
         formatted_batches.append({
             "id": batch.id,
             "status": batch.status.value if batch.status else None,

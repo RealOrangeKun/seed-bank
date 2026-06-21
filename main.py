@@ -129,28 +129,26 @@ async def load_models():
     global model_manager, device
     
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    print(f"Using device: {device}")
-    
+    log.info("startup: using device %s", device)
+
     # Import here to avoid circular dependencies
     from app.database import SessionLocal
-    
+
     # Create database session
     db = SessionLocal()
-    
+
     try:
         # Initialize model manager (loads all active models from database)
         model_manager = ModelManager(db, device)
-        
-        print("\n" + "="*50)
-        print("MODEL CONFIGURATION")
-        print("="*50)
+
         config = model_manager.get_config_summary()
-        print(f"Detection: {config['detection_model']['name']} (v{config['detection_model']['version']})")
-        print("Quality Models:")
-        for seed_type, model_info in config['quality_models'].items():
-            print(f"  - {seed_type}: {model_info['name']} (threshold={model_info['threshold']})")
-        print("="*50 + "\n")
-        
+        quality = {st: f"{m['name']} (thr={m['threshold']})"
+                   for st, m in config['quality_models'].items()}
+        log.info(
+            "model configuration loaded: detection=%s v%s; quality=%s",
+            config['detection_model']['name'], config['detection_model']['version'], quality,
+        )
+
     finally:
         db.close()
 
@@ -536,7 +534,7 @@ async def analyze_batch(
         db.add(scan_batch)
         db.flush()
 
-        print(f"Processing {len(files)} images in batch...")
+        log.info("processing batch: %d images", len(files))
 
         # Process each image
         all_results = []
@@ -783,6 +781,8 @@ async def analyze_image_fast(
         user_agent = request.headers.get("user-agent", "")
         client_host = request.client.host if request.client else None
         device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+        # Rate limit per device — fast mode proxies a paid external API (#28).
+        enforce_rate_limit(device_fingerprint)
         guest_user = get_or_create_guest_user(db, device_fingerprint)
         processing_start = utcnow()
         scan_batch = ScanBatch(
@@ -849,7 +849,7 @@ async def analyze_image_fast(
                 # Skip classes we have no quality model for; classifying them would
                 # raise downstream and 500 the whole request (#8).
                 if seed_type_id is None:
-                    print(f"Skipping unmapped detection class '{class_name}' (fast mode)")
+                    log.warning("skipping unmapped detection class %r (fast mode)", class_name)
                     continue
 
                 detected_seeds.append(
@@ -1027,9 +1027,12 @@ async def analyze_batch_fast(
         client_host = request.client.host if request.client else None
         device_fingerprint = generate_device_fingerprint(user_agent, client_host)
 
+        # Rate limit per device — fast mode proxies a paid external API (#28).
+        enforce_rate_limit(device_fingerprint)
+
         # Get or create guest user (will reuse if fingerprint matches)
         guest_user = get_or_create_guest_user(db, device_fingerprint)
-        
+
         # Create scan batch for the entire batch
         processing_start = utcnow()
         scan_batch = ScanBatch(
@@ -1040,7 +1043,7 @@ async def analyze_batch_fast(
         db.add(scan_batch)
         db.flush()
 
-        print(f"Processing {len(files)} images in batch (fast mode)...")
+        log.info("processing fast batch: %d images", len(files))
 
         # Process each image
         all_results = []
@@ -1104,7 +1107,7 @@ async def analyze_batch_fast(
 
                     # Skip classes we have no quality model for (#8).
                     if seed_type_id is None:
-                        print(f"Skipping unmapped detection class '{class_name}' (fast batch)")
+                        log.warning("skipping unmapped detection class %r (fast batch)", class_name)
                         continue
 
                     detected_seeds.append(
@@ -1253,8 +1256,9 @@ async def analyze_batch_fast(
                     }
                 )
 
-            print(
-                f"  [{file_idx+1}/{len(files)}] {file.filename}: {len(detected_seeds)} seeds detected"
+            log.info(
+                "fast batch image %d/%d (%s): %d seeds detected",
+                file_idx + 1, len(files), file.filename, len(detected_seeds),
             )
 
         # Calculate overall statistics
@@ -1755,11 +1759,9 @@ async def get_user_statistics_endpoint(
             "stats": stats,
             "period": stats.get("period", {})
         }
-    except Exception as e:
-        # Log error and return empty stats
-        import traceback
-        print(f"Error getting statistics: {e}")
-        traceback.print_exc()
+    except Exception:
+        # Log error (with traceback) and return empty stats
+        log.exception("error getting statistics")
         empty_stats = {
             "total_batches": 0,
             "total_seeds_analyzed": 0,

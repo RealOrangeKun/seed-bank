@@ -40,6 +40,35 @@ def test_rate_limit_returns_429(client, png_bytes, monkeypatch):
         limits.analyze_limiter.reset()
 
 
+@pytest.mark.integration
+def test_fast_endpoint_is_rate_limited(client, png_bytes, monkeypatch):
+    """The fast endpoint proxies a paid API and must be rate-limited too (#28)."""
+    import main
+
+    monkeypatch.setattr(main, "ROBOFLOW_URL", "http://stub.local/detect")
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"predictions": [{"x": 60, "y": 60, "width": 30, "height": 30,
+                                     "confidence": 0.9, "class": "maize"}]}
+
+    monkeypatch.setattr(main.requests, "post", lambda *a, **k: _Resp())
+
+    limits.analyze_limiter.max_requests = 1
+    limits.analyze_limiter.window = 60
+    limits.analyze_limiter.reset()
+    try:
+        r1 = client.post("/api/analyze/fast", files={"file": ("a.png", png_bytes, "image/png")})
+        assert r1.status_code == 200, r1.text
+        r2 = client.post("/api/analyze/fast", files={"file": ("b.png", png_bytes, "image/png")})
+        assert r2.status_code == 429
+    finally:
+        limits.analyze_limiter.max_requests = limits.RATE_LIMIT_REQUESTS
+        limits.analyze_limiter.reset()
+
+
 def test_limiter_unit_window():
     lim = limits.SlidingWindowRateLimiter(max_requests=2, window_seconds=60)
     assert lim.check("k")[0] is True
