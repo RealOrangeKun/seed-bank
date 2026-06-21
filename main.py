@@ -34,6 +34,8 @@ from app.crud import (
     get_user_analytics,
     compare_batches,
     iter_batch_detections_for_export,
+    delete_batch,
+    delete_batches_bulk,
 )
 
 
@@ -759,15 +761,34 @@ async def get_models_config():
 
 
 @app.post("/api/analyze/fast")
-async def analyze_image_fast(file: UploadFile = File(...)):
+async def analyze_image_fast(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
     """
-    Fast endpoint using Roboflow for detection + Local ResNet for classification
+    Fast endpoint using Roboflow for detection + Local ResNet for classification.
+    Now persists results like the other analyze endpoints and returns a batch_id (#7).
     """
     try:
         _require_roboflow()
         # Validate file type
         if not file.content_type or not file.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="File must be an image")
+
+        # Resolve user + create a batch so fast results show up in history/stats (#7).
+        user_agent = request.headers.get("user-agent", "")
+        client_host = request.client.host if request.client else None
+        device_fingerprint = generate_device_fingerprint(user_agent, client_host)
+        guest_user = get_or_create_guest_user(db, device_fingerprint)
+        processing_start = utcnow()
+        scan_batch = ScanBatch(
+            user_id=guest_user.id,
+            status=ProcessingStatus.PROCESSING,
+            processing_start_at=processing_start,
+        )
+        db.add(scan_batch)
+        db.flush()
 
         # Read image
         contents = await file.read()
@@ -836,10 +857,29 @@ async def analyze_image_fast(file: UploadFile = File(...)):
                         "seed_type_id": seed_type_id,
                     }
                 )
+        # Persist the uploaded image regardless of detections.
+        storage_path = save_image_to_storage(contents, scan_batch.id, file.filename or "image.jpg")
+        scan_image = ScanImage(
+            batch_id=scan_batch.id,
+            storage_path=storage_path,
+            original_filename=file.filename,
+            width=orig_w,
+            height=orig_h,
+        )
+        db.add(scan_image)
+        db.flush()
+
         if len(detected_seeds) == 0:
+            processing_end = utcnow()
+            scan_batch.status = ProcessingStatus.COMPLETED
+            scan_batch.processing_end_at = processing_end
+            scan_batch.processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
+            db.commit()
             return JSONResponse(
                 content={
                     "success": True,
+                    "mode": "fast",
+                    "batch_id": scan_batch.id,
                     "message": "No seeds detected (Fast Mode)",
                     "total_seeds": 0,
                     "bounding_boxes": [],
@@ -861,10 +901,30 @@ async def analyze_image_fast(file: UploadFile = File(...)):
         bad_count = sum(1 for s in classified_results if s["quality"] == "Bad")
         total_count = len(classified_results)
 
-        # Format bounding boxes
+        # Persist detections + format bounding boxes
         bounding_boxes = []
+        confidences = []
         for idx, seed in enumerate(classified_results):
             x1, y1, x2, y2 = seed["box"]
+            box_x_norm = x1 / orig_w if orig_w > 0 else 0.0
+            box_y_norm = y1 / orig_h if orig_h > 0 else 0.0
+            box_w_norm = (x2 - x1) / orig_w if orig_w > 0 else 0.0
+            box_h_norm = (y2 - y1) / orig_h if orig_h > 0 else 0.0
+            db.add(SeedDetection(
+                batch_id=scan_batch.id,
+                image_id=scan_image.id,
+                seed_type_id=seed["seed_type_id"],
+                quality_label=QualityLabel.GOOD if seed["quality"] == "Good" else QualityLabel.BAD,
+                confidence_score=seed["classification_confidence"] / 100.0,
+                detection_confidence=seed["detection_confidence"],
+                box_x_norm=box_x_norm, box_y_norm=box_y_norm,
+                box_w_norm=box_w_norm, box_h_norm=box_h_norm,
+                area=seed["area"], width=seed["width"], height=seed["height"],
+                aspect_ratio=seed["aspect_ratio"],
+                centroid_x=seed["centroid"]["x"], centroid_y=seed["centroid"]["y"],
+                good_percentage=seed["good_percentage"], bad_percentage=seed["bad_percentage"],
+            ))
+            confidences.append(seed["classification_confidence"])
             bounding_boxes.append(
                 {
                     "id": idx,
@@ -887,10 +947,21 @@ async def analyze_image_fast(file: UploadFile = File(...)):
                 }
             )
 
+        # Finalize batch
+        processing_end = utcnow()
+        scan_batch.status = ProcessingStatus.COMPLETED
+        scan_batch.total_seeds = total_count
+        scan_batch.bad_seeds_count = bad_count
+        scan_batch.avg_confidence_score = (sum(confidences) / len(confidences) / 100.0) if confidences else 0.0
+        scan_batch.processing_end_at = processing_end
+        scan_batch.processing_duration_ms = int((processing_end - processing_start).total_seconds() * 1000)
+        db.commit()
+
         return JSONResponse(
             content={
                 "success": True,
                 "mode": "fast",
+                "batch_id": scan_batch.id,
                 "total_seeds": total_count,
                 "bounding_boxes": bounding_boxes,
                 "statistics": {
@@ -912,8 +983,12 @@ async def analyze_image_fast(file: UploadFile = File(...)):
         )
 
     except HTTPException:
+        if 'db' in locals():
+            db.rollback()
         raise
     except Exception as e:
+        if 'db' in locals():
+            db.rollback()
         raise HTTPException(status_code=500, detail=f"Fast analysis failed: {str(e)}")
 
 
@@ -1248,18 +1323,23 @@ async def list_batches(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     limit: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
     status: Optional[str] = Query(None, description="Filter by status (PENDING, PROCESSING, COMPLETED, FAILED)"),
+    sort: str = Query("created_at", pattern="^(created_at|total_seeds|good_percentage|avg_confidence_score|bad_seeds_count)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+    date_from: Optional[str] = Query(None, description="ISO date lower bound on created_at"),
+    date_to: Optional[str] = Query(None, description="ISO date upper bound on created_at"),
+    min_seeds: Optional[int] = Query(None, ge=0, description="Minimum total seeds"),
     db: Session = Depends(get_db)
 ):
     """
-    List user's scan batches with pagination.
-    
+    List user's scan batches with pagination, sorting and filtering (#19).
+
     Returns paginated list of batches for the current user (identified by device fingerprint).
     """
     # Extract device fingerprint
     user_agent = request.headers.get("user-agent", "")
     client_host = request.client.host if request.client else None
     device_fingerprint = generate_device_fingerprint(user_agent, client_host)
-    
+
     # Get user
     user = get_user_by_fingerprint(db, device_fingerprint)
     if not user:
@@ -1274,9 +1354,12 @@ async def list_batches(
                 }
             }
         )
-    
+
     # Get batches
-    batches, total = get_user_batches(db, user.id, page, limit, status)
+    batches, total = get_user_batches(
+        db, user.id, page, limit, status,
+        sort=sort, order=order, date_from=date_from, date_to=date_to, min_seeds=min_seeds,
+    )
     
     # Calculate pagination info
     total_pages = (total + limit - 1) // limit if total > 0 else 1
@@ -1472,6 +1555,49 @@ async def get_batch_detections_endpoint(
         "total_detections": len(detections),
         "detections": detections
     }
+
+
+@app.delete("/api/batches/{batch_id}")
+async def delete_batch_endpoint(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    db: Session = Depends(get_db),
+):
+    """Delete a batch (cascades images + detections + on-disk files) (#18)."""
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    user = get_user_by_fingerprint(db, generate_device_fingerprint(user_agent, client_host))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not delete_batch(db, batch_id, user.id):
+        raise HTTPException(status_code=404, detail="Batch not found or access denied")
+    return {"success": True, "deleted": batch_id}
+
+
+@app.post("/api/batches/delete")
+async def bulk_delete_batches_endpoint(
+    request: Request,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    """Delete multiple owned batches. Body: {"batch_ids": [int, ...]} (#18)."""
+    batch_ids = payload.get("batch_ids") if isinstance(payload, dict) else None
+    if not batch_ids or not isinstance(batch_ids, list):
+        raise HTTPException(status_code=400, detail="batch_ids (non-empty list) is required")
+    try:
+        batch_ids = [int(b) for b in batch_ids]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="batch_ids must be integers")
+
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    user = get_user_by_fingerprint(db, generate_device_fingerprint(user_agent, client_host))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = delete_batches_bulk(db, batch_ids, user.id)
+    return {"success": True, **result, "deleted_count": len(result["deleted"])}
 
 
 @app.get("/api/stats")
