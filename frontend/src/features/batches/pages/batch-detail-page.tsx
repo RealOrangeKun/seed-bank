@@ -43,8 +43,10 @@ import { useSeedTypes } from "@/features/catalog/api";
 import { useModels } from "@/features/models/api";
 
 import { downloadBatchExport, useBatch, useBatchImageUrls, useDeleteBatch } from "../api";
+import { AnalyzingIndicator } from "../components/analyzing-indicator";
 import { InsightsPanel } from "../components/insights-panel";
 import { OverlayControls, type QualityKey } from "../components/overlay-controls";
+import { SeedTypeBreakdown } from "../components/seed-type-breakdown";
 import { computeInsights } from "../insights";
 
 /** Resolve a seed-type id to its display name, falling back to a dash. */
@@ -333,15 +335,20 @@ export function BatchDetailPage() {
           ) : null}
 
           {!isTerminal ? (
-            <Card>
-              <CardContent className="flex items-center gap-3 p-5 text-sm text-muted-foreground">
-                <Spinner className="text-primary" />
-                Analysis in progress — this page updates automatically.
-              </CardContent>
-            </Card>
+            <AnalyzingIndicator pending={batch.data.status === "pending"} />
           ) : (
             <>
-              {insights && hasDetections ? <InsightsPanel insights={insights} /> : null}
+              {insights && hasDetections ? (
+                <>
+                  <InsightsPanel insights={insights} />
+                  {insights.bySeedType.length > 1 ? (
+                    <SeedTypeBreakdown
+                      rows={insights.bySeedType}
+                      seedTypeName={seedTypeName}
+                    />
+                  ) : null}
+                </>
+              ) : null}
               <div className="grid gap-4 lg:grid-cols-2">
                 {(batch.data.images ?? []).map((image) => (
                   <ImageCard
