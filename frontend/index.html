@@ -4,20 +4,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seed Bank Demo</title>
+    <title>Seed Bank — Seed Quality Intelligence</title>
     <link href="./style.css" rel="stylesheet">
+    <link href="./enhancements.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js for the analytics dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- jsPDF for PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- avoid theme flash: apply persisted theme before paint -->
+    <script>
+        (function () {
+            var t = localStorage.getItem('sb-theme') ||
+                (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            if (t === 'dark') document.documentElement.classList.add('dark');
+        })();
+    </script>
 </head>
 
 <body class="bg-gray-50 min-h-screen flex flex-col font-sans text-gray-800">
 
     <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
+    <header class="sb-glass bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div id="logo-home" class="flex items-center gap-3 cursor-pointer">
                 <div class="bg-seed-green-500 p-2 rounded-lg text-white">
@@ -25,21 +36,25 @@
                 </div>
                 <div>
                     <h1 class="text-xl font-bold text-gray-900 tracking-tight">Seed Bank</h1>
-                    <p class="text-xs text-gray-500 font-medium">Quality Control System</p>
+                    <p class="text-xs text-gray-500 font-medium">Seed Quality Intelligence</p>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 sm:gap-4">
+                <button type="button" id="btn-analytics" class="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                    <span class="text-sm font-medium hidden sm:inline">Analytics</span>
+                </button>
                 <button type="button" id="btn-history" class="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
                     <i data-lucide="history" class="w-5 h-5"></i>
-                    <span class="text-sm font-medium">History</span>
+                    <span class="text-sm font-medium hidden sm:inline">History</span>
                 </button>
-                <button type="button" class="text-gray-500 hover:text-gray-700 transition-colors">
-                    <i data-lucide="help-circle" class="w-5 h-5"></i>
+                <button type="button" id="sb-theme-toggle" title="Toggle theme (Ctrl/Cmd+D)" class="text-gray-500 hover:text-gray-700 transition-colors p-2 rounded-lg hover:bg-gray-50">
+                    <i data-lucide="moon" class="w-5 h-5"></i>
                 </button>
                 <div class="h-8 w-px bg-gray-200"></div>
                 <div class="flex items-center gap-2">
                     <span id="system-status-dot" class="w-2 h-2 rounded-full bg-gray-400"></span>
-                    <span id="system-status-text" class="text-sm font-medium text-gray-600">Connecting...</span>
+                    <span id="system-status-text" class="text-sm font-medium text-gray-600 hidden sm:inline">Connecting...</span>
                 </div>
             </div>
         </div>
@@ -164,6 +179,42 @@
             </div>
         </section>
 
+        <!-- Analytics Dashboard Section -->
+        <section id="analytics-section" class="hidden max-w-7xl mx-auto space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-2">
+                <div>
+                    <h2 class="text-3xl font-bold text-gray-900">Analytics</h2>
+                    <p class="text-sm text-gray-500">Aggregated insight across all your scans.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <select id="sb-analytics-range" class="bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 px-3 py-2 shadow-sm">
+                        <option value="all">All time</option>
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
+                    <button type="button" data-sb-back class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Back
+                    </button>
+                </div>
+            </div>
+            <div id="analytics-body"></div>
+        </section>
+
+        <!-- Compare Section -->
+        <section id="compare-section" class="hidden max-w-7xl mx-auto space-y-6">
+            <div class="flex items-center justify-between gap-4 mb-2">
+                <div>
+                    <h2 class="text-3xl font-bold text-gray-900">Compare Batches</h2>
+                    <p class="text-sm text-gray-500">Side-by-side quality comparison.</p>
+                </div>
+                <button type="button" id="btn-back-from-compare" data-sb-back class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Back
+                </button>
+            </div>
+            <div id="compare-body"></div>
+        </section>
+
         <!-- Results Section -->
         <section id="results-section" class="hidden space-y-6">
 
@@ -193,11 +244,23 @@
                     </button>
                 </div>
 
-                <button type="button" id="btn-export"
-                    class="flex items-center gap-2 px-4 py-2 bg-seed-green-600 text-white rounded-lg hover:bg-seed-green-700 transition-colors shadow-sm">
-                    <i data-lucide="download" class="w-4 h-4"></i>
-                    Export Report
-                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-export"
+                        class="flex items-center gap-2 px-4 py-2 bg-seed-green-600 text-white rounded-lg hover:bg-seed-green-700 transition-colors shadow-sm">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                        PDF
+                    </button>
+                    <button type="button" id="btn-export-csv"
+                        class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                        <i data-lucide="table" class="w-4 h-4"></i>
+                        CSV
+                    </button>
+                    <button type="button" id="btn-export-json"
+                        class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                        <i data-lucide="braces" class="w-4 h-4"></i>
+                        JSON
+                    </button>
+                </div>
             </div>
 
             <!-- Image Tabs -->
@@ -348,6 +411,17 @@
 
     </main>
 
+    <!-- Floating compare bar (shown when batches are selected in History) -->
+    <div id="sb-compare-bar" class="hidden" style="position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%);z-index:60;">
+        <div class="sb-card" style="display:flex;align-items:center;gap:1rem;padding:.75rem 1.25rem;box-shadow:var(--sb-shadow-lg);">
+            <span class="text-sm font-medium" style="color:var(--sb-text)"><span id="sb-compare-count">0</span> selected</span>
+            <button type="button" id="sb-compare-run" class="flex items-center gap-2 px-4 py-2 bg-seed-green-600 text-white rounded-lg hover:bg-seed-green-700 transition-colors text-sm font-medium">
+                <i data-lucide="git-compare" class="w-4 h-4"></i> Compare
+            </button>
+            <button type="button" id="sb-compare-clear" class="text-sm text-gray-500 hover:text-gray-800">Clear</button>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="bg-white border-t border-gray-200 mt-auto">
         <div
@@ -362,6 +436,7 @@
     </footer>
 
     <script src="./script.js"></script>
+    <script src="./dashboard.js"></script>
     <script>
         // Initialize Lucide icons
         lucide.createIcons();
