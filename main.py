@@ -47,7 +47,29 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-app = FastAPI(title="Bank Seed Demo API", version="1.0.0")
+def _current_user(request: Request, db: Session):
+    """Resolve the current guest user from the request's device fingerprint (read-only)."""
+    user_agent = request.headers.get("user-agent", "")
+    client_host = request.client.host if request.client else None
+    fingerprint = generate_device_fingerprint(user_agent, client_host)
+    return get_user_by_fingerprint(db, fingerprint)
+
+
+OPENAPI_TAGS = [
+    {"name": "System", "description": "Health, readiness, and model configuration."},
+    {"name": "Analysis", "description": "Detect + classify seeds (accurate and fast modes)."},
+    {"name": "History", "description": "Browse, filter, and delete past scan batches."},
+    {"name": "Analytics", "description": "Aggregated statistics, trends, and batch comparison."},
+    {"name": "Reports", "description": "Export (CSV/JSON), annotated images, and shareable links."},
+    {"name": "Images", "description": "Serve stored batch images (ownership-checked)."},
+]
+
+app = FastAPI(
+    title="Seed Bank API",
+    version="1.1.0",
+    description="Two-stage seed quality detection (3-class detector + per-type ResNet18/CBAM).",
+    openapi_tags=OPENAPI_TAGS,
+)
 
 # Structured logging + request-id/timing middleware (#15).
 log = configure_logging(os.getenv("LOG_LEVEL", "INFO"))
@@ -221,7 +243,7 @@ def classify_seeds(rgb_img: np.ndarray, detected_seeds: List[Dict]) -> List[Dict
     )
 
 
-@app.get("/")
+@app.get("/", tags=["System"])
 async def root():
     """Health check endpoint"""
     return {
@@ -232,13 +254,13 @@ async def root():
     }
 
 
-@app.get("/health")
+@app.get("/health", tags=["System"])
 async def health():
     """Liveness probe: the process is up and serving (no dependency checks)."""
     return {"status": "ok"}
 
 
-@app.get("/readiness")
+@app.get("/readiness", tags=["System"])
 async def readiness(db: Session = Depends(get_db)):
     """Readiness probe: verifies DB connectivity and that models are loaded.
 
@@ -262,7 +284,7 @@ async def readiness(db: Session = Depends(get_db)):
     return payload
 
 
-@app.post("/api/analyze")
+@app.post("/api/analyze", tags=["Analysis"])
 async def analyze_image(
     request: Request,
     file: UploadFile = File(...),
@@ -484,7 +506,7 @@ async def analyze_image(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-@app.post("/api/analyze-batch")
+@app.post("/api/analyze-batch", tags=["Analysis"])
 async def analyze_batch(
     request: Request,
     files: List[UploadFile] = File(...),
@@ -733,7 +755,7 @@ async def analyze_batch(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-@app.get("/api/config")
+@app.get("/api/config", tags=["System"])
 async def get_config():
     """Get current configuration parameters"""
     if model_manager is None:
@@ -752,7 +774,7 @@ async def get_config():
 
 
 
-@app.get("/api/models/config")
+@app.get("/api/models/config", tags=["System"])
 async def get_models_config():
     """Get active model configurations from database"""
     if model_manager is None:
@@ -761,7 +783,7 @@ async def get_models_config():
     return model_manager.get_config_summary()
 
 
-@app.post("/api/analyze/fast")
+@app.post("/api/analyze/fast", tags=["Analysis"])
 async def analyze_image_fast(
     request: Request,
     file: UploadFile = File(...),
@@ -998,7 +1020,7 @@ async def analyze_image_fast(
 
 
 
-@app.post("/api/analyze-batch/fast")
+@app.post("/api/analyze-batch/fast", tags=["Analysis"])
 async def analyze_batch_fast(
     request: Request,
     files: List[UploadFile] = File(...),
@@ -1324,7 +1346,7 @@ async def analyze_batch_fast(
 # GET Endpoints - History and Data Retrieval
 # ============================================================================
 
-@app.get("/api/batches")
+@app.get("/api/batches", tags=["History"])
 async def list_batches(
     request: Request,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
@@ -1342,13 +1364,8 @@ async def list_batches(
 
     Returns paginated list of batches for the current user (identified by device fingerprint).
     """
-    # Extract device fingerprint
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
-
-    # Get user
-    user = get_user_by_fingerprint(db, device_fingerprint)
+    # Resolve current user from device fingerprint
+    user = _current_user(request, db)
     if not user:
         raise HTTPException(
             status_code=404,
@@ -1385,7 +1402,7 @@ async def list_batches(
     }
 
 
-@app.get("/api/batches/{batch_id}")
+@app.get("/api/batches/{batch_id}", tags=["History"])
 async def get_batch_details(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1396,13 +1413,8 @@ async def get_batch_details(
     
     Returns batch details including images and detection counts.
     """
-    # Extract device fingerprint
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
-    
-    # Get user
-    user = get_user_by_fingerprint(db, device_fingerprint)
+    # Resolve current user from device fingerprint
+    user = _current_user(request, db)
     if not user:
         raise HTTPException(
             status_code=404,
@@ -1486,7 +1498,7 @@ async def get_batch_details(
     }
 
 
-@app.get("/api/batches/{batch_id}/detections")
+@app.get("/api/batches/{batch_id}/detections", tags=["History"])
 async def get_batch_detections_endpoint(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1500,13 +1512,8 @@ async def get_batch_detections_endpoint(
     
     Returns all detections with optional filtering by image_id or quality.
     """
-    # Extract device fingerprint
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
-    
-    # Get user
-    user = get_user_by_fingerprint(db, device_fingerprint)
+    # Resolve current user from device fingerprint
+    user = _current_user(request, db)
     if not user:
         raise HTTPException(
             status_code=404,
@@ -1564,16 +1571,14 @@ async def get_batch_detections_endpoint(
     }
 
 
-@app.delete("/api/batches/{batch_id}")
+@app.delete("/api/batches/{batch_id}", tags=["History"])
 async def delete_batch_endpoint(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
     db: Session = Depends(get_db),
 ):
     """Delete a batch (cascades images + detections + on-disk files) (#18)."""
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    user = get_user_by_fingerprint(db, generate_device_fingerprint(user_agent, client_host))
+    user = _current_user(request, db)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -1582,7 +1587,7 @@ async def delete_batch_endpoint(
     return {"success": True, "deleted": batch_id}
 
 
-@app.post("/api/batches/delete")
+@app.post("/api/batches/delete", tags=["History"])
 async def bulk_delete_batches_endpoint(
     request: Request,
     payload: dict,
@@ -1597,9 +1602,7 @@ async def bulk_delete_batches_endpoint(
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="batch_ids must be integers")
 
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    user = get_user_by_fingerprint(db, generate_device_fingerprint(user_agent, client_host))
+    user = _current_user(request, db)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -1607,7 +1610,7 @@ async def bulk_delete_batches_endpoint(
     return {"success": True, **result, "deleted_count": len(result["deleted"])}
 
 
-@app.post("/api/batches/{batch_id}/share")
+@app.post("/api/batches/{batch_id}/share", tags=["Reports"])
 async def share_batch(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1623,7 +1626,7 @@ async def share_batch(
     return {"success": True, "share_token": token, "share_path": f"/api/shared/{token}"}
 
 
-@app.delete("/api/batches/{batch_id}/share")
+@app.delete("/api/batches/{batch_id}/share", tags=["Reports"])
 async def unshare_batch(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1638,7 +1641,7 @@ async def unshare_batch(
     return {"success": True, "revoked": batch_id}
 
 
-@app.get("/api/shared/{token}")
+@app.get("/api/shared/{token}", tags=["Reports"])
 async def get_shared(token: str = Path(..., description="Public share token"), db: Session = Depends(get_db)):
     """Read-only batch report for a valid share token (no fingerprint required) (#21)."""
     data = get_shared_batch(db, token)
@@ -1647,7 +1650,7 @@ async def get_shared(token: str = Path(..., description="Public share token"), d
     return {"success": True, "batch": data}
 
 
-@app.get("/api/batches/{batch_id}/images/{image_id}/annotated.png")
+@app.get("/api/batches/{batch_id}/images/{image_id}/annotated.png", tags=["Reports"])
 async def annotated_image(
     request: Request,
     batch_id: int = Path(...),
@@ -1699,7 +1702,7 @@ async def annotated_image(
     )
 
 
-@app.get("/api/stats")
+@app.get("/api/stats", tags=["Analytics"])
 async def get_user_statistics_endpoint(
     request: Request,
     days: Optional[int] = Query(None, ge=1, description="Number of days to look back"),
@@ -1710,13 +1713,8 @@ async def get_user_statistics_endpoint(
     
     Returns overall statistics including total batches, seeds analyzed, and averages.
     """
-    # Extract device fingerprint
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
-    
-    # Get user
-    user = get_user_by_fingerprint(db, device_fingerprint)
+    # Resolve current user from device fingerprint
+    user = _current_user(request, db)
     if not user:
         # Return empty stats instead of 404 for better UX
         empty_stats = {
@@ -1795,15 +1793,7 @@ async def get_user_statistics_endpoint(
         }
 
 
-def _current_user(request: Request, db: Session):
-    """Resolve the current guest user from the request's device fingerprint (read-only)."""
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    fingerprint = generate_device_fingerprint(user_agent, client_host)
-    return get_user_by_fingerprint(db, fingerprint)
-
-
-@app.get("/api/analytics")
+@app.get("/api/analytics", tags=["Analytics"])
 async def get_analytics(
     request: Request,
     days: Optional[int] = Query(None, ge=1, description="Look-back window in days"),
@@ -1823,7 +1813,7 @@ async def get_analytics(
     return {"success": True, "analytics": analytics}
 
 
-@app.post("/api/compare")
+@app.post("/api/compare", tags=["Analytics"])
 async def compare(
     request: Request,
     payload: dict,
@@ -1850,7 +1840,7 @@ async def compare(
     return {"success": True, "count": len(summaries), "batches": summaries}
 
 
-@app.get("/api/batches/{batch_id}/export.csv")
+@app.get("/api/batches/{batch_id}/export.csv", tags=["Reports"])
 async def export_batch_csv(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1891,7 +1881,7 @@ async def export_batch_csv(
     )
 
 
-@app.get("/api/batches/{batch_id}/export.json")
+@app.get("/api/batches/{batch_id}/export.json", tags=["Reports"])
 async def export_batch_json(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1914,7 +1904,7 @@ async def export_batch_json(
     )
 
 
-@app.options("/api/images/{batch_id}/{path:path}")
+@app.options("/api/images/{batch_id}/{path:path}", tags=["Images"])
 async def serve_image_options(batch_id: int, path: str):
     """Handle CORS preflight for image endpoints."""
     return Response(
@@ -1927,7 +1917,7 @@ async def serve_image_options(batch_id: int, path: str):
     )
 
 
-@app.get("/api/images/{batch_id}/by-id/{image_id}")
+@app.get("/api/images/{batch_id}/by-id/{image_id}", tags=["Images"])
 async def serve_image_by_id(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1938,11 +1928,7 @@ async def serve_image_by_id(
     Serve a stored image by batch ID and image ID.
     Uses storage_path from DB so each image is unique regardless of filename.
     """
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
-    
-    user = get_user_by_fingerprint(db, device_fingerprint)
+    user = _current_user(request, db)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1986,7 +1972,7 @@ async def serve_image_by_id(
     )
 
 
-@app.get("/api/images/{batch_id}/{filename}")
+@app.get("/api/images/{batch_id}/{filename}", tags=["Images"])
 async def serve_image(
     request: Request,
     batch_id: int = Path(..., description="Batch ID"),
@@ -1997,11 +1983,7 @@ async def serve_image(
     Serve stored image files by filename (e.g. for history thumbnails).
     Security: Verifies batch ownership before serving images.
     """
-    user_agent = request.headers.get("user-agent", "")
-    client_host = request.client.host if request.client else None
-    device_fingerprint = generate_device_fingerprint(user_agent, client_host)
-    
-    user = get_user_by_fingerprint(db, device_fingerprint)
+    user = _current_user(request, db)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
