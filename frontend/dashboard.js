@@ -387,11 +387,144 @@
   }
   window.SBExport = exportBatch;
 
+  function downloadAnnotated(batchId, imageId) {
+    const a = document.createElement('a');
+    a.href = `${API}/api/batches/${batchId}/images/${imageId}/annotated.png`;
+    a.download = `batch_${batchId}_image_${imageId}_annotated.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    Toast.show('Downloading annotated image', 'success');
+  }
+  window.SBDownloadAnnotated = downloadAnnotated;
+
+  /* ------------------------------ Share ---------------------------------- */
+  const Share = {
+    async create(batchId) {
+      try {
+        const res = await fetch(`${API}/api/batches/${batchId}/share`, { method: 'POST' });
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        const url = `${location.origin}${location.pathname}?shared=${data.share_token}`;
+        try { await navigator.clipboard.writeText(url); Toast.show('Share link copied to clipboard', 'success'); }
+        catch { Toast.show('Share link created', 'success'); }
+        return url;
+      } catch (e) {
+        Toast.show('Could not create share link', 'error');
+      }
+    },
+    async openShared(token) {
+      try {
+        const res = await fetch(`${API}/api/shared/${token}`);
+        if (!res.ok) throw new Error(res.status);
+        const b = (await res.json()).batch;
+        const host = document.getElementById('compare-body');
+        showSection('compare-section');
+        document.querySelector('#compare-section h2').textContent = `Shared Report · Batch #${b.id}`;
+        host.innerHTML = `
+          <div class="sb-kpi-grid" style="margin-bottom:1.25rem">
+            <div class="sb-kpi"><div class="label">Total seeds</div><div class="value">${b.total_seeds}</div></div>
+            <div class="sb-kpi"><div class="label">Good</div><div class="value">${b.good_seeds_count}</div><div class="sub">${b.good_percentage}%</div></div>
+            <div class="sb-kpi red"><div class="label">Bad</div><div class="value">${b.bad_seeds_count}</div><div class="sub">${b.bad_percentage}%</div></div>
+            <div class="sb-kpi blue"><div class="label">Images</div><div class="value">${b.images.length}</div></div>
+          </div>
+          <div class="sb-card"><h3>Detections (${b.detections.length})</h3>
+            <div style="font-size:.8rem;color:var(--sb-text-muted)">Read-only shared report.</div></div>`;
+      } catch (e) {
+        Toast.show('Shared report not found', 'error');
+      }
+    },
+  };
+  window.SBShare = Share;
+
+  /* ------------------------------ Delete --------------------------------- */
+  async function deleteBatch(batchId) {
+    if (!confirm(`Delete batch #${batchId}? This cannot be undone.`)) return false;
+    try {
+      const res = await fetch(`${API}/api/batches/${batchId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(res.status);
+      Toast.show(`Deleted batch #${batchId}`, 'success');
+      if (window.App?.loadBatches) window.App.loadBatches();
+      return true;
+    } catch (e) {
+      Toast.show('Delete failed', 'error');
+      return false;
+    }
+  }
+  window.SBDeleteBatch = deleteBatch;
+
+  /* ----------------------------- Settings -------------------------------- */
+  const Settings = {
+    KEY: 'sb-settings',
+    get() {
+      try { return JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch { return {}; }
+    },
+    set(patch) {
+      const next = { ...this.get(), ...patch };
+      localStorage.setItem(this.KEY, JSON.stringify(next));
+      this.apply(next);
+    },
+    apply(s) {
+      if (s.reducedMotion) document.documentElement.style.setProperty('scroll-behavior', 'auto');
+      document.documentElement.classList.toggle('sb-reduce-motion', !!s.reducedMotion);
+      if (s.apiUrl && window.App) window.App.API_URL = s.apiUrl;
+    },
+    open() {
+      const s = this.get();
+      const existing = document.getElementById('sb-settings-modal');
+      if (existing) existing.remove();
+      const modal = document.createElement('div');
+      modal.id = 'sb-settings-modal';
+      modal.className = 'sb-modal-overlay';
+      modal.innerHTML = `
+        <div class="sb-modal" role="dialog" aria-modal="true" aria-label="Settings">
+          <div class="sb-modal-head"><h3>Settings</h3>
+            <button class="sb-modal-x" aria-label="Close">&times;</button></div>
+          <label class="sb-field"><span>API URL</span>
+            <input id="sb-set-api" type="text" value="${(window.App?.API_URL) || ''}"></label>
+          <label class="sb-field"><span>Default mode</span>
+            <select id="sb-set-mode">
+              <option value="accurate"${s.defaultMode !== 'fast' ? ' selected' : ''}>Accurate</option>
+              <option value="fast"${s.defaultMode === 'fast' ? ' selected' : ''}>Fast</option>
+            </select></label>
+          <label class="sb-field sb-row"><span>Reduced motion</span>
+            <input id="sb-set-rm" type="checkbox"${s.reducedMotion ? ' checked' : ''}></label>
+          <label class="sb-field sb-row"><span>Theme</span>
+            <button id="sb-set-theme" class="sb-btn">Toggle dark / light</button></label>
+          <div class="sb-modal-actions"><button id="sb-set-save" class="sb-btn primary">Save</button></div>
+        </div>`;
+      document.body.appendChild(modal);
+      const close = () => modal.remove();
+      modal.querySelector('.sb-modal-x').onclick = close;
+      modal.onclick = (e) => { if (e.target === modal) close(); };
+      modal.querySelector('#sb-set-theme').onclick = () => Theme.toggle();
+      modal.querySelector('#sb-set-save').onclick = () => {
+        this.set({
+          apiUrl: modal.querySelector('#sb-set-api').value.trim(),
+          defaultMode: modal.querySelector('#sb-set-mode').value,
+          reducedMotion: modal.querySelector('#sb-set-rm').checked,
+        });
+        Toast.show('Settings saved', 'success');
+        close();
+      };
+    },
+    init() {
+      const s = this.get();
+      this.apply(s);
+      if (s.defaultMode && window.App?.setMode) {
+        try { window.App.setMode(s.defaultMode); } catch {}
+      }
+    },
+  };
+  window.SBSettings = Settings;
+
   /* ----------------------- Wire-up after load ---------------------------- */
   function wire() {
     Theme.init();
+    Settings.init();
 
     document.getElementById('sb-theme-toggle')?.addEventListener('click', () => Theme.toggle());
+    document.getElementById('sb-settings-btn')?.addEventListener('click', () => Settings.open());
     document.getElementById('btn-analytics')?.addEventListener('click', () => Dashboard.open());
     document.getElementById('sb-analytics-range')?.addEventListener('change', (e) => {
       const v = e.target.value;
@@ -416,10 +549,12 @@
 
     if (window.lucide) lucide.createIcons();
 
-    // Deep-link support: ?view=analytics|history opens that view directly.
+    // Deep-link support: ?view=analytics|history or ?shared=<token>.
     const params = new URLSearchParams(location.search);
     const view = params.get('view');
-    if (view === 'analytics') Dashboard.open();
+    const shared = params.get('shared');
+    if (shared) Share.openShared(shared);
+    else if (view === 'analytics') Dashboard.open();
     else if (view === 'history' && window.App?.showHistory) window.App.showHistory();
   }
 

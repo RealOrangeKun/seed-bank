@@ -170,7 +170,59 @@ html.dark .sb-glass { background: rgba(17, 24, 39, .72) !important; }
 .sb-enter { animation: sb-enter .45s cubic-bezier(.22,1,.36,1); }
 @keyframes sb-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* respect reduced motion */
+/* respect reduced motion (system pref or user setting) */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
+html.sb-reduce-motion *, html.sb-reduce-motion *::before, html.sb-reduce-motion *::after {
+  animation-duration: .001ms !important;
+  transition-duration: .001ms !important;
+}
+
+/* ---- Settings modal ---- */
+.sb-modal-overlay {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+  animation: sb-enter .2s ease;
+}
+.sb-modal {
+  width: min(440px, 92vw);
+  background: var(--sb-surface); color: var(--sb-text);
+  border: 1px solid var(--sb-border); border-radius: 1rem;
+  box-shadow: var(--sb-shadow-lg); padding: 1.25rem 1.5rem;
+}
+.sb-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.sb-modal-head h3 { font-size: 1.1rem; font-weight: 700; }
+.sb-modal-x { background: none; border: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: var(--sb-text-muted); }
+.sb-field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: 1rem; font-size: .85rem; color: var(--sb-text-muted); font-weight: 600; }
+.sb-field.sb-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.sb-field input[type=text], .sb-field select {
+  background: var(--sb-surface-2); border: 1px solid var(--sb-border); color: var(--sb-text);
+  border-radius: .5rem; padding: .5rem .65rem; font-size: .9rem; font-weight: 500;
+}
+.sb-modal-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .5rem; }
+.sb-btn {
+  background: var(--sb-surface-2); color: var(--sb-text); border: 1px solid var(--sb-border);
+  border-radius: .5rem; padding: .5rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer;
+}
+.sb-btn.primary { background: var(--sb-green); color: #fff; border-color: var(--sb-green); }
+.sb-btn:hover { filter: brightness(1.05); }
+
+/* ---- Empty states ---- */
+.sb-empty { text-align: center; padding: 3.5rem 1rem; color: var(--sb-text-muted); }
+.sb-empty .sb-empty-icon { width: 56px; height: 56px; margin: 0 auto 1rem; opacity: .6; }
+.sb-empty h3 { color: var(--sb-text); font-weight: 600; margin-bottom: .35rem; }
+
+/* ---- Card action buttons (history / results) ---- */
+.sb-icon-btn {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .3rem .6rem; border-radius: .5rem; font-size: .75rem; font-weight: 600;
+  border: 1px solid var(--sb-border); background: var(--sb-surface); color: var(--sb-text-muted);
+  cursor: pointer; transition: all .15s ease;
+}
+.sb-icon-btn:hover { color: var(--sb-text); background: var(--sb-surface-2); }
+.sb-icon-btn.danger:hover { color: #fff; background: var(--sb-red); border-color: var(--sb-red); }
+
+/* keyboard focus visibility (a11y) */
+:focus-visible { outline: 2px solid var(--sb-green); outline-offset: 2px; border-radius: 4px; }
