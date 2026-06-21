@@ -36,6 +36,9 @@ from app.crud import (
     iter_batch_detections_for_export,
     delete_batch,
     delete_batches_bulk,
+    create_share_token,
+    revoke_share_token,
+    get_shared_batch,
 )
 
 
@@ -1598,6 +1601,98 @@ async def bulk_delete_batches_endpoint(
 
     result = delete_batches_bulk(db, batch_ids, user.id)
     return {"success": True, **result, "deleted_count": len(result["deleted"])}
+
+
+@app.post("/api/batches/{batch_id}/share")
+async def share_batch(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    db: Session = Depends(get_db),
+):
+    """Create a public read-only share token for an owned batch (#21)."""
+    user = _current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    token = create_share_token(db, batch_id, user.id)
+    if not token:
+        raise HTTPException(status_code=404, detail="Batch not found or access denied")
+    return {"success": True, "share_token": token, "share_path": f"/api/shared/{token}"}
+
+
+@app.delete("/api/batches/{batch_id}/share")
+async def unshare_batch(
+    request: Request,
+    batch_id: int = Path(..., description="Batch ID"),
+    db: Session = Depends(get_db),
+):
+    """Revoke a batch's share token (#21)."""
+    user = _current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not revoke_share_token(db, batch_id, user.id):
+        raise HTTPException(status_code=404, detail="Batch not found or access denied")
+    return {"success": True, "revoked": batch_id}
+
+
+@app.get("/api/shared/{token}")
+async def get_shared(token: str = Path(..., description="Public share token"), db: Session = Depends(get_db)):
+    """Read-only batch report for a valid share token (no fingerprint required) (#21)."""
+    data = get_shared_batch(db, token)
+    if not data:
+        raise HTTPException(status_code=404, detail="Shared report not found")
+    return {"success": True, "batch": data}
+
+
+@app.get("/api/batches/{batch_id}/images/{image_id}/annotated.png")
+async def annotated_image(
+    request: Request,
+    batch_id: int = Path(...),
+    image_id: int = Path(...),
+    db: Session = Depends(get_db),
+):
+    """Server-render the stored image with bounding boxes + labels burned in (#20)."""
+    user = _current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    batch = get_batch_by_id_and_user(db, batch_id, user.id)
+    if not batch:
+        raise HTTPException(status_code=403, detail="Access denied")
+    image = db.query(ScanImage).filter(
+        ScanImage.id == image_id, ScanImage.batch_id == batch_id
+    ).first()
+    if not image or not os.path.exists(image.storage_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    img = cv2.imread(image.storage_path)  # BGR
+    if img is None:
+        raise HTTPException(status_code=500, detail="Failed to read stored image")
+    h, w = img.shape[:2]
+
+    detections = db.query(SeedDetection).filter(
+        SeedDetection.image_id == image_id, SeedDetection.batch_id == batch_id
+    ).all()
+    for d in detections:
+        x1 = int(d.box_x_norm * w)
+        y1 = int(d.box_y_norm * h)
+        x2 = int((d.box_x_norm + d.box_w_norm) * w)
+        y2 = int((d.box_y_norm + d.box_h_norm) * h)
+        is_bad = d.quality_label == QualityLabel.BAD
+        color = (0, 0, 255) if is_bad else (0, 200, 0)  # BGR red/green
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+        label = (d.seed_type.name[:1].upper() if d.seed_type else "?") + ("/B" if is_bad else "/G")
+        cv2.putText(img, label, (x1, max(0, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
+
+    ok, buf = cv2.imencode(".png", img)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to encode annotated image")
+    return Response(
+        content=buf.tobytes(),
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f'attachment; filename="batch_{batch_id}_image_{image_id}_annotated.png"',
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
 
 
 @app.get("/api/stats")

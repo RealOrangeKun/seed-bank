@@ -103,6 +103,9 @@ class ScanBatch(Base):
     total_seeds = Column(Integer, default=0, nullable=False)
     bad_seeds_count = Column(Integer, default=0, nullable=False)
     avg_confidence_score = Column(Float, default=0.0, nullable=False)
+
+    # Public share token for read-only report links (#21). NULL until shared.
+    share_token = Column(String(64), unique=True, nullable=True, index=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
