@@ -26,9 +26,7 @@ class _StubStorage:
         return True
 
 
-async def _seed_user(
-    db_session: AsyncSession, *, email: str, role: UserRole
-) -> User:
+async def _seed_user(db_session: AsyncSession, *, email: str, role: UserRole) -> User:
     repo = UserRepository(db_session)
     user = User(
         email=email,
@@ -103,9 +101,7 @@ async def test_ai_developer_can_register_and_list(
     model_id = created["id"]
 
     # list filtered by status (paginated envelope)
-    r = await app_client.get(
-        "/api/v1/models?status=registered", headers=auth
-    )
+    r = await app_client.get("/api/v1/models?status=registered", headers=auth)
     assert r.status_code == 200
     body = r.json()
     assert body["meta"]["total"] >= 1

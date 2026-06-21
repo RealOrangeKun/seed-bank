@@ -58,9 +58,7 @@ class MinioStorage:
         except S3Error as exc:
             raise ExternalServiceError(f"minio: ensure_bucket {bucket}: {exc}") from exc
 
-    async def put_object(
-        self, bucket: str, key: str, data: bytes, content_type: str
-    ) -> None:
+    async def put_object(self, bucket: str, key: str, data: bytes, content_type: str) -> None:
         try:
             await self._client.put_object(
                 bucket,
@@ -83,9 +81,7 @@ class MinioStorage:
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with await self._client.get_object(
-                    bucket, key, session
-                ) as resp:
+                async with await self._client.get_object(bucket, key, session) as resp:
                     return await resp.read()
         except S3Error as exc:
             raise ExternalServiceError(f"minio: get {bucket}/{key}: {exc}") from exc
@@ -116,13 +112,9 @@ class MinioStorage:
         # Signed against the public endpoint so the resulting URL is reachable
         # from a browser, not just from inside the compose network.
         try:
-            return await self._presign_client.presigned_get_object(
-                bucket, key, expires=ttl
-            )
+            return await self._presign_client.presigned_get_object(bucket, key, expires=ttl)
         except S3Error as exc:
-            raise ExternalServiceError(
-                f"minio: presign get {bucket}/{key}: {exc}"
-            ) from exc
+            raise ExternalServiceError(f"minio: presign get {bucket}/{key}: {exc}") from exc
 
 
 @lru_cache(maxsize=1)

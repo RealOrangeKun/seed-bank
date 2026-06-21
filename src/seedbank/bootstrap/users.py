@@ -34,9 +34,7 @@ class DemoUserSpec:
     full_name: str | None = None
 
 
-async def bootstrap_users(
-    session: AsyncSession, specs: list[DemoUserSpec]
-) -> int:
+async def bootstrap_users(session: AsyncSession, specs: list[DemoUserSpec]) -> int:
     """Upsert (insert-if-missing) the supplied users. Returns rows inserted.
 
     Idempotency uses Postgres ``INSERT ... ON CONFLICT DO NOTHING`` keyed
@@ -62,11 +60,7 @@ async def bootstrap_users(
         }
         for spec in specs
     ]
-    stmt = (
-        pg_insert(User)
-        .values(rows)
-        .on_conflict_do_nothing(index_elements=[User.email])
-    )
+    stmt = pg_insert(User).values(rows).on_conflict_do_nothing(index_elements=[User.email])
     result = await session.execute(stmt)
     inserted = result.rowcount or 0
     log.info("bootstrap.users", requested=len(rows), inserted=inserted)

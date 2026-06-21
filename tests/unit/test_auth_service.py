@@ -124,8 +124,7 @@ class TestBootstrapAdmin:
         assert user.is_verified is True
         users.add.assert_awaited_once()
         # audit-log row + the user → at least one .add() on the session.
-        assert any(getattr(o, "action", None) == "user.bootstrap_admin"
-                   for o in session.added)
+        assert any(getattr(o, "action", None) == "user.bootstrap_admin" for o in session.added)
         assert session.commits == 1
 
     @pytest.mark.asyncio
@@ -212,7 +211,9 @@ class TestRegister:
     async def test_happy_path(self) -> None:
         svc, session, users, _, _, redis = _build_service(user_lookup=None)
         user, token = await svc.register(
-            email="a@b.com", password="StrongPasswd1A", full_name="A B",
+            email="a@b.com",
+            password="StrongPasswd1A",
+            full_name="A B",
         )
         assert user.email == "a@b.com"
         assert user.hashed_password is not None
@@ -233,7 +234,9 @@ class TestRegister:
         svc, *_ = _build_service(user_lookup=existing)
         with pytest.raises(ConflictError):
             await svc.register(
-                email="a@b.com", password="StrongPasswd1A", full_name=None,
+                email="a@b.com",
+                password="StrongPasswd1A",
+                full_name=None,
             )
 
 
@@ -303,8 +306,12 @@ class TestPasswordOrOauthInvariant:
         from seedbank.infrastructure.db.models import User
 
         u = User(
-            id=uuid4(), email="x@y.com", hashed_password=None,
-            role="end_user", is_active=True, is_verified=True,
+            id=uuid4(),
+            email="x@y.com",
+            hashed_password=None,
+            role="end_user",
+            is_active=True,
+            is_verified=True,
         )
         svc, _s, _u, _r, oauth, _redis = _build_service()
         oauth.find_by = AsyncMock(return_value=MagicMock())
@@ -318,8 +325,12 @@ class TestPasswordOrOauthInvariant:
         from seedbank.infrastructure.db.models import User
 
         u = User(
-            id=uuid4(), email="x@y.com", hashed_password=None,
-            role="end_user", is_active=True, is_verified=True,
+            id=uuid4(),
+            email="x@y.com",
+            hashed_password=None,
+            role="end_user",
+            is_active=True,
+            is_verified=True,
         )
         svc, *_ = _build_service()
         with pytest.raises(ValidationError):

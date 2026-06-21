@@ -115,9 +115,7 @@ class TrafficRouter:
 
     # ── Internals ────────────────────────────────────────────────────────────
 
-    async def _splits_for(
-        self, kind: ModelKind, seed_type_id: UUID | None
-    ) -> list[_SplitEntry]:
+    async def _splits_for(self, kind: ModelKind, seed_type_id: UUID | None) -> list[_SplitEntry]:
         key = _segment_key(kind, seed_type_id)
         cached = await self.redis.get(key)
         if cached:
@@ -134,16 +132,12 @@ class TrafficRouter:
         rows = await self._query_splits(kind, seed_type_id)
         await self.redis.set(
             key,
-            json.dumps(
-                [{"model_id": str(r.model_id), "weight": r.weight} for r in rows]
-            ),
+            json.dumps([{"model_id": str(r.model_id), "weight": r.weight} for r in rows]),
             ex=_CACHE_TTL_SECONDS,
         )
         return rows
 
-    async def _query_splits(
-        self, kind: ModelKind, seed_type_id: UUID | None
-    ) -> list[_SplitEntry]:
+    async def _query_splits(self, kind: ModelKind, seed_type_id: UUID | None) -> list[_SplitEntry]:
         seed_filter = (
             TrafficSplit.seed_type_id.is_(None)
             if seed_type_id is None

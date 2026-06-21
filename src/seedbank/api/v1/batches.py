@@ -30,9 +30,7 @@ async def list_batches(
     actor: CurrentUser,
     service: BatchServiceDep,
     supplier_id: Annotated[UUID | None, Query()] = None,
-    country_code: Annotated[
-        str | None, Query(min_length=2, max_length=2)
-    ] = None,
+    country_code: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> Page[BatchOut]:

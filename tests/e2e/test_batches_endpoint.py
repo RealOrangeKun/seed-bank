@@ -40,16 +40,12 @@ def _short_circuit_minio_and_celery(monkeypatch: pytest.MonkeyPatch) -> None:
     from seedbank.infrastructure.storage.minio_client import MinioStorage
     from seedbank.workers import celery_app as celery_module
 
-    monkeypatch.setattr(
-        MinioStorage, "put_object", AsyncMock(return_value=None)
-    )
+    monkeypatch.setattr(MinioStorage, "put_object", AsyncMock(return_value=None))
 
     def _fake_send_task(*args: Any, **kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr(
-        celery_module.celery_app, "send_task", _fake_send_task
-    )
+    monkeypatch.setattr(celery_module.celery_app, "send_task", _fake_send_task)
 
 
 async def _submit(client: AsyncClient, token: str) -> str:
@@ -130,12 +126,8 @@ async def test_list_only_returns_caller_batches(
     await _submit(app_client, user_a.token)
     await _submit(app_client, user_b.token)
 
-    r_a = await app_client.get(
-        "/api/v1/batches", headers=auth_header(user_a.token)
-    )
-    r_b = await app_client.get(
-        "/api/v1/batches", headers=auth_header(user_b.token)
-    )
+    r_a = await app_client.get("/api/v1/batches", headers=auth_header(user_a.token))
+    r_b = await app_client.get("/api/v1/batches", headers=auth_header(user_b.token))
     assert r_a.json()["meta"]["total"] == 2
     assert r_b.json()["meta"]["total"] == 1
 
@@ -175,9 +167,7 @@ async def test_get_batch_for_nonexistent_id_returns_404_problem(
         headers=auth_header(end_user.token),
     )
     assert r.status_code == 404
-    assert r.headers.get("content-type", "").startswith(
-        "application/problem+json"
-    )
+    assert r.headers.get("content-type", "").startswith("application/problem+json")
     assert r.json()["code"] == "not_found"
 
 

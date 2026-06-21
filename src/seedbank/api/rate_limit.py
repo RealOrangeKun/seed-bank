@@ -73,9 +73,7 @@ def install_rate_limiter(app: "FastAPI") -> None:
                 retry_after_seconds = None
 
         extra_headers = (
-            {"Retry-After": str(retry_after_seconds)}
-            if retry_after_seconds is not None
-            else None
+            {"Retry-After": str(retry_after_seconds)} if retry_after_seconds is not None else None
         )
         return build_problem(
             request=request,

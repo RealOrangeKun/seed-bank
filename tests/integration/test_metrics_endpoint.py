@@ -27,9 +27,7 @@ pytestmark = pytest.mark.integration
 
 def _counter_value(method: str, path: str, status: str) -> float:
     """Read the current value of ``http_requests_total`` for one label set."""
-    return metrics.HTTP_REQUESTS.labels(
-        method=method, path=path, status=status
-    )._value.get()
+    return metrics.HTTP_REQUESTS.labels(method=method, path=path, status=status)._value.get()
 
 
 async def test_metrics_endpoint_serves_prometheus_text(app_client: AsyncClient) -> None:

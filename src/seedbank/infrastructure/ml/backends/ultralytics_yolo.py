@@ -97,9 +97,7 @@ class UltralyticsYoloBackend:
             )
         return detections
 
-    async def classify(
-        self, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:
+    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:
         if self._manager is None:
             raise RuntimeError("UltralyticsYoloBackend requires a ModelManager.")
         yolo = await self._manager.load_yolo(  # type: ignore[attr-defined]
@@ -108,9 +106,7 @@ class UltralyticsYoloBackend:
         return await asyncio.to_thread(self._classify_sync, yolo, crop, cfg)
 
     @staticmethod
-    def _classify_sync(
-        yolo: object, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:
+    def _classify_sync(yolo: object, crop: bytes, cfg: ClassificationConfig) -> Classification:
         from PIL import Image
 
         img = Image.open(io.BytesIO(crop)).convert("RGB")
@@ -130,9 +126,7 @@ class UltralyticsYoloBackend:
             raise ExternalServiceError("yolo classify: no probs in result.")
         top1 = int(probs.top1)
         confidence = float(probs.top1conf)
-        return Classification(
-            label=str(names.get(top1, str(top1))), confidence=confidence
-        )
+        return Classification(label=str(names.get(top1, str(top1))), confidence=confidence)
 
 
 __all__ = ["UltralyticsYoloBackend"]

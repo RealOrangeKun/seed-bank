@@ -32,9 +32,7 @@ from seedbank.core.metrics import (
 class RequestIdMiddleware(BaseHTTPMiddleware):
     HEADER = "X-Request-ID"
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         rid = request.headers.get(self.HEADER) or uuid4().hex
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=rid, path=request.url.path)
@@ -61,9 +59,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
     EXCLUDED_PATHS = frozenset({"/metrics"})
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.url.path in self.EXCLUDED_PATHS:
             return await call_next(request)
 
@@ -86,9 +82,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             # so by the time control returns here (response *or* exception),
             # the router and the matched route are visible.
             path = _route_template(request)
-            HTTP_REQUEST_DURATION.labels(method=method, path=path).observe(
-                perf_counter() - start
-            )
+            HTTP_REQUEST_DURATION.labels(method=method, path=path).observe(perf_counter() - start)
             HTTP_REQUESTS.labels(method=method, path=path, status=status).inc()
 
 

@@ -106,9 +106,7 @@ async def register(
 
 
 @router.post("/verify-email", response_model=Envelope[MessageOut])
-async def verify_email(
-    payload: VerifyEmailIn, service: AuthServiceDep
-) -> Envelope[MessageOut]:
+async def verify_email(payload: VerifyEmailIn, service: AuthServiceDep) -> Envelope[MessageOut]:
     await service.verify_email(token=payload.token)
     return Envelope[MessageOut](data=MessageOut(message="Email verified."))
 
@@ -172,8 +170,7 @@ async def oauth_login(
     if not mod.is_configured(settings):
         raise ExternalServiceError(f"{provider} OAuth is not configured.")
     redirect_uri = (
-        f"{settings.oauth_redirect_base_url}{settings.api_v1_prefix}"
-        f"/auth/oauth/{provider}/callback"
+        f"{settings.oauth_redirect_base_url}{settings.api_v1_prefix}/auth/oauth/{provider}/callback"
     )
     return await mod.authorize_redirect(get_oauth(settings), request, redirect_uri)
 
@@ -193,7 +190,8 @@ async def oauth_callback(
 
     identity = await mod.fetch_identity(get_oauth(settings), request)
     _user, pair = await service.upsert_oauth_user(
-        identity=identity, ip=_client_ip(request),
+        identity=identity,
+        ip=_client_ip(request),
     )
     return Envelope[TokenPair](data=_to_token_pair_dto(pair))
 

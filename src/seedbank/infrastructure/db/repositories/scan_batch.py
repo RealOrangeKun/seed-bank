@@ -93,9 +93,13 @@ class ScanBatchRepository(Repository[ScanBatch]):
     ) -> int:
         """Total batches the user owns, filtered the same way as
         :meth:`list_for_user`. Used to populate the ``Page.meta.total``."""
-        stmt = select(func.count()).select_from(ScanBatch).where(
-            ScanBatch.user_id == user_id,
-            ScanBatch.deleted_at.is_(None),
+        stmt = (
+            select(func.count())
+            .select_from(ScanBatch)
+            .where(
+                ScanBatch.user_id == user_id,
+                ScanBatch.deleted_at.is_(None),
+            )
         )
         if supplier_id is not None:
             stmt = stmt.where(ScanBatch.supplier_id == supplier_id)
@@ -194,9 +198,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             return CasResult(won=False)
         return CasResult(won=True, started_at=row[0], finished_at=row[1])
 
-    async def list_detections_for_batch(
-        self, batch_id: UUID, user_id: UUID
-    ) -> list[SeedDetection]:
+    async def list_detections_for_batch(self, batch_id: UUID, user_id: UUID) -> list[SeedDetection]:
         """Flat list of every detection across the batch's images + models."""
         stmt = (
             select(SeedDetection)

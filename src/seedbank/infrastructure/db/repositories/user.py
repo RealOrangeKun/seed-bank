@@ -42,20 +42,14 @@ class UserRepository(Repository[User]):
         return (await self.session.execute(stmt)).rowcount or 0
 
     async def update_password(self, user_id: UUID, hashed_password: str) -> None:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(hashed_password=hashed_password)
-        )
+        stmt = update(User).where(User.id == user_id).values(hashed_password=hashed_password)
         await self.session.execute(stmt)
 
     async def set_role(self, user_id: UUID, role: str) -> int:
         stmt = update(User).where(User.id == user_id).values(role=role)
         return (await self.session.execute(stmt)).rowcount or 0
 
-    async def list_active(
-        self, *, limit: int = 50, offset: int = 0
-    ) -> list[User]:
+    async def list_active(self, *, limit: int = 50, offset: int = 0) -> list[User]:
         stmt = (
             select(User)
             .where(User.deleted_at.is_(None))
@@ -75,9 +69,5 @@ class UserRepository(Repository[User]):
         Used by the bootstrap-admin path to enforce the "exactly one
         first admin" rule without loading any rows.
         """
-        stmt = (
-            select(User.id)
-            .where(User.role == role, User.deleted_at.is_(None))
-            .limit(1)
-        )
+        stmt = select(User.id).where(User.role == role, User.deleted_at.is_(None)).limit(1)
         return (await self.session.execute(stmt)).scalar_one_or_none() is not None

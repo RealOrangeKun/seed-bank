@@ -77,7 +77,9 @@ class RoboflowBackend:
         b64 = base64.b64encode(image).decode("ascii")
         try:
             result = await asyncio.to_thread(
-                client.infer, b64, model_id=model_id  # type: ignore[attr-defined]
+                client.infer,
+                b64,
+                model_id=model_id,  # type: ignore[attr-defined]
             )
         except Exception as exc:  # noqa: BLE001
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc
@@ -110,15 +112,15 @@ class RoboflowBackend:
             )
         return detections
 
-    async def classify(
-        self, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:
+    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:
         client = await self._get_client()
         model_id = self._parse_uri(cfg.artifact_uri)
         b64 = base64.b64encode(crop).decode("ascii")
         try:
             result = await asyncio.to_thread(
-                client.infer, b64, model_id=model_id  # type: ignore[attr-defined]
+                client.infer,
+                b64,
+                model_id=model_id,  # type: ignore[attr-defined]
             )
         except Exception as exc:  # noqa: BLE001
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc

@@ -49,7 +49,9 @@ class ClickHouseClient:
             log.warning("clickhouse.ping_failed", error=str(exc))
             return False
 
-    async def query(self, sql: str, parameters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    async def query(
+        self, sql: str, parameters: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         try:
             result = await self._client.query(sql, parameters=parameters)
             cols = result.column_names

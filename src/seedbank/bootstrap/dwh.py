@@ -54,9 +54,7 @@ def ensure_clickhouse_database(settings: Settings) -> None:
         connect_timeout=10,
     )
     try:
-        sync_client.command(
-            f"CREATE DATABASE IF NOT EXISTS {settings.clickhouse_database}"
-        )
+        sync_client.command(f"CREATE DATABASE IF NOT EXISTS {settings.clickhouse_database}")
         log.info("dwh.database_ensured", database=settings.clickhouse_database)
     finally:
         sync_client.close()
@@ -67,9 +65,7 @@ async def apply_dwh_schema(client: ClickHouseClient) -> None:
     await apply_schema(client)
 
 
-async def mirror_seed_types_to_dwh(
-    session: AsyncSession, repo: AnalyticsRepository
-) -> int:
+async def mirror_seed_types_to_dwh(session: AsyncSession, repo: AnalyticsRepository) -> int:
     """Copy ``seed_types`` rows from OLTP into ``dim_seed_type``.
 
     Returns the number of rows mirrored. ``upsert_seed_types`` is

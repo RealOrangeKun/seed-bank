@@ -47,12 +47,8 @@ class AnalyzeQueryIn(BaseModel):
     supplier_id: UUID | None = None
     seed_type_id: UUID | None = None
     model_id: UUID | None = None
-    gps_lat: Annotated[
-        Decimal | None, Field(default=None, max_digits=9, decimal_places=6)
-    ] = None
-    gps_long: Annotated[
-        Decimal | None, Field(default=None, max_digits=9, decimal_places=6)
-    ] = None
+    gps_lat: Annotated[Decimal | None, Field(default=None, max_digits=9, decimal_places=6)] = None
+    gps_long: Annotated[Decimal | None, Field(default=None, max_digits=9, decimal_places=6)] = None
     country_code: Annotated[
         str | None,
         Field(default=None, min_length=2, max_length=2, pattern="^[A-Z]{2}$"),

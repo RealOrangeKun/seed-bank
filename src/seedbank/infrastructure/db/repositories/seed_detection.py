@@ -36,9 +36,7 @@ class SeedDetectionRepository(Repository[SeedDetection]):
         await self.session.flush()
         log.info("seed_detection.add_many", count=len(rows))
 
-    async def update_quality_many(
-        self, updates: list[tuple[UUID, str]]
-    ) -> int:
+    async def update_quality_many(self, updates: list[tuple[UUID, str]]) -> int:
         """Set ``quality`` on each ``(detection_id, quality)`` pair.
 
         Issues one statement per pair — small N (one per crop) makes a CASE

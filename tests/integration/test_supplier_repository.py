@@ -60,9 +60,7 @@ async def test_user_sees_globals_plus_own_private(db_session: AsyncSession) -> N
 async def test_global_xor_owner_check_constraint(db_session: AsyncSession) -> None:
     """`is_global=true` AND `created_by_user_id` set must be rejected."""
     alice = await _seed_user(db_session, "alice-xor@example.com")
-    db_session.add(
-        Supplier(name="Bad", slug="bad", is_global=True, created_by_user_id=alice.id)
-    )
+    db_session.add(Supplier(name="Bad", slug="bad", is_global=True, created_by_user_id=alice.id))
     with pytest.raises(IntegrityError):
         await db_session.commit()
     await db_session.rollback()

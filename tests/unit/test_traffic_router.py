@@ -75,9 +75,7 @@ async def test_50_50_split_is_balanced() -> None:
     counter: Counter[UUID] = Counter()
     for _ in range(1000):
         u = uuid4()
-        chosen = await router.select_model(
-            kind=ModelKind.DETECTION, seed_type_id=None, user_id=u
-        )
+        chosen = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=u)
         counter[chosen] += 1
     # Each side should land near 500. ±50 is comfortably inside ±2σ for n=1000
     # and p=0.5 (σ ≈ 15.8 → 2σ ≈ 32; allow 50 for headroom in CI).
@@ -96,13 +94,9 @@ async def test_user_routing_is_sticky() -> None:
         redis=_FakeRedis(),
     )
     user = uuid4()
-    first = await router.select_model(
-        kind=ModelKind.DETECTION, seed_type_id=None, user_id=user
-    )
+    first = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=user)
     for _ in range(20):
-        again = await router.select_model(
-            kind=ModelKind.DETECTION, seed_type_id=None, user_id=user
-        )
+        again = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=user)
         assert again == first
 
 
@@ -110,9 +104,7 @@ async def test_user_routing_is_sticky() -> None:
 async def test_no_splits_falls_back_to_production() -> None:
     prod = uuid4()
     router = _FakeRouter(splits=[], production_id=prod, redis=_FakeRedis())
-    chosen = await router.select_model(
-        kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4()
-    )
+    chosen = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4())
     assert chosen == prod
 
 
@@ -120,9 +112,7 @@ async def test_no_splits_falls_back_to_production() -> None:
 async def test_no_splits_no_production_raises() -> None:
     router = _FakeRouter(splits=[], production_id=None, redis=_FakeRedis())
     with pytest.raises(ModelNotReadyError):
-        await router.select_model(
-            kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4()
-        )
+        await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4())
 
 
 def test_bucket_for_is_deterministic() -> None:

@@ -51,6 +51,7 @@ def _duration_count(task: str, result: str) -> float:
 def _dispatch_counter(task: str, result: str) -> float:
     return metrics.DWH_DISPATCH.labels(task=task, result=result)._value.get()
 
+
 pytestmark = pytest.mark.unit
 
 
@@ -68,7 +69,9 @@ def test_dispatch_after_commit_swallows_broker_failures() -> None:
     """A Redis outage must NOT propagate into the commit-then-dispatch
     call site — the OLTP write is already durable; losing the warehouse
     delta is recoverable via backfill."""
-    with patch.object(dwh_module.celery_app, "send_task", side_effect=ConnectionError("redis down")):
+    with patch.object(
+        dwh_module.celery_app, "send_task", side_effect=ConnectionError("redis down")
+    ):
         dispatch_after_commit(SYNC_INFERENCE, str(uuid4()))  # must not raise
 
 

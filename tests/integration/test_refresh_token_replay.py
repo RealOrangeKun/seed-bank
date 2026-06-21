@@ -34,12 +34,8 @@ async def test_rotate_is_idempotent_failure(db_session: AsyncSession) -> None:
     user = await _seed_user(db_session)
     now = datetime.now(tz=timezone.utc)
 
-    old = RefreshToken(
-        user_id=user.id, token_hash="hash-old", expires_at=now + timedelta(days=7)
-    )
-    new = RefreshToken(
-        user_id=user.id, token_hash="hash-new", expires_at=now + timedelta(days=7)
-    )
+    old = RefreshToken(user_id=user.id, token_hash="hash-old", expires_at=now + timedelta(days=7))
+    new = RefreshToken(user_id=user.id, token_hash="hash-new", expires_at=now + timedelta(days=7))
     db_session.add_all([old, new])
     await db_session.flush()
 

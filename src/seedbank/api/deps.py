@@ -143,12 +143,8 @@ ScanImageRepoDep = Annotated[ScanImageRepository, Depends(scan_image_repo)]
 DatasetRepoDep = Annotated[DatasetRepository, Depends(dataset_repo)]
 DatasetItemRepoDep = Annotated[DatasetItemRepository, Depends(dataset_item_repo)]
 ExperimentRepoDep = Annotated[ExperimentRepository, Depends(experiment_repo)]
-ExperimentResultRepoDep = Annotated[
-    ExperimentResultRepository, Depends(experiment_result_repo)
-]
-ModelArtifactRepoDep = Annotated[
-    ModelArtifactRepository, Depends(model_artifact_repo)
-]
+ExperimentResultRepoDep = Annotated[ExperimentResultRepository, Depends(experiment_result_repo)]
+ModelArtifactRepoDep = Annotated[ModelArtifactRepository, Depends(model_artifact_repo)]
 ModelMetricRepoDep = Annotated[ModelMetricRepository, Depends(model_metric_repo)]
 
 
@@ -330,9 +326,7 @@ async def current_user(
     else:
         raise AuthError("Authentication required.")
 
-    structlog.contextvars.bind_contextvars(
-        user_id=str(actor.id), auth_method=actor.auth_method
-    )
+    structlog.contextvars.bind_contextvars(user_id=str(actor.id), auth_method=actor.auth_method)
     request.state.user = actor
     return actor
 
@@ -374,9 +368,7 @@ def require_scope(*scopes: str):
             return actor
         missing = required - actor.scopes
         if missing:
-            raise ForbiddenError(
-                f"API key is missing scopes: {', '.join(sorted(missing))}."
-            )
+            raise ForbiddenError(f"API key is missing scopes: {', '.join(sorted(missing))}.")
         return actor
 
     return _checker

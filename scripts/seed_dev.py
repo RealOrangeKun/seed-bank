@@ -89,9 +89,7 @@ def _build_user_specs() -> tuple[list[DemoUserSpec], list[str]]:
         if password is None:
             password = fallback
             used_default_for.append(env_var)
-        specs.append(
-            DemoUserSpec(email=email, role=role, password=password, full_name=full_name)
-        )
+        specs.append(DemoUserSpec(email=email, role=role, password=password, full_name=full_name))
     return specs, used_default_for
 
 
@@ -122,9 +120,7 @@ async def main() -> int:
     try:
         async with sm() as session, session.begin():
             users_inserted = await bootstrap_users(session, user_specs)
-            seed_types_inserted = await bootstrap_seed_types(
-                session, list(_SEED_TYPES)
-            )
+            seed_types_inserted = await bootstrap_seed_types(session, list(_SEED_TYPES))
     finally:
         await engine.dispose()
 

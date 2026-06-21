@@ -90,10 +90,7 @@ class ModelManager:
             # than all-time cardinality. Tasks that already hold a reference
             # to the old Lock complete on it; new tasks lazily allocate a
             # fresh one in ``_lock_for`` — safe under the GIL/asyncio loop.
-            if (
-                evicted_id not in self._cache
-                and evicted_id not in self._yolo_cache
-            ):
+            if evicted_id not in self._cache and evicted_id not in self._yolo_cache:
                 self._locks.pop(evicted_id, None)
             log.info("ml.manager.evict", model_id=str(evicted_id), kind=kind)
 
@@ -112,9 +109,7 @@ class ModelManager:
         try:
             return await self._storage.get_object(bucket, key)
         except Exception as exc:  # noqa: BLE001
-            raise ExternalServiceError(
-                f"manager: fetch {bucket}/{key}: {exc}"
-            ) from exc
+            raise ExternalServiceError(f"manager: fetch {bucket}/{key}: {exc}") from exc
 
     # ── Torch (registry-built) loading ───────────────────────────────────────
 
@@ -129,9 +124,7 @@ class ModelManager:
         from MinIO + builder if missing or stale."""
         async with self._lock_for(model_id):
             entry = self._cache.get(model_id)
-            if entry is not None and (
-                updated_at is None or entry.updated_at == updated_at
-            ):
+            if entry is not None and (updated_at is None or entry.updated_at == updated_at):
                 # LRU touch.
                 self._cache.move_to_end(model_id)
                 return entry.module, entry.device

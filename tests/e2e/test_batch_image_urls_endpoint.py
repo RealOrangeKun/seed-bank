@@ -60,16 +60,12 @@ def _short_circuit_minio_and_celery(monkeypatch: pytest.MonkeyPatch) -> None:
     from seedbank.infrastructure.storage.minio_client import MinioStorage
     from seedbank.workers import celery_app as celery_module
 
-    monkeypatch.setattr(
-        MinioStorage, "put_object", AsyncMock(return_value=None)
-    )
+    monkeypatch.setattr(MinioStorage, "put_object", AsyncMock(return_value=None))
 
     def _fake_send_task(*args: Any, **kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr(
-        celery_module.celery_app, "send_task", _fake_send_task
-    )
+    monkeypatch.setattr(celery_module.celery_app, "send_task", _fake_send_task)
 
 
 @pytest.fixture
@@ -161,9 +157,7 @@ async def test_image_urls_for_nonexistent_batch_returns_404_problem(
         headers=auth_header(end_user.token),
     )
     assert r.status_code == 404
-    assert r.headers.get("content-type", "").startswith(
-        "application/problem+json"
-    )
+    assert r.headers.get("content-type", "").startswith("application/problem+json")
     assert r.json()["code"] == "not_found"
 
 

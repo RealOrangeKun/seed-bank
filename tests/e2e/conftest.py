@@ -121,9 +121,7 @@ async def admin(app_client: AsyncClient) -> SeededUser:
 
 
 @pytest_asyncio.fixture
-async def seed_and_login(
-    app_client: AsyncClient, db_session: AsyncSession
-) -> SeedAndLogin:
+async def seed_and_login(app_client: AsyncClient, db_session: AsyncSession) -> SeedAndLogin:
     """Repository-backed user provisioning for non-admin roles.
 
     The HTTP register flow requires capturing a verification token from
@@ -139,9 +137,7 @@ async def seed_and_login(
             json={"email": email, "password": DEFAULT_TEST_PASSWORD},
         )
         assert r.status_code == 200, r.text
-        return SeededUser(
-            user=user, email=email, token=r.json()["data"]["access_token"]
-        )
+        return SeededUser(user=user, email=email, token=r.json()["data"]["access_token"])
 
     return _factory
 

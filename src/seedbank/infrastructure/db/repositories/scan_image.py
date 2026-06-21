@@ -32,7 +32,5 @@ class ScanImageRepository(Repository[ScanImage]):
 
     async def count_for_batch(self, batch_id: UUID) -> int:
         """Number of images attached to a batch."""
-        stmt = select(func.count()).select_from(ScanImage).where(
-            ScanImage.batch_id == batch_id
-        )
+        stmt = select(func.count()).select_from(ScanImage).where(ScanImage.batch_id == batch_id)
         return int((await self.session.execute(stmt)).scalar_one())

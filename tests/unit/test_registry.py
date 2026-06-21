@@ -47,6 +47,7 @@ def test_duplicate_key_raises() -> None:
         return object()
 
     with pytest.raises(registry.BuilderAlreadyRegisteredError):
+
         @registry.register_builder("dup-v1")
         def second() -> object:  # noqa: F811
             return object()

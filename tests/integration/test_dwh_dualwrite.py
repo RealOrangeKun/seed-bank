@@ -443,8 +443,7 @@ async def test_sync_inference_with_error_sets_has_error_flag(
     await _async_sync_inference(inf.id)
 
     rows = await clickhouse_client.query(
-        "SELECT has_error, latency_ms FROM fact_inference FINAL "
-        "WHERE inference_id = %(id)s",
+        "SELECT has_error, latency_ms FROM fact_inference FINAL WHERE inference_id = %(id)s",
         {"id": str(inf.id)},
     )
     assert len(rows) == 1
@@ -563,8 +562,7 @@ async def test_sync_experiment_results_orphan_user_writes_null(
     await _async_sync_experiment_results(exp.id)
 
     rows = await clickhouse_client.query(
-        "SELECT user_id FROM fact_experiment_result FINAL "
-        "WHERE experiment_id = %(id)s",
+        "SELECT user_id FROM fact_experiment_result FINAL WHERE experiment_id = %(id)s",
         {"id": str(exp.id)},
     )
     assert len(rows) == 1
@@ -595,8 +593,7 @@ async def test_sync_experiment_results_no_op_on_empty_experiment(
     await _async_sync_experiment_results(exp.id)
 
     rows = await clickhouse_client.query(
-        "SELECT count() AS n FROM fact_experiment_result "
-        "WHERE experiment_id = %(id)s",
+        "SELECT count() AS n FROM fact_experiment_result WHERE experiment_id = %(id)s",
         {"id": str(exp.id)},
     )
     assert rows == [{"n": 0}]

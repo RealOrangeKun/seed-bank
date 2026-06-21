@@ -102,9 +102,7 @@ def build_problem(
     return JSONResponse(status_code=status_code, content=body, headers=headers)
 
 
-def _problem_for_domain_error(
-    request: Request, exc: DomainError, status_code: int
-) -> JSONResponse:
+def _problem_for_domain_error(request: Request, exc: DomainError, status_code: int) -> JSONResponse:
     return build_problem(
         request=request,
         status_code=status_code,
@@ -120,6 +118,7 @@ def install_error_handlers(app: FastAPI) -> None:
     subclasses are registered first."""
 
     for exc_cls, http_status in _STATUS_MAP.items():
+
         async def _handler(  # type: ignore[no-redef]
             request: Request,
             exc: DomainError,
@@ -143,15 +142,11 @@ def install_error_handlers(app: FastAPI) -> None:
             code=exc.code,
             detail=str(exc),
         )
-        return _problem_for_domain_error(
-            request, exc, status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return _problem_for_domain_error(request, exc, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     app.add_exception_handler(DomainError, _fallback)
 
-    async def _validation_handler(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
+    async def _validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         """Pydantic 422 → Problem Details with ``errors[]`` per field.
 
         Each Pydantic error has shape ``{"loc": [...], "msg": ..., "type": ...}``;

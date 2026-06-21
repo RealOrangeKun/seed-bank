@@ -47,25 +47,19 @@ def _short_circuit_minio_and_celery(monkeypatch: pytest.MonkeyPatch) -> None:
     from seedbank.infrastructure.storage.minio_client import MinioStorage
     from seedbank.workers import celery_app as celery_module
 
-    monkeypatch.setattr(
-        MinioStorage, "put_object", AsyncMock(return_value=None)
-    )
+    monkeypatch.setattr(MinioStorage, "put_object", AsyncMock(return_value=None))
 
     sent: list[Any] = []
 
     def _fake_send_task(*args: Any, **kwargs: Any) -> None:
         sent.append((args, kwargs))
 
-    monkeypatch.setattr(
-        celery_module.celery_app, "send_task", _fake_send_task
-    )
+    monkeypatch.setattr(celery_module.celery_app, "send_task", _fake_send_task)
 
 
 def _assert_problem(response, *, status_code: int, code: str) -> dict:
     assert response.status_code == status_code, response.text
-    assert response.headers.get("content-type", "").startswith(
-        "application/problem+json"
-    )
+    assert response.headers.get("content-type", "").startswith("application/problem+json")
     body = response.json()
     assert body["status"] == status_code
     assert body["code"] == code
@@ -101,18 +95,13 @@ async def test_analyze_three_images_dispatches_three_tasks(
     r = await app_client.post(
         "/api/v1/analyze",
         headers=auth_header(end_user.token),
-        files=[
-            ("files", (f"a{i}.png", _png(), "image/png"))
-            for i in range(3)
-        ],
+        files=[("files", (f"a{i}.png", _png(), "image/png")) for i in range(3)],
     )
     assert r.status_code == 202, r.text
     assert r.json()["data"]["image_count"] == 3
 
 
-async def test_analyze_at_max_files_succeeds(
-    app_client: AsyncClient, end_user: SeededUser
-) -> None:
+async def test_analyze_at_max_files_succeeds(app_client: AsyncClient, end_user: SeededUser) -> None:
     """Boundary: exactly ``analyze_max_files_per_request`` files is OK."""
     from seedbank.core.config import get_settings
 

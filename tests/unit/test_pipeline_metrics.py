@@ -45,22 +45,16 @@ class _StubBackend:
         raise_on_classify: bool = False,
     ) -> None:
         self._detection = detection or []
-        self._classification = classification or Classification(
-            label="good", confidence=0.9
-        )
+        self._classification = classification or Classification(label="good", confidence=0.9)
         self._raise_on_detect = raise_on_detect
         self._raise_on_classify = raise_on_classify
 
-    async def detect(
-        self, image: bytes, cfg: DetectionConfig
-    ) -> list[Detection]:  # noqa: ARG002
+    async def detect(self, image: bytes, cfg: DetectionConfig) -> list[Detection]:  # noqa: ARG002
         if self._raise_on_detect:
             raise RuntimeError("detect blew up")
         return self._detection
 
-    async def classify(
-        self, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:  # noqa: ARG002
+    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:  # noqa: ARG002
         if self._raise_on_classify:
             raise RuntimeError("classify blew up")
         return self._classification
@@ -86,9 +80,7 @@ def _cls_cfg() -> ClassificationConfig:
 
 
 def _inf_total(kind: str, backend: str, status: str) -> float:
-    return metrics.INFERENCE_TOTAL.labels(
-        kind=kind, backend=backend, status=status
-    )._value.get()
+    return metrics.INFERENCE_TOTAL.labels(kind=kind, backend=backend, status=status)._value.get()
 
 
 def _inf_dur_count(kind: str, backend: str) -> float:

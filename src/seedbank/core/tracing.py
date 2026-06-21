@@ -213,9 +213,7 @@ def _scrub_url(url: str) -> str:
             cleaned.append((k, "REDACTED"))
         else:
             cleaned.append((k, v))
-    return urlunsplit(
-        (parts.scheme, parts.netloc, parts.path, urlencode(cleaned), parts.fragment)
-    )
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(cleaned), parts.fragment))
 
 
 def _scrub_span_url_attributes(span: object) -> None:
@@ -236,9 +234,7 @@ def _httpx_request_hook(span: object, request: object) -> None:  # noqa: ARG001
     _scrub_span_url_attributes(span)
 
 
-def _httpx_response_hook(
-    span: object, request: object, response: object
-) -> None:  # noqa: ARG001
+def _httpx_response_hook(span: object, request: object, response: object) -> None:  # noqa: ARG001
     _scrub_span_url_attributes(span)
 
 
