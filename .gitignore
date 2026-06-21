@@ -56,6 +56,14 @@ Thumbs.db
 # Uploaded user data — never tracked.
 uploads/
 
+# Archived prototype — kept in git history, removed from the working tree.
+# Reference only; never re-add (also excluded from build context in .dockerignore).
+legacy/
+
 # Frontend
 node_modules/
 compose.override.yaml
+
+# Claude Code harness — local working aids, never committed.
+.claude/
+CLAUDE.md
