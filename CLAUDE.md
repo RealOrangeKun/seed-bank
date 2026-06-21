@@ -122,6 +122,9 @@ docker compose up                                   # api:8000 web:8080 adminer:
 | GET | `/api/batches` | paginated history; supports `sort`/`order`/`date_from`/`date_to`/`min_seeds` |
 | DELETE | `/api/batches/{id}` | delete a batch (cascades images/detections + files) |
 | POST | `/api/batches/delete` | bulk delete `{batch_ids: [...]}` |
+| POST/DELETE | `/api/batches/{id}/share` | create / revoke a public share token |
+| GET | `/api/shared/{token}` | public read-only batch report (no fingerprint) |
+| GET | `/api/batches/{id}/images/{image_id}/annotated.png` | image with boxes burned in |
 | GET | `/api/batches/{id}` | batch detail + images |
 | GET | `/api/batches/{id}/detections` | detections, filterable by image/quality |
 | GET | `/api/stats` | aggregated user statistics |

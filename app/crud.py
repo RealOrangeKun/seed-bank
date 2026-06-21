@@ -711,3 +711,69 @@ def delete_batches_bulk(db: Session, batch_ids: List[int], user_id: int) -> Dict
             not_found.append(bid)
     return {"deleted": deleted, "not_found": not_found}
 
+
+def create_share_token(db: Session, batch_id: int, user_id: int) -> Optional[str]:
+    """Create (or return existing) a public share token for an owned batch (#21)."""
+    import secrets
+
+    batch = get_batch_by_id_and_user(db, batch_id, user_id)
+    if not batch:
+        return None
+    if not batch.share_token:
+        batch.share_token = secrets.token_urlsafe(24)
+        db.commit()
+    return batch.share_token
+
+
+def revoke_share_token(db: Session, batch_id: int, user_id: int) -> bool:
+    """Revoke a batch's share token. Returns True if the batch was owned/updated."""
+    batch = get_batch_by_id_and_user(db, batch_id, user_id)
+    if not batch:
+        return False
+    batch.share_token = None
+    db.commit()
+    return True
+
+
+def get_shared_batch(db: Session, token: str) -> Optional[Dict]:
+    """Return a read-only batch summary + detections for a valid share token (#21)."""
+    if not token:
+        return None
+    batch = db.query(ScanBatch).filter(ScanBatch.share_token == token).first()
+    if not batch:
+        return None
+
+    good = batch.total_seeds - batch.bad_seeds_count if batch.total_seeds else 0
+    images = db.query(ScanImage).filter(ScanImage.batch_id == batch.id).order_by(
+        ScanImage.created_at.asc()
+    ).all()
+    detections = db.query(SeedDetection).filter(
+        SeedDetection.batch_id == batch.id
+    ).order_by(SeedDetection.id.asc()).all()
+
+    return {
+        "id": batch.id,
+        "created_at": batch.created_at.isoformat() if batch.created_at else None,
+        "total_seeds": batch.total_seeds,
+        "good_seeds_count": good,
+        "bad_seeds_count": batch.bad_seeds_count,
+        "good_percentage": round(good / batch.total_seeds * 100, 2) if batch.total_seeds else 0.0,
+        "bad_percentage": round(batch.bad_seeds_count / batch.total_seeds * 100, 2) if batch.total_seeds else 0.0,
+        "avg_confidence_score": batch.avg_confidence_score,
+        "images": [
+            {"id": im.id, "original_filename": im.original_filename,
+             "width": im.width, "height": im.height} for im in images
+        ],
+        "detections": [
+            {
+                "id": d.id, "image_id": d.image_id,
+                "seed_type": d.seed_type.name if d.seed_type else "unknown",
+                "quality": d.quality_label.value if d.quality_label else None,
+                "good_percentage": d.good_percentage, "bad_percentage": d.bad_percentage,
+                "box_x_norm": d.box_x_norm, "box_y_norm": d.box_y_norm,
+                "box_w_norm": d.box_w_norm, "box_h_norm": d.box_h_norm,
+            }
+            for d in detections
+        ],
+    }
+
