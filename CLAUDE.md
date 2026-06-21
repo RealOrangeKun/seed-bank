@@ -114,7 +114,9 @@ docker compose up                                   # api:8000 web:8080 adminer:
 | POST | `/api/analyze-batch/fast` | multi-image fast — persists |
 | GET | `/api/config` | thresholds + device |
 | GET | `/api/models/config` | active model config summary |
-| GET | `/api/batches` | paginated history (per device fingerprint) |
+| GET | `/api/batches` | paginated history; supports `sort`/`order`/`date_from`/`date_to`/`min_seeds` |
+| DELETE | `/api/batches/{id}` | delete a batch (cascades images/detections + files) |
+| POST | `/api/batches/delete` | bulk delete `{batch_ids: [...]}` |
 | GET | `/api/batches/{id}` | batch detail + images |
 | GET | `/api/batches/{id}/detections` | detections, filterable by image/quality |
 | GET | `/api/stats` | aggregated user statistics |

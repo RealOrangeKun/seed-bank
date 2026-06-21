@@ -96,28 +96,37 @@ def get_user_by_fingerprint(db: Session, device_fingerprint: str) -> Optional[Us
 
 
 def get_user_batches(
-    db: Session, 
-    user_id: int, 
-    page: int = 1, 
-    limit: int = 20, 
-    status: Optional[str] = None
+    db: Session,
+    user_id: int,
+    page: int = 1,
+    limit: int = 20,
+    status: Optional[str] = None,
+    sort: str = "created_at",
+    order: str = "desc",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    min_seeds: Optional[int] = None,
 ) -> Tuple[List[Dict], int]:
     """
-    Get paginated list of batches for a user.
-    
+    Get paginated list of batches for a user, with sorting and filtering (#19).
+
     Args:
         db: Database session
         user_id: User ID
         page: Page number (1-indexed)
         limit: Items per page
         status: Optional status filter
-        
+        sort: Sort field (created_at | total_seeds | good_percentage | avg_confidence_score)
+        order: asc | desc
+        date_from / date_to: ISO date strings to bound created_at
+        min_seeds: minimum total_seeds filter
+
     Returns:
         Tuple of (batches list, total count)
     """
     # Build query
     query = db.query(ScanBatch).filter(ScanBatch.user_id == user_id)
-    
+
     # Apply status filter if provided
     if status:
         try:
@@ -126,13 +135,48 @@ def get_user_batches(
         except ValueError:
             # Invalid status, return empty
             return [], 0
-    
-    # Get total count
+
+    # Date range filters
+    for bound, op in ((date_from, "ge"), (date_to, "le")):
+        if bound:
+            try:
+                dt = _as_aware(datetime.fromisoformat(bound))
+                if op == "ge":
+                    query = query.filter(ScanBatch.created_at >= dt)
+                else:
+                    query = query.filter(ScanBatch.created_at <= dt)
+            except ValueError:
+                pass  # ignore unparseable date bounds
+
+    # Minimum seeds filter
+    if min_seeds is not None and min_seeds > 0:
+        query = query.filter(ScanBatch.total_seeds >= min_seeds)
+
+    # Get total count (after filters)
     total = query.count()
-    
+
+    # Sorting. good_percentage isn't a column, so sort by the equivalent
+    # (total_seeds - bad_seeds_count) / total_seeds via a computed expression.
+    sort_map = {
+        "created_at": ScanBatch.created_at,
+        "total_seeds": ScanBatch.total_seeds,
+        "avg_confidence_score": ScanBatch.avg_confidence_score,
+        "bad_seeds_count": ScanBatch.bad_seeds_count,
+    }
+    if sort == "good_percentage":
+        # good fraction = 1 - bad/total; nullif guards divide-by-zero.
+        sort_col = case(
+            (ScanBatch.total_seeds > 0,
+             1.0 - (ScanBatch.bad_seeds_count * 1.0 / func.nullif(ScanBatch.total_seeds, 0))),
+            else_=0.0,
+        )
+    else:
+        sort_col = sort_map.get(sort, ScanBatch.created_at)
+    sort_col = sort_col.asc() if order == "asc" else sort_col.desc()
+
     # Apply pagination
     offset = (page - 1) * limit
-    batches = query.order_by(ScanBatch.created_at.desc()).offset(offset).limit(limit).all()
+    batches = query.order_by(sort_col).offset(offset).limit(limit).all()
     
     # Format batches with image counts and calculations
     formatted_batches = []
@@ -629,4 +673,41 @@ def iter_batch_detections_for_export(db: Session, batch_id: int, user_id: int):
             "centroid_y": d.centroid_y,
         })
     return rows
+
+
+def delete_batch(db: Session, batch_id: int, user_id: int) -> bool:
+    """Delete a batch (cascades images + detections) and its on-disk files (#18).
+
+    Returns True if a batch was deleted, False if not found / not owned.
+    """
+    import os
+    import shutil
+
+    batch = get_batch_by_id_and_user(db, batch_id, user_id)
+    if not batch:
+        return False
+
+    # Remove the batch's image directory from disk (best-effort).
+    batch_dir = os.path.join("uploads", "batches", str(batch_id))
+    try:
+        if os.path.isdir(batch_dir):
+            shutil.rmtree(batch_dir)
+    except OSError:
+        pass  # don't fail the DB delete on a filesystem hiccup
+
+    # ScanImage/SeedDetection cascade via relationship cascade + FK ondelete.
+    db.delete(batch)
+    db.commit()
+    return True
+
+
+def delete_batches_bulk(db: Session, batch_ids: List[int], user_id: int) -> Dict:
+    """Delete several owned batches. Returns {deleted: [...], not_found: [...]}."""
+    deleted, not_found = [], []
+    for bid in batch_ids:
+        if delete_batch(db, bid, user_id):
+            deleted.append(bid)
+        else:
+            not_found.append(bid)
+    return {"deleted": deleted, "not_found": not_found}
 
