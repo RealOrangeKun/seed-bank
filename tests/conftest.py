@@ -132,6 +132,17 @@ def client(monkeypatch):
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Reset the in-process rate limiter between tests for isolation."""
+    try:
+        from app.limits import analyze_limiter
+        analyze_limiter.reset()
+    except Exception:
+        pass
+    yield
+
+
 @pytest.fixture
 def db_session():
     """A real DB session against the test database (rolled back after the test)."""

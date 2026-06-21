@@ -21,6 +21,7 @@ from app.database import get_db
 from app.models import ScanBatch, ScanImage, SeedDetection, ProcessingStatus, QualityLabel
 from app.ml.model_manager import ModelManager
 from app.ml.detection_pipeline import detect_seeds_multi, classify_seeds_multi
+from app.limits import enforce_rate_limit, guard_upload_size, guard_batch_count
 from app.observability import configure_logging, RequestContextMiddleware
 from app.crud import (
     get_or_create_guest_user,
@@ -282,9 +283,12 @@ async def analyze_image(
         client_host = request.client.host if request.client else None
         device_fingerprint = generate_device_fingerprint(user_agent, client_host)
 
+        # Rate limit per device (#16)
+        enforce_rate_limit(device_fingerprint)
+
         # Get or create guest user (will reuse if fingerprint matches)
         guest_user = get_or_create_guest_user(db, device_fingerprint)
-        
+
         # Create scan batch
         processing_start = utcnow()
         scan_batch = ScanBatch(
@@ -294,9 +298,10 @@ async def analyze_image(
         )
         db.add(scan_batch)
         db.flush()
-        
+
         # Read and process image
         contents = await file.read()
+        guard_upload_size(contents, file.filename or "")
         rgb_img = process_uploaded_image(contents)
 
         # Step 1: Detect seeds
@@ -502,14 +507,20 @@ async def analyze_batch(
                     status_code=400, detail=f"File {file.filename} is not an image"
                 )
 
+        # Guard batch size (#16)
+        guard_batch_count(files)
+
         # Extract device fingerprint from request headers
         user_agent = request.headers.get("user-agent", "")
         client_host = request.client.host if request.client else None
         device_fingerprint = generate_device_fingerprint(user_agent, client_host)
 
+        # Rate limit per device (#16)
+        enforce_rate_limit(device_fingerprint)
+
         # Get or create guest user (will reuse if fingerprint matches)
         guest_user = get_or_create_guest_user(db, device_fingerprint)
-        
+
         # Create scan batch for the entire batch
         processing_start = utcnow()
         scan_batch = ScanBatch(
@@ -532,6 +543,7 @@ async def analyze_batch(
         for file_idx, file in enumerate(files):
             # Read and process image
             contents = await file.read()
+            guard_upload_size(contents, file.filename or "")
             rgb_img = process_uploaded_image(contents)
 
             # Step 1: Detect seeds
@@ -759,6 +771,7 @@ async def analyze_image_fast(file: UploadFile = File(...)):
 
         # Read image
         contents = await file.read()
+        guard_upload_size(contents, file.filename or "")
         rgb_img = process_uploaded_image(contents)
         orig_h, orig_w, _ = rgb_img.shape
 
@@ -921,6 +934,9 @@ async def analyze_batch_fast(
         if not files:
             raise HTTPException(status_code=400, detail="No files provided")
 
+        # Guard batch size (#16)
+        guard_batch_count(files)
+
         # Validate all files are images
         for file in files:
             if not file.content_type or not file.content_type.startswith("image/"):
@@ -958,6 +974,7 @@ async def analyze_batch_fast(
         for file_idx, file in enumerate(files):
             # Read and process image
             contents = await file.read()
+            guard_upload_size(contents, file.filename or "")
             rgb_img = process_uploaded_image(contents)
             orig_h, orig_w, _ = rgb_img.shape
 
