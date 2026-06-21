@@ -1,0 +1,34 @@
+# Image build + the CPU/GPU split guard.
+# The api and worker-cpu images must NOT contain torch (that's what keeps
+# them small); only the inference worker carries the heavy ML stack. This
+# job builds each runtime target and fails if torch leaks into the api image.
+name: build
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build api image (runtime-cpu)
+        run: docker build --target runtime-cpu -t seedbank/api:ci .
+
+      - name: Assert torch is NOT in the api image
+        run: |
+          if docker run --rm seedbank/api:ci python -c "import torch" 2>/dev/null; then
+            echo "::error::torch is present in the api image — the CPU/GPU split is broken"
+            exit 1
+          fi
+          echo "OK: torch absent from the api image"
+
+      - name: Build inference worker image (runtime-inference-cpu)
+        run: docker build --target runtime-inference-cpu -t seedbank/worker-inference:ci .
+
+      - name: Build mlflow image
+        run: docker build --target mlflow -t seedbank/mlflow:ci .

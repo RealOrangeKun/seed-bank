@@ -1,0 +1,94 @@
+{
+  "title": "Seed-Bank — Overview",
+  "uid": "seedbank-overview",
+  "tags": ["seedbank"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP request rate (rps) by status class",
+      "id": 1,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_requests_total[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP p50/p95 latency by route",
+      "id": 2,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, path) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50 {{path}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, path) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{path}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DWH dispatch rate by result",
+      "id": 3,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(seedbank_dwh_dispatch_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DWH worker task p95 duration by task",
+      "id": 4,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, task) (rate(seedbank_dwh_task_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{task}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Inferences per second by kind",
+      "id": 5,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (kind, status) (rate(seedbank_inference_total[1m]))",
+          "legendFormat": "{{kind}} {{status}}"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Login attempts (5m)",
+      "id": 6,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (result) (increase(seedbank_auth_login_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    }
+  ]
+}

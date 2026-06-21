@@ -1,0 +1,400 @@
+# Production overlay for the lean single-box deployment.
+#
+# Usage:
+#     docker compose -f compose.yaml -f compose.prod.yaml up -d
+#
+# Compose merges keys: this file only sets the prod-specific deltas
+# (secrets, hardening, resource caps, restart policy, log rotation,
+# dropped external ports). Service definitions, images, healthcheck
+# logic, and volumes come from compose.yaml.
+#
+# What changes vs. dev:
+#   - Secrets are file-based via Compose `secrets:` blocks → /run/secrets.
+#     The API + workers read JWT / MinIO / Roboflow / Sentry / ClickHouse
+#     password through Pydantic Settings' `secrets_dir`. Postgres
+#     password is the one exception: there is no `postgres_password`
+#     Settings field — `postgres_dsn` is a single string. To keep the
+#     password off `docker inspect` we use a small entrypoint shim that
+#     constructs the DSN from `/run/secrets/postgres_password` at boot.
+#     Same shim trick is used for MinIO + ClickHouse + MLflow because
+#     their upstream images don't honour `_FILE` for the credentials we
+#     care about. Postgres + Grafana DO honour `_FILE`, so they get the
+#     native treatment.
+#   - All long-lived services: `restart: always`,
+#     `security_opt: [no-new-privileges:true]`, `json-file` log rotation
+#     (10 MB × 5 = ~50 MB cap per service).
+#   - Stateless containers (api, workers, prometheus, grafana) get
+#     `read_only: true` + a tmpfs at /tmp.
+#   - All non-essential external ports are dropped: only api:8000 and
+#     grafana:3000 remain. Everything else stays on the internal
+#     `seedbank-net` bridge.
+#   - GPU worker is on by default in prod (no `profiles:` gate).
+#   - Healthcheck intervals on backing services relaxed from 5–10 s to
+#     30 s — they're stable, no need to spam them in prod.
+#
+# A CPU-only prod fallback (no GPU on the host) is intentionally out of
+# scope for Phase 10.
+
+name: seedbank
+
+x-logging: &prod-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-hardening: &prod-hardening
+  restart: always
+  security_opt:
+    - "no-new-privileges:true"
+
+# Shared secret list for the api + both workers. They all need the same
+# bag because they share `Settings` and may exercise any code path.
+x-app-secrets: &app-secrets
+  - source: jwt_secret
+    target: jwt_secret
+    mode: 0400
+  - source: minio_access_key
+    target: minio_access_key
+    mode: 0400
+  - source: minio_secret_key
+    target: minio_secret_key
+    mode: 0400
+  - source: clickhouse_password
+    target: clickhouse_password
+    mode: 0400
+  - source: roboflow_api_key
+    target: roboflow_api_key
+    mode: 0400
+  - source: sentry_dsn
+    target: sentry_dsn
+    mode: 0400
+  - source: postgres_password
+    target: postgres_password
+    mode: 0400
+
+# Shared env block for the api + both workers. Notice the password is
+# NOT here — it's injected by the entrypoint shim so it never lands in
+# `docker inspect` output.
+x-app-env: &app-env
+  ENV: prod
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  REDIS_DSN: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+  MINIO_ENDPOINT: minio:9000
+  CLICKHOUSE_HOST: clickhouse
+  CLICKHOUSE_PORT: 8123
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
+  CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB:-seedbank}
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  POSTGRES_USER: ${POSTGRES_USER:-seedbank}
+  POSTGRES_DB: ${POSTGRES_DB:-seedbank}
+  # POSTGRES_DSN is built by the entrypoint shim from the secret file.
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  jwt_secret:
+    file: ./secrets/jwt_secret
+  minio_access_key:
+    file: ./secrets/minio_access_key
+  minio_secret_key:
+    file: ./secrets/minio_secret_key
+  clickhouse_password:
+    file: ./secrets/clickhouse_password
+  roboflow_api_key:
+    file: ./secrets/roboflow_api_key
+  sentry_dsn:
+    file: ./secrets/sentry_dsn
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password
+
+services:
+  # ── api ─ HTTP entrypoint. 2.0 CPU / 1.5G — enough for ~50 rps on a
+  # single box; tighter than dev because workers also need CPU.
+  api:
+    <<: *prod-hardening
+    logging: *prod-logging
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment: *app-env
+    secrets: *app-secrets
+    # Keep the upstream tini PID 1 (preserves SIGTERM handling), then
+    # build POSTGRES_DSN from the secret file before exec'ing the
+    # console script.
+    entrypoint:
+      - "/usr/bin/tini"
+      - "--"
+      - "/bin/sh"
+      - "-c"
+      - 'export POSTGRES_DSN="postgresql+asyncpg://$${POSTGRES_USER}:$$(cat /run/secrets/postgres_password)@postgres:5432/$${POSTGRES_DB}"; exec "$$@"'
+      - "--"
+    command: ["seedbank"]
+    ports: !override
+      - "0.0.0.0:8000:8000"
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 1536M}
+
+  # ── worker-cpu ─ CDC, housekeeping, notifications. 2.0 CPU / 1G —
+  # CDC bursts are short but CPU-heavy; memory stays modest.
+  worker-cpu:
+    <<: *prod-hardening
+    logging: *prod-logging
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment: *app-env
+    secrets: *app-secrets
+    entrypoint:
+      - "/usr/bin/tini"
+      - "--"
+      - "/bin/sh"
+      - "-c"
+      - 'export POSTGRES_DSN="postgresql+asyncpg://$${POSTGRES_USER}:$$(cat /run/secrets/postgres_password)@postgres:5432/$${POSTGRES_DB}"; exec "$$@"'
+      - "--"
+    command:
+      - "celery"
+      - "-A"
+      - "seedbank.workers.celery_app"
+      - "worker"
+      - "--loglevel=info"
+      - "-Q"
+      - "default,cdc,housekeeping,experiments,dwh"
+      - "--concurrency=${WORKER_CPU_CONCURRENCY:-4}"
+      - "--max-tasks-per-child=${WORKER_CPU_MAX_TASKS_PER_CHILD:-200}"
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 1G}
+
+  # ── worker-inference ─ GPU in prod. Dev defaults to runtime-inference-cpu;
+  # prod swaps the build target to runtime-gpu and re-adds the GPU device
+  # reservation. Memory cap raised to 8G — torch + CUDA contexts are heavy.
+  # No `read_only: true`: torch / CUDA write to HF / torch caches under
+  # $HOME at first use.
+  worker-inference:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-gpu
+    <<: *prod-hardening
+    logging: *prod-logging
+    environment: *app-env
+    secrets: *app-secrets
+    entrypoint:
+      - "/usr/bin/tini"
+      - "--"
+      - "/bin/sh"
+      - "-c"
+      - 'export POSTGRES_DSN="postgresql+asyncpg://$${POSTGRES_USER}:$$(cat /run/secrets/postgres_password)@postgres:5432/$${POSTGRES_DB}"; exec "$$@"'
+      - "--"
+    command:
+      - "celery"
+      - "-A"
+      - "seedbank.workers.celery_app"
+      - "worker"
+      - "--loglevel=info"
+      - "-Q"
+      - "inference,evaluation"
+      - "--concurrency=${WORKER_INFERENCE_CONCURRENCY:-2}"
+      - "--max-tasks-per-child=${WORKER_INFERENCE_MAX_TASKS_PER_CHILD:-50}"
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+        limits: {memory: 8G}
+
+  # ── postgres ─ 2.0 CPU / 2G. Single-box prod, modest write rate;
+  # 2G RAM lets shared_buffers grow without thrashing the page cache.
+  postgres:
+    <<: *prod-hardening
+    logging: *prod-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-seedbank}
+      POSTGRES_DB: ${POSTGRES_DB:-seedbank}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - source: postgres_password
+        target: postgres_password
+        mode: 0400
+    ports: !override []
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 2G}
+
+  # ── redis ─ 1.0 CPU / 512M. Cache + broker; LRU eviction caps it.
+  redis:
+    <<: *prod-hardening
+    logging: *prod-logging
+    ports: !override []
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  # ── minio ─ 1.0 CPU / 1G. MinIO doesn't read *_FILE for
+  # MINIO_ROOT_USER / MINIO_ROOT_PASSWORD, so a tiny shell entrypoint
+  # exports them from the mounted secrets, then execs the upstream
+  # entrypoint. Keeps secrets off `docker inspect`.
+  minio:
+    <<: *prod-hardening
+    logging: *prod-logging
+    environment: {}
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - 'export MINIO_ROOT_USER="$$(cat /run/secrets/minio_access_key)"; export MINIO_ROOT_PASSWORD="$$(cat /run/secrets/minio_secret_key)"; exec /usr/bin/docker-entrypoint.sh minio server /data --console-address ":9001"'
+    secrets:
+      - source: minio_access_key
+        target: minio_access_key
+        mode: 0400
+      - source: minio_secret_key
+        target: minio_secret_key
+        mode: 0400
+    ports: !override []
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 1G}
+
+  # ── clickhouse ─ 2.0 CPU / 4G. Analytics workload, columnar engine
+  # benefits from page cache headroom; 4G is the realistic floor.
+  # ClickHouse honours CLICKHOUSE_PASSWORD env but not CLICKHOUSE_PASSWORD_FILE,
+  # so use the same shim pattern as MinIO.
+  clickhouse:
+    <<: *prod-hardening
+    logging: *prod-logging
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-seedbank}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - 'export CLICKHOUSE_PASSWORD="$$(cat /run/secrets/clickhouse_password)"; exec /entrypoint.sh'
+    secrets:
+      - source: clickhouse_password
+        target: clickhouse_password
+        mode: 0400
+    ports: !override []
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 4G}
+
+  # ── mlflow ─ 0.5 CPU / 512M. Tracking UI + REST; rarely under load.
+  # MLflow's CLI takes the PG password inline in the URI, so we build
+  # the URI in the shim. Same trick supplies AWS_* for the MinIO bucket.
+  mlflow:
+    <<: *prod-hardening
+    logging: *prod-logging
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        export AWS_ACCESS_KEY_ID="$$(cat /run/secrets/minio_access_key)"
+        export AWS_SECRET_ACCESS_KEY="$$(cat /run/secrets/minio_secret_key)"
+        PG_PASS="$$(cat /run/secrets/postgres_password)"
+        exec mlflow server \
+          --host 0.0.0.0 \
+          --port 5000 \
+          --backend-store-uri "postgresql://${POSTGRES_USER}:$${PG_PASS}@postgres:5432/mlflow" \
+          --artifacts-destination s3://seedbank-experiments/mlflow
+    command: []
+    secrets:
+      - source: minio_access_key
+        target: minio_access_key
+        mode: 0400
+      - source: minio_secret_key
+        target: minio_secret_key
+        mode: 0400
+      - source: postgres_password
+        target: postgres_password
+        mode: 0400
+    ports: !override []
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}
+
+  # ── prometheus ─ 1.0 CPU / 1G. 7-day TSDB retention is set in dev
+  # compose; raise via storage.tsdb.retention.size if disk pressure
+  # becomes the limit instead of time.
+  prometheus:
+    profiles: !override []
+    <<: *prod-hardening
+    logging: *prod-logging
+    read_only: true
+    tmpfs:
+      - /tmp
+    ports: !override []
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O-", "http://localhost:9090/-/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 1G}
+
+  # ── grafana ─ 0.5 CPU / 512M. Single-user admin UI; the only public
+  # port besides the api. Admin password sourced via *__FILE (Grafana's
+  # double-underscore convention).
+  grafana:
+    profiles: !override []
+    <<: *prod-hardening
+    logging: *prod-logging
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/lib/grafana/plugins
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_SECURITY_COOKIE_SAMESITE: "strict"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_X_CONTENT_TYPE_OPTIONS: "true"
+      GF_SECURITY_X_XSS_PROTECTION: "true"
+    secrets:
+      - source: grafana_admin_password
+        target: grafana_admin_password
+        mode: 0400
+    ports: !override
+      - "0.0.0.0:3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 512M}

@@ -1,0 +1,133 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Agricultural-green theme. Tokens are HSL channels (no `hsl()` wrapper) so
+  Tailwind can compose them with opacity. Light is a warm off-white field;
+  primary is a deep leaf green; accents are earthy amber. Dark is a soil-night
+  palette that keeps the same green identity.
+*/
+@layer base {
+  :root {
+    --background: 80 30% 98%;
+    --foreground: 150 25% 12%;
+
+    /* Elevation: canvas → surface (sidebar) → card → popover. */
+    --surface: 90 28% 96%;
+    --surface-foreground: 150 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 25% 12%;
+
+    --primary: 142 60% 30%;
+    --primary-foreground: 140 50% 97%;
+
+    --secondary: 90 30% 94%;
+    --secondary-foreground: 150 25% 18%;
+
+    --muted: 90 20% 94%;
+    --muted-foreground: 150 10% 40%;
+
+    --accent: 38 80% 92%;
+    --accent-foreground: 30 50% 22%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 60% 32%;
+    --success-foreground: 140 50% 97%;
+
+    --warning: 38 92% 45%;
+    --warning-foreground: 40 60% 12%;
+
+    --info: 200 78% 38%;
+    --info-foreground: 0 0% 98%;
+
+    --border: 110 16% 86%;
+    --input: 110 16% 86%;
+    --ring: 142 60% 30%;
+
+    --radius: 0.65rem;
+  }
+
+  /*
+    Dark "soil-night" palette. Reworked for a real elevation ramp (canvas 9% →
+    surface 12% → card 14% → popover 17%, ≥3pt steps so surfaces separate),
+    AA-legible muted text (68% L ≈ 7:1 on card), a brighter focus ring, and two
+    extra hues (warm amber `warning`, teal `info`) so the UI is not one flat
+    green. `accent` stays a subtle warm-earth *hover* surface — it is the
+    interactive-hover token, not a brand color.
+  */
+  .dark {
+    --background: 160 18% 9%;
+    --foreground: 96 14% 93%;
+
+    --surface: 158 16% 12%;
+    --surface-foreground: 96 14% 93%;
+
+    --card: 156 15% 14%;
+    --card-foreground: 96 14% 93%;
+
+    --popover: 154 14% 17%;
+    --popover-foreground: 96 14% 95%;
+
+    --primary: 142 62% 48%;
+    --primary-foreground: 152 45% 7%;
+
+    --secondary: 152 12% 20%;
+    --secondary-foreground: 96 14% 93%;
+
+    --muted: 152 12% 19%;
+    --muted-foreground: 140 9% 68%;
+
+    --accent: 40 22% 20%;
+    --accent-foreground: 40 60% 86%;
+
+    --destructive: 4 70% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 58% 47%;
+    --success-foreground: 152 45% 8%;
+
+    --warning: 38 88% 56%;
+    --warning-foreground: 40 65% 10%;
+
+    --info: 196 70% 52%;
+    --info-foreground: 200 60% 9%;
+
+    --border: 150 10% 26%;
+    --input: 150 11% 20%;
+    --ring: 142 70% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+}
+
+/* Subtle field-pattern backdrop for auth screens. */
+.bg-field {
+  background-image: radial-gradient(
+      hsl(var(--primary) / 0.07) 1px,
+      transparent 1px
+    ),
+    radial-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px);
+  background-position:
+    0 0,
+    12px 12px;
+  background-size: 24px 24px;
+}

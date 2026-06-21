@@ -1,23 +1,53 @@
+# Slim the build context — only the new src/ tree, alembic, pyproject.toml
+# need to reach the builder. Everything else stays out.
+
+# Version control
 .git
+.gitignore
 .github
+
+# Local dev
 .venv
-venv
+.qodo
+.vscode
+.idea
+*.swp
+*.swo
+
+# Cached bytecode
 __pycache__
-**/__pycache__
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*.egg-info
 .pytest_cache
 .ruff_cache
-.DS_Store
-data
-models
-uploads/batches/*
-!uploads/batches/.gitkeep
-frontend/node_modules
+.mypy_cache
+htmlcov
+coverage.xml
+.coverage
+
+# Docs / archive — never ship
+docs
+legacy
 notebooks
 prototype_images
-docs
+data
+uploads
+ANTIGRAVITY_PROMPT.md
+ENHANCED_METRICS.md
+GET_ENDPOINTS_IMPLEMENTATION_PLAN.md
+TESTING_PHASE_1_2.md
+
+# Tests don't go into the runtime image
 tests
-*.md
+
+# Secrets — never in build context
 .env
+.env.*
+!.env.example
+
+# Models — uploaded to MinIO at bootstrap, never baked in
+models
+
+# Claude harness — local working aid, not shipped
+.claude
+CLAUDE.md
