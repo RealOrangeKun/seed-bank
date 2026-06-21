@@ -108,6 +108,11 @@ docker compose up                                   # api:8000 web:8080 adminer:
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/` | health: `models_loaded`, `device` |
+| GET | `/health` | liveness probe (no dependency checks) |
+| GET | `/readiness` | readiness probe: DB + models loaded (503 if not ready) |
+| GET | `/api/analytics` | aggregated analytics (totals, trend, type split, histograms) |
+| POST | `/api/compare` | side-by-side comparison of up to 10 owned batches |
+| GET | `/api/batches/{id}/export.csv` / `.json` | export detections |
 | POST | `/api/analyze` | single image (accurate, local models) — persists |
 | POST | `/api/analyze-batch` | multi-image (accurate) — persists |
 | POST | `/api/analyze/fast` | single image via **Roboflow** detection + local classify — **does NOT persist** |

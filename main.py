@@ -22,6 +22,7 @@ from app.models import ScanBatch, ScanImage, SeedDetection, ProcessingStatus, Qu
 from app.ml.model_manager import ModelManager
 from app.ml.detection_pipeline import detect_seeds_multi, classify_seeds_multi
 from app.limits import enforce_rate_limit, guard_upload_size, guard_batch_count
+from app.observability import configure_logging, RequestContextMiddleware
 from app.crud import (
     get_or_create_guest_user,
     generate_device_fingerprint,
@@ -42,6 +43,10 @@ def utcnow() -> datetime:
 
 
 app = FastAPI(title="Bank Seed Demo API", version="1.0.0")
+
+# Structured logging + request-id/timing middleware (#15).
+log = configure_logging(os.getenv("LOG_LEVEL", "INFO"))
+app.add_middleware(RequestContextMiddleware)
 
 # CORS middleware for frontend access.
 # Origins are configurable via CORS_ORIGINS (comma-separated). Default "*" allows any
@@ -222,6 +227,36 @@ async def root():
         "models_loaded": model_manager is not None,
         "device": str(device),
     }
+
+
+@app.get("/health")
+async def health():
+    """Liveness probe: the process is up and serving (no dependency checks)."""
+    return {"status": "ok"}
+
+
+@app.get("/readiness")
+async def readiness(db: Session = Depends(get_db)):
+    """Readiness probe: verifies DB connectivity and that models are loaded.
+
+    Returns 503 when a dependency is not ready (so orchestrators hold traffic).
+    """
+    from sqlalchemy import text
+
+    checks = {"database": False, "models": model_manager is not None}
+    try:
+        db.execute(text("SELECT 1"))
+        checks["database"] = True
+    except Exception as e:
+        log.warning("readiness db check failed", extra={"path": "/readiness"})
+        checks["database"] = False
+        _ = e
+
+    ready = all(checks.values())
+    payload = {"ready": ready, "checks": checks, "device": str(device)}
+    if not ready:
+        return JSONResponse(status_code=503, content=payload)
+    return payload
 
 
 @app.post("/api/analyze")
