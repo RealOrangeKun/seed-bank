@@ -67,6 +67,7 @@ from seedbank.infrastructure.db.repositories import (
     ScanBatchRepository,
     ScanImageRepository,
     SeedDetectionRepository,
+    SeedTypeRepository,
 )
 from seedbank.infrastructure.ml.backends.base import (
     ClassificationConfig,
@@ -141,6 +142,7 @@ class _Repos:
     models: ModelArtifactRepository
     inferences: InferenceRepository
     detections: SeedDetectionRepository
+    seed_types: SeedTypeRepository
 
 
 async def _async_analyze_image(
@@ -162,6 +164,7 @@ async def _async_analyze_image(
             models=ModelArtifactRepository(session),
             inferences=InferenceRepository(session),
             detections=SeedDetectionRepository(session),
+            seed_types=SeedTypeRepository(session),
         )
 
         # 1. Load image + batch. Missing rows are non-recoverable.
@@ -239,47 +242,32 @@ async def _async_analyze_image(
             started_at=batch_started_at,
         )
 
-        # 6. Resolve + run classify. Failures here are non-fatal: detect data
-        # is already persisted; we degrade the batch to ``partial`` instead
-        # of ``failed``.
+        # 6. Resolve + run classify, per seed type. Each detection carries its
+        # own ``seed_type_id`` (request override, or the detector's class), so
+        # coffee crops go to the coffee classifier and maize to the maize one.
+        # Failures here are non-fatal: detect data is already persisted; we
+        # degrade the batch to ``partial`` instead of ``failed``.
         classify_failed = False
         try:
-            classify_model = await _resolve_classify_model(
+            classify_failed = await _classify_all_detections(
+                session=session,
+                repos=repos,
                 router=router,
-                models=repos.models,
-                seed_type_id=seed_type_id,
+                pipeline=classify_pipeline,
+                image=image,
+                image_bytes=image_bytes,
+                detect_inference=detect_inference,
                 user_id=batch.user_id,
                 batch_id=batch.id,
             )
         except Exception as exc:
             log.exception(
-                "analyze.classify_resolve_failed",
+                "analyze.classify_failed",
                 batch_id=str(batch.id),
                 image_id=str(image.id),
                 error=repr(exc),
             )
             classify_failed = True
-            classify_model = None
-
-        if classify_model is not None:
-            try:
-                await _run_classify_for_detections(
-                    session=session,
-                    repos=repos,
-                    pipeline=classify_pipeline,
-                    image=image,
-                    image_bytes=image_bytes,
-                    detect_inference=detect_inference,
-                    classify_model=classify_model,
-                )
-            except Exception as exc:
-                log.exception(
-                    "analyze.classify_failed",
-                    batch_id=str(batch.id),
-                    image_id=str(image.id),
-                    error=repr(exc),
-                )
-                classify_failed = True
 
         # 7. Finalise the batch if every image is now accounted for.
         await _finalize_batch_if_done(
@@ -428,10 +416,19 @@ async def _run_detect_and_persist(
         .execution_options(synchronize_session=False)
     )
 
+    # Resolve each detection's seed type. An explicit batch-level
+    # ``seed_type_id`` (from the request) always wins; otherwise we map the
+    # detector's class name ("coffee"/"maize") to its catalog id so per-type
+    # quality classifiers can be routed downstream.
+    code_to_id = {} if seed_type_id is not None else await repos.seed_types.code_to_id()
     rows = [
         _build_seed_detection(
             inference_id=inference.id,
-            seed_type_id=seed_type_id,
+            seed_type_id=(
+                seed_type_id
+                if seed_type_id is not None
+                else code_to_id.get((det.class_name or "").lower())
+            ),
             detection=det,
             image=image,
         )
@@ -504,6 +501,92 @@ def _decimal6(value: float) -> Decimal:
     return Decimal(str(round(clamped, 6)))
 
 
+async def _classify_all_detections(
+    *,
+    session: AsyncSession,
+    repos: _Repos,
+    router: TrafficRouter,
+    pipeline: ClassifyPipeline,
+    image: ScanImage,
+    image_bytes: bytes,
+    detect_inference: Inference,
+    user_id: UUID,
+    batch_id: UUID,
+) -> bool:
+    """Classify every detection, routing each seed-type group to its own model.
+
+    Returns ``True`` if any group's classification failed (so the caller can
+    degrade the batch to ``partial``). A seed type with no registered
+    classifier is skipped (its detections stay unclassified) — that's an
+    expected state, not a failure.
+    """
+    stmt = select(SeedDetection).where(SeedDetection.inference_id == detect_inference.id)
+    detections = list((await session.execute(stmt)).scalars().all())
+    if not detections:
+        log.info("analyze.classify_skipped", reason="no_detections", image_id=str(image.id))
+        return False
+
+    # Group detections by their resolved seed type. ``None`` (unrecognized
+    # class) can't be classified — there's no per-type model to route to.
+    groups: dict[UUID, list[SeedDetection]] = {}
+    for det in detections:
+        if det.seed_type_id is None:
+            continue
+        groups.setdefault(det.seed_type_id, []).append(det)
+
+    if not groups:
+        log.info(
+            "analyze.classify_skipped",
+            reason="no_typed_detections",
+            image_id=str(image.id),
+        )
+        return False
+
+    any_failed = False
+    for type_id, group in groups.items():
+        try:
+            classify_model = await _resolve_classify_model(
+                router=router,
+                models=repos.models,
+                seed_type_id=type_id,
+                user_id=user_id,
+                batch_id=batch_id,
+            )
+        except Exception as exc:
+            log.exception(
+                "analyze.classify_resolve_failed",
+                batch_id=str(batch_id),
+                seed_type_id=str(type_id),
+                error=repr(exc),
+            )
+            any_failed = True
+            continue
+
+        if classify_model is None:
+            continue  # no classifier for this seed type — leave unclassified
+
+        try:
+            await _run_classify_for_detections(
+                session=session,
+                repos=repos,
+                pipeline=pipeline,
+                image=image,
+                image_bytes=image_bytes,
+                detections=group,
+                classify_model=classify_model,
+            )
+        except Exception as exc:
+            log.exception(
+                "analyze.classify_group_failed",
+                batch_id=str(batch_id),
+                seed_type_id=str(type_id),
+                error=repr(exc),
+            )
+            any_failed = True
+
+    return any_failed
+
+
 async def _run_classify_for_detections(
     *,
     session: AsyncSession,
@@ -511,22 +594,16 @@ async def _run_classify_for_detections(
     pipeline: ClassifyPipeline,
     image: ScanImage,
     image_bytes: bytes,
-    detect_inference: Inference,
+    detections: list[SeedDetection],
     classify_model: ModelArtifact,
 ) -> None:
     """Crop each detection from the image, classify it, and bulk-update
     the ``quality`` column. Classification adds a fresh ``inferences`` row
-    so the registry can A/B classifiers independently of detectors."""
-    # Re-fetch the freshly-inserted detection rows. They sit in the same
-    # session so this is a cheap select.
-    stmt = select(SeedDetection).where(SeedDetection.inference_id == detect_inference.id)
-    detections = list((await session.execute(stmt)).scalars().all())
+    so the registry can A/B classifiers independently of detectors.
+
+    ``detections`` is the pre-grouped list for a single seed type — the caller
+    (:func:`_classify_all_detections`) resolved ``classify_model`` to match."""
     if not detections:
-        log.info(
-            "analyze.classify_skipped",
-            reason="no_detections",
-            image_id=str(image.id),
-        )
         return
 
     classify_inference = await repos.inferences.add_inference(
@@ -591,9 +668,10 @@ async def _run_classify_for_detections(
         latency_ms_sum=total_latency_ms,
     )
     # Detect inference's detections now have ``quality`` populated; resync
-    # so fact_detection rows reflect the labels.
+    # so fact_detection rows reflect the labels. The detect inference id is the
+    # one these detection rows belong to (they share it within an image).
     dispatch_after_commit(SYNC_INFERENCE, str(classify_inference.id))
-    dispatch_after_commit(SYNC_DETECTIONS, str(detect_inference.id))
+    dispatch_after_commit(SYNC_DETECTIONS, str(detections[0].inference_id))
 
 
 def _crop_to_jpeg(base_img: Image.Image, det: SeedDetection, width: int, height: int) -> bytes:
