@@ -519,6 +519,35 @@ const App = {
         setTimeout(() => {
             statProgressBar.style.width = `${stats.good_percentage}%`;
         }, 100);
+
+        // Quality donut (Chart.js). Repaint per render so it tracks tab/theme changes.
+        this.renderResultDonut(stats);
+    },
+
+    renderResultDonut(stats) {
+        const el = document.getElementById('result-donut');
+        if (!el || !window.Chart) return;
+        const dark = document.documentElement.classList.contains('dark');
+        if (this._resultDonut) this._resultDonut.destroy();
+        this._resultDonut = new Chart(el, {
+            type: 'doughnut',
+            data: {
+                labels: ['Good', 'Bad'],
+                datasets: [{
+                    data: [stats.good_seeds, stats.bad_seeds],
+                    backgroundColor: ['#16a34a', '#dc2626'],
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                cutout: '70%',
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: dark ? '#cbd5e1' : '#475569' } },
+                },
+                animation: { animateRotate: true },
+            },
+        });
     },
 
     renderSeedsList(filter = 'all') {
@@ -696,7 +725,13 @@ const App = {
     },
 
     showResults() {
+        // Hide every other section so results render on a clean view regardless of
+        // where we came from (upload, history, analytics, compare).
+        this.elements.uploadSection.classList.add('hidden');
         this.elements.loadingSection.classList.add('hidden');
+        if (this.elements.historySection) this.elements.historySection.classList.add('hidden');
+        document.getElementById('analytics-section')?.classList.add('hidden');
+        document.getElementById('compare-section')?.classList.add('hidden');
         this.elements.resultsSection.classList.remove('hidden');
     },
 

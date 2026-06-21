@@ -315,6 +315,17 @@
                 <!-- Right Column: Statistics & List -->
                 <div class="space-y-6">
 
+                    <!-- Quality donut -->
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="p-1.5 bg-seed-green-100 rounded-md text-seed-green-700">
+                                <i data-lucide="pie-chart" class="w-4 h-4"></i>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500">Quality Overview</span>
+                        </div>
+                        <div class="sb-chart-wrap" style="height:200px"><canvas id="result-donut"></canvas></div>
+                    </div>
+
                     <!-- Stats Cards -->
                     <div class="grid grid-cols-2 gap-4">
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
