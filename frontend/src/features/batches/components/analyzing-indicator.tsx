@@ -1,6 +1,8 @@
 import { Boxes, CheckCircle2, ScanSearch, Sparkles } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import type { TranslationKey } from "@/i18n/dictionaries/en";
+import { useI18n } from "@/i18n";
 
 /**
  * Animated two-stage pipeline indicator shown while a batch is `pending` /
@@ -9,19 +11,21 @@ import { Card, CardContent } from "@/components/ui/card";
  * The page already polls every 2s; this is purely the visual stand-in until a
  * terminal status flips it to the results view.
  */
-const STAGES = [
-  { icon: ScanSearch, label: "Detecting seeds", hint: "Locating each seed in the image" },
-  { icon: Boxes, label: "Grading quality", hint: "Classifying good vs. bad per seed" },
-] as const;
+const STAGES: { icon: typeof ScanSearch; labelKey: TranslationKey; hintKey: TranslationKey }[] =
+  [
+    { icon: ScanSearch, labelKey: "analyzing.stage1", hintKey: "analyzing.stage1Hint" },
+    { icon: Boxes, labelKey: "analyzing.stage2", hintKey: "analyzing.stage2Hint" },
+  ];
 
 export function AnalyzingIndicator({ pending }: { pending: boolean }) {
+  const { t } = useI18n();
   return (
     <Card className="overflow-hidden">
       <CardContent className="space-y-5 p-6">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Sparkles className="h-4 w-4 animate-pulse text-primary" />
-          {pending ? "Queued for analysis…" : "Analysis in progress"}
-          <span className="text-muted-foreground">· updates automatically</span>
+          {pending ? t("analyzing.queued") : t("analyzing.inProgress")}
+          <span className="text-muted-foreground">{t("analyzing.updatesAuto")}</span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -29,7 +33,7 @@ export function AnalyzingIndicator({ pending }: { pending: boolean }) {
             const Icon = stage.icon;
             return (
               <div
-                key={stage.label}
+                key={stage.labelKey}
                 className="relative flex items-start gap-3 overflow-hidden rounded-lg border bg-card p-3"
               >
                 {/* Sweeping shimmer to convey active work. */}
@@ -41,8 +45,8 @@ export function AnalyzingIndicator({ pending }: { pending: boolean }) {
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">{stage.label}</p>
-                  <p className="text-xs text-muted-foreground">{stage.hint}</p>
+                  <p className="text-sm font-medium">{t(stage.labelKey)}</p>
+                  <p className="text-xs text-muted-foreground">{t(stage.hintKey)}</p>
                 </div>
               </div>
             );
@@ -51,7 +55,7 @@ export function AnalyzingIndicator({ pending }: { pending: boolean }) {
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          Results and bounding boxes appear here the moment they're ready.
+          {t("analyzing.footer")}
         </div>
       </CardContent>
     </Card>

@@ -15,7 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { useBatches } from "@/features/batches/api";
+import { useI18n } from "@/i18n";
 import { formatDateTime, shortId } from "@/lib/format";
 import { usePagination } from "@/hooks/use-pagination";
 
@@ -54,6 +56,7 @@ function metricRow(
 }
 
 export function ComparePage() {
+  const { t, tn } = useI18n();
   const pagination = usePagination(20);
   const history = useBatches({ page: pagination.page, pageSize: pagination.pageSize });
   const compare = useCompareBatches();
@@ -66,20 +69,20 @@ export function ComparePage() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else if (next.size < MAX) next.add(id);
-      else toast.error(`Compare up to ${MAX} scans.`);
+      else toast.error(t("compare.maxScans", { max: MAX }));
       return next;
     });
   }
 
   async function runCompare() {
     if (selected.size < 2) {
-      toast.error("Pick at least 2 scans to compare.");
+      toast.error(t("compare.minScans"));
       return;
     }
     try {
       await compare.mutateAsync([...selected]);
     } catch {
-      toast.error("Compare failed.");
+      toast.error(t("compare.failed"));
     }
   }
 
@@ -88,12 +91,12 @@ export function ComparePage() {
   return (
     <>
       <PageHeader
-        title="Compare scans"
-        description="Pick 2–10 scans to see their results side by side."
+        title={t("compare.title")}
+        description={t("compare.description")}
         actions={
           <Button onClick={runCompare} disabled={compare.isPending || selected.size < 2}>
             {compare.isPending ? <Spinner /> : <GitCompareArrows className="h-4 w-4" />}
-            Compare ({selected.size})
+            {tn("compareCount", selected.size)}
           </Button>
         }
       />
@@ -110,9 +113,9 @@ export function ComparePage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10" />
-                    <TableHead>Scan</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Images</TableHead>
+                    <TableHead>{t("compare.colScan")}</TableHead>
+                    <TableHead>{t("compare.colStatus")}</TableHead>
+                    <TableHead>{t("compare.colImages")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -127,15 +130,15 @@ export function ComparePage() {
                           type="checkbox"
                           checked={selected.has(b.id)}
                           onChange={() => toggle(b.id)}
-                          aria-label={`Select scan ${b.id}`}
+                          aria-label={t("compare.colScan")}
                           className="cursor-pointer accent-[hsl(var(--primary))]"
                         />
                       </TableCell>
                       <TableCell className="font-medium">
                         {formatDateTime(b.submitted_at)}
                       </TableCell>
-                      <TableCell className="capitalize text-muted-foreground">
-                        {b.status}
+                      <TableCell>
+                        <StatusBadge status={b.status} />
                       </TableCell>
                       <TableCell>{b.image_count}</TableCell>
                     </TableRow>
@@ -151,7 +154,7 @@ export function ComparePage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Metric</TableHead>
+                      <TableHead>{t("compare.metric")}</TableHead>
                       {result.rows.map((r) => (
                         <TableHead key={r.batch_id} className="font-mono text-xs">
                           {shortId(r.batch_id)}
@@ -161,38 +164,38 @@ export function ComparePage() {
                   </TableHeader>
                   <TableBody>
                     {metricRow(
-                      "Images",
+                      t("compare.metricImages"),
                       result.rows,
                       (r) => r.images,
                       (n) => `${n}`,
                     )}
                     {metricRow(
-                      "Seeds detected",
+                      t("compare.metricSeeds"),
                       result.rows,
                       (r) => r.detections,
                       (n) => `${n}`,
                     )}
                     {metricRow(
-                      "Good",
+                      t("compare.metricGood"),
                       result.rows,
                       (r) => r.good,
                       (n) => `${n}`,
                     )}
                     {metricRow(
-                      "Bad",
+                      t("compare.metricBad"),
                       result.rows,
                       (r) => r.bad,
                       (n) => `${n}`,
                       false,
                     )}
                     {metricRow(
-                      "Good rate",
+                      t("compare.metricGoodRate"),
                       result.rows,
                       (r) => r.good_rate,
                       (n) => `${(n * 100).toFixed(1)}%`,
                     )}
                     {metricRow(
-                      "Mean confidence",
+                      t("compare.metricMeanConfidence"),
                       result.rows,
                       (r) => r.mean_confidence,
                       (n) => `${(n * 100).toFixed(1)}%`,

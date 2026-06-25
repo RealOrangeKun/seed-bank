@@ -6,6 +6,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useI18n } from "@/i18n";
 import { formatConfidence, humanize, toNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SeedDetectionOut } from "@/lib/api/types";
@@ -45,6 +46,9 @@ export function BBoxOverlay({
   showLabels = false,
 }: BBoxOverlayProps) {
   const [hovered, setHovered] = useState<number | null>(null);
+  const { t } = useI18n();
+  const qualityLabel = (q: string | null | undefined) =>
+    q === "good" ? t("overlay.good") : q === "bad" ? t("overlay.bad") : humanize(q);
 
   // Apply confidence + quality filters. Keep the original index so hover state
   // and aria labels stay stable as filters change.
@@ -64,7 +68,7 @@ export function BBoxOverlay({
   return (
     <TooltipProvider delayDuration={100}>
       <div className="relative inline-block max-w-full overflow-hidden rounded-lg border bg-muted">
-        <img src={src} alt={alt ?? "Scan image"} className="block max-w-full" />
+        <img src={src} alt={alt ?? t("bbox.scanImage")} className="block max-w-full" />
         {visible.map(({ d, i }) => {
           const left = toNumber(d.box_x_norm) * 100;
           const top = toNumber(d.box_y_norm) * 100;
@@ -77,7 +81,7 @@ export function BBoxOverlay({
                 <div
                   role="button"
                   tabIndex={0}
-                  aria-label={`Detection ${i + 1}`}
+                  aria-label={t("bbox.detection", { n: i + 1 })}
                   onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered((h) => (h === i ? null : h))}
                   onFocus={() => setHovered(i)}
@@ -107,10 +111,16 @@ export function BBoxOverlay({
               </TooltipTrigger>
               <TooltipContent className="space-y-0.5">
                 <div className="font-medium">
-                  {label ?? (d.quality ? humanize(d.quality) : "Detection")}
+                  {label ?? (d.quality ? qualityLabel(d.quality) : t("bbox.detectionTitle"))}
                 </div>
-                <div>Confidence: {formatConfidence(d.confidence)}</div>
-                {d.quality ? <div>Quality: {humanize(d.quality)}</div> : null}
+                <div>
+                  {t("bbox.confidence")}: {formatConfidence(d.confidence)}
+                </div>
+                {d.quality ? (
+                  <div>
+                    {t("bbox.quality")}: {qualityLabel(d.quality)}
+                  </div>
+                ) : null}
               </TooltipContent>
             </Tooltip>
           );

@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 import type { BatchInsights } from "../insights";
@@ -8,6 +9,7 @@ import { CountUp } from "./count-up";
 
 /** A donut showing the good / bad / unclassified split. */
 function QualityDonut({ insights }: { insights: BatchInsights }) {
+  const { t } = useI18n();
   const { good, bad, unclassified, total } = insights;
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
@@ -63,7 +65,7 @@ function QualityDonut({ insights }: { insights: BatchInsights }) {
           <CountUp value={Math.round(insights.goodRate * 100)} suffix="%" />
         </span>
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          good rate
+          {t("insights.goodRate")}
         </span>
       </div>
     </div>
@@ -72,6 +74,7 @@ function QualityDonut({ insights }: { insights: BatchInsights }) {
 
 /** A compact 10-bucket confidence histogram. */
 function ConfidenceHistogram({ insights }: { insights: BatchInsights }) {
+  const { t } = useI18n();
   const max = Math.max(1, ...insights.confidenceBins.map((b) => b.count));
   return (
     <div className="flex-1">
@@ -101,7 +104,7 @@ function ConfidenceHistogram({ insights }: { insights: BatchInsights }) {
       </div>
       <div className="flex justify-between text-[10px] text-muted-foreground">
         <span>0%</span>
-        <span>confidence</span>
+        <span>{t("insights.confidence")}</span>
         <span>100%</span>
       </div>
     </div>
@@ -143,27 +146,28 @@ function StatTile({
  * Shown above the per-image cards on the batch detail page.
  */
 export function InsightsPanel({ insights }: { insights: BatchInsights }) {
+  const { t } = useI18n();
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Sparkles className="h-4 w-4 text-primary" />
-          AI insights
+          {t("insights.title")}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6 lg:flex-row lg:items-center">
         <QualityDonut insights={insights} />
         <ConfidenceHistogram insights={insights} />
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-80 lg:grid-cols-2">
-          <StatTile label="Seeds detected" value={insights.total} />
+          <StatTile label={t("insights.seedsDetected")} value={insights.total} />
           <StatTile
-            label="Mean confidence"
+            label={t("insights.meanConfidence")}
             value={insights.meanConfidence * 100}
             decimals={1}
             suffix="%"
           />
-          <StatTile label="Good" value={insights.good} accent="good" />
-          <StatTile label="Bad" value={insights.bad} accent="bad" />
+          <StatTile label={t("insights.good")} value={insights.good} accent="good" />
+          <StatTile label={t("insights.bad")} value={insights.bad} accent="bad" />
         </div>
       </CardContent>
     </Card>

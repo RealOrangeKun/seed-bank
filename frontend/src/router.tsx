@@ -6,6 +6,7 @@ import { RoleRoute } from "@/components/guards/role-route";
 import { AppShell } from "@/components/layout/app-shell";
 import { EmptyState, LoadingState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import { LoginPage } from "@/features/auth/pages/login-page";
 import { RegisterPage } from "@/features/auth/pages/register-page";
 import { VerifyEmailPage } from "@/features/auth/pages/verify-email-page";
@@ -40,6 +41,11 @@ const AnalyticsPage = lazy(() =>
 const ComparePage = lazy(() =>
   import("@/features/compare/pages/compare-page").then((m) => ({
     default: m.ComparePage,
+  })),
+);
+const SharedBatchPage = lazy(() =>
+  import("@/features/batches/pages/shared-batch-page").then((m) => ({
+    default: m.SharedBatchPage,
   })),
 );
 const ProfilePage = lazy(() =>
@@ -94,13 +100,14 @@ function lazyEl(node: ReactNode): ReactNode {
 }
 
 function NotFound() {
+  const { t } = useI18n();
   return (
     <EmptyState
-      title="Page not found"
-      description="The page you're looking for doesn't exist."
+      title={t("notFound.title")}
+      description={t("notFound.description")}
       action={
         <Button asChild>
-          <Link to="/dashboard">Back to dashboard</Link>
+          <Link to="/dashboard">{t("notFound.back")}</Link>
         </Button>
       }
     />
@@ -111,6 +118,7 @@ export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
   { path: "/verify-email", element: <VerifyEmailPage /> },
+  { path: "/shared/:token", element: lazyEl(<SharedBatchPage />) },
   {
     element: <ProtectedRoute />,
     children: [

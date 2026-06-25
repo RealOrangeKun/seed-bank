@@ -2,6 +2,7 @@ import { ImagePlus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,7 @@ export function FileDropzone({
   const [dragging, setDragging] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
   const thumbnails = useThumbnails(files);
+  const { t, tn } = useI18n();
 
   const addFiles = useCallback(
     (incoming: FileList | null) => {
@@ -53,15 +55,16 @@ export function FileDropzone({
       const bad: string[] = [];
       const ok: File[] = [];
       for (const f of Array.from(incoming)) {
-        if (!f.type.startsWith("image/")) bad.push(`${f.name}: not an image`);
+        if (!f.type.startsWith("image/"))
+          bad.push(t("dropzone.notImage", { name: f.name }));
         else if (f.size > maxBytes)
-          bad.push(`${f.name}: exceeds ${formatBytes(maxBytes)}`);
+          bad.push(t("dropzone.tooLarge", { name: f.name, size: formatBytes(maxBytes) }));
         else ok.push(f);
       }
       setRejected(bad);
       onChange([...files, ...ok].slice(0, maxFiles));
     },
-    [files, maxBytes, maxFiles, onChange],
+    [files, maxBytes, maxFiles, onChange, t],
   );
 
   return (
@@ -89,11 +92,9 @@ export function FileDropzone({
         )}
       >
         <ImagePlus className="h-8 w-8 text-primary" />
-        <span className="text-sm font-medium">
-          Drop seed images here, or click to browse
-        </span>
+        <span className="text-sm font-medium">{t("dropzone.cta")}</span>
         <span className="text-xs text-muted-foreground">
-          Up to {maxFiles} images, {formatBytes(maxBytes)} each
+          {t("dropzone.limits", { max: maxFiles, size: formatBytes(maxBytes) })}
         </span>
         <input
           ref={inputRef}
@@ -120,7 +121,7 @@ export function FileDropzone({
         <>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              {files.length} image{files.length === 1 ? "" : "s"} ·{" "}
+              {tn("images", files.length)} ·{" "}
               {formatBytes(files.reduce((sum, f) => sum + f.size, 0))}
             </span>
             {!disabled ? (
@@ -129,7 +130,7 @@ export function FileDropzone({
                 className="hover:text-destructive"
                 onClick={() => onChange([])}
               >
-                Clear all
+                {t("dropzone.clearAll")}
               </button>
             ) : null}
           </div>
@@ -160,7 +161,7 @@ export function FileDropzone({
                     type="button"
                     variant="destructive"
                     size="icon"
-                    className="absolute right-1 top-1 h-5 w-5 opacity-0 shadow transition-opacity group-hover:opacity-100"
+                    className="absolute end-1 top-1 h-5 w-5 opacity-0 shadow transition-opacity group-hover:opacity-100"
                     aria-label={`Remove ${f.name}`}
                     onClick={() => onChange(files.filter((_, idx) => idx !== i))}
                   >

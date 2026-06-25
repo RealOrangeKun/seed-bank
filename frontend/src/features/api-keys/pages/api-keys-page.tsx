@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, KeyRound, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { usePagination } from "@/hooks/use-pagination";
 import type { ApiKeyOut } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
@@ -38,12 +39,11 @@ import { applyApiError } from "@/lib/form";
 
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "../api";
 
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  scopes: z.string().optional().or(z.literal("")),
-  expiresAt: z.string().optional().or(z.literal("")),
-});
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  name: string;
+  scopes?: string;
+  expiresAt?: string;
+}
 
 /** Parse a comma-separated scopes string into a trimmed, de-empty list. */
 function parseScopes(raw: string | undefined): string[] {
@@ -55,6 +55,7 @@ function parseScopes(raw: string | undefined): string[] {
 }
 
 export function ApiKeysPage() {
+  const { t } = useI18n();
   const pagination = usePagination(20);
   const query = useApiKeys({ page: pagination.page, pageSize: pagination.pageSize });
 
@@ -64,6 +65,16 @@ export function ApiKeysPage() {
 
   const create = useCreateApiKey();
   const revoke = useRevokeApiKey();
+
+  const schema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("apiKeys.nameRequired")),
+        scopes: z.string().optional().or(z.literal("")),
+        expiresAt: z.string().optional().or(z.literal("")),
+      }),
+    [t],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -103,11 +114,11 @@ export function ApiKeysPage() {
   return (
     <>
       <PageHeader
-        title="API keys"
-        description="Programmatic access tokens for the Seed-Bank API."
+        title={t("apiKeys.title")}
+        description={t("apiKeys.description")}
         actions={
           <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> Create key
+            <Plus className="h-4 w-4" /> {t("apiKeys.createKey")}
           </Button>
         }
       />
@@ -118,11 +129,11 @@ export function ApiKeysPage() {
         <ErrorState error={query.error} />
       ) : rows.length === 0 ? (
         <EmptyState
-          title="No API keys yet"
-          description="Create a key to authenticate programmatic requests to the API."
+          title={t("apiKeys.noKeysTitle")}
+          description={t("apiKeys.noKeysDesc")}
           action={
             <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> Create key
+              <Plus className="h-4 w-4" /> {t("apiKeys.createKey")}
             </Button>
           }
         />
@@ -132,13 +143,13 @@ export function ApiKeysPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Prefix</TableHead>
-                  <TableHead>Scopes</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Last used</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("apiKeys.colName")}</TableHead>
+                  <TableHead>{t("apiKeys.colPrefix")}</TableHead>
+                  <TableHead>{t("apiKeys.colScopes")}</TableHead>
+                  <TableHead>{t("apiKeys.colCreated")}</TableHead>
+                  <TableHead>{t("apiKeys.colLastUsed")}</TableHead>
+                  <TableHead>{t("apiKeys.colStatus")}</TableHead>
+                  <TableHead className="text-end">{t("apiKeys.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -159,12 +170,12 @@ export function ApiKeysPage() {
                       </TableCell>
                       <TableCell>
                         {revoked ? (
-                          <Badge variant="destructive">revoked</Badge>
+                          <Badge variant="destructive">{t("apiKeys.revoked")}</Badge>
                         ) : (
-                          <Badge variant="success">active</Badge>
+                          <Badge variant="success">{t("apiKeys.active")}</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-end">
                         {revoked ? null : (
                           <Button
                             variant="ghost"
@@ -172,7 +183,7 @@ export function ApiKeysPage() {
                             className="text-destructive hover:text-destructive"
                             onClick={() => setRevokeTarget(key)}
                           >
-                            Revoke
+                            {t("apiKeys.revoke")}
                           </Button>
                         )}
                       </TableCell>
@@ -199,32 +210,38 @@ export function ApiKeysPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create API key</DialogTitle>
-            <DialogDescription>
-              The plaintext key is shown only once after creation.
-            </DialogDescription>
+            <DialogTitle>{t("apiKeys.createDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("apiKeys.createDialogDesc")}</DialogDescription>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <Field
               id="name"
-              label="Name"
+              label={t("apiKeys.name")}
               required
               error={form.formState.errors.name?.message}
             >
-              <Input id="name" placeholder="CI pipeline" {...form.register("name")} />
+              <Input
+                id="name"
+                placeholder={t("apiKeys.namePlaceholder")}
+                {...form.register("name")}
+              />
             </Field>
             <Field
               id="scopes"
-              label="Scopes"
-              hint="Comma-separated, e.g. analyze:write, models:read"
+              label={t("apiKeys.scopes")}
+              hint={t("apiKeys.scopesHint")}
               error={form.formState.errors.scopes?.message}
             >
-              <Input id="scopes" placeholder="analyze:write, models:read" {...form.register("scopes")} />
+              <Input
+                id="scopes"
+                placeholder={t("apiKeys.scopesPlaceholder")}
+                {...form.register("scopes")}
+              />
             </Field>
             <Field
               id="expiresAt"
-              label="Expires at"
-              hint="Optional; leave blank for a non-expiring key"
+              label={t("apiKeys.expiresAt")}
+              hint={t("apiKeys.expiresHint")}
               error={form.formState.errors.expiresAt?.message}
             >
               <Input id="expiresAt" type="datetime-local" {...form.register("expiresAt")} />
@@ -232,12 +249,12 @@ export function ApiKeysPage() {
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline">
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending ? <Spinner /> : <KeyRound className="h-4 w-4" />}
-                Create key
+                {t("apiKeys.createKey")}
               </Button>
             </DialogFooter>
           </form>
@@ -253,25 +270,22 @@ export function ApiKeysPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Key created</DialogTitle>
-            <DialogDescription>
-              Copy this key now — it is shown once and can never be retrieved again.
-            </DialogDescription>
+            <DialogTitle>{t("apiKeys.keyCreated")}</DialogTitle>
+            <DialogDescription>{t("apiKeys.keyCreatedDesc")}</DialogDescription>
           </DialogHeader>
 
           {createdKey ? (
             <div className="space-y-4">
               <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-foreground">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Store this key securely. Once you close this dialog it will not be
-                  shown again.
-                </span>
+                <span>{t("apiKeys.storeSecurely")}</span>
               </div>
               {createdKey.key ? (
                 <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 p-3">
-                  <code className="break-all font-mono text-sm">{createdKey.key}</code>
-                  <CopyButton value={createdKey.key} label="Copy API key" />
+                  <code className="break-all font-mono text-sm" dir="ltr">
+                    {createdKey.key}
+                  </code>
+                  <CopyButton value={createdKey.key} label={t("apiKeys.copyApiKey")} />
                 </div>
               ) : null}
             </div>
@@ -279,7 +293,7 @@ export function ApiKeysPage() {
 
           <DialogFooter>
             <Button type="button" onClick={() => setCreatedKey(null)}>
-              Done
+              {t("common.done")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -294,17 +308,17 @@ export function ApiKeysPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Revoke API key</DialogTitle>
+            <DialogTitle>{t("apiKeys.revokeDialogTitle")}</DialogTitle>
             <DialogDescription>
               {revokeTarget
-                ? `Revoking "${revokeTarget.name}" immediately invalidates it. This cannot be undone.`
+                ? t("apiKeys.revokeDialogDesc", { name: revokeTarget.name })
                 : null}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
-                Cancel
+                {t("common.cancel")}
               </Button>
             </DialogClose>
             <Button
@@ -314,7 +328,7 @@ export function ApiKeysPage() {
               onClick={onRevoke}
             >
               {revoke.isPending ? <Spinner /> : null}
-              Revoke
+              {t("apiKeys.revoke")}
             </Button>
           </DialogFooter>
         </DialogContent>

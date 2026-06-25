@@ -2,6 +2,7 @@ import { Activity, CheckCircle2, Images, ScanLine } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { CountUp } from "@/features/batches/components/count-up";
+import { useI18n } from "@/i18n";
 import type { BatchOut } from "@/lib/api/types";
 
 /**
@@ -107,19 +108,24 @@ function StatCard({
 }
 
 export function StatsStrip({ batches }: { batches: BatchOut[] }) {
+  const { t } = useI18n();
   const stats = computeStats(batches);
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <StatCard icon={ScanLine} label="Total scans" value={stats.totalScans} />
-      <StatCard icon={Images} label="Images analyzed" value={stats.totalImages} />
+      <StatCard icon={ScanLine} label={t("stats.totalScans")} value={stats.totalScans} />
+      <StatCard
+        icon={Images}
+        label={t("stats.imagesAnalyzed")}
+        value={stats.totalImages}
+      />
       <StatCard
         icon={CheckCircle2}
-        label="Success rate"
+        label={t("stats.successRate")}
         value={stats.successRate * 100}
         decimals={0}
         suffix="%"
       />
-      <StatCard icon={Activity} label="Last 14 days">
+      <StatCard icon={Activity} label={t("stats.last14Days")}>
         <div className="mt-2">
           <Sparkline data={stats.activity} />
         </div>

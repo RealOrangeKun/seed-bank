@@ -88,7 +88,7 @@ export function UsersPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Verified</TableHead>
                   <TableHead>Active</TableHead>
-                  <TableHead className="text-right">Change role</TableHead>
+                  <TableHead className="text-end">Change role</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -111,14 +111,14 @@ export function UsersPage() {
                         {u.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-end">
                       <Select
                         value={u.role}
                         onValueChange={(value) =>
                           setPending({ user: u, role: value as Role })
                         }
                       >
-                        <SelectTrigger className="ml-auto w-40">
+                        <SelectTrigger className="ms-auto w-40">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

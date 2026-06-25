@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
@@ -9,24 +9,36 @@ import { Field } from "@/components/shared/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { useI18n } from "@/i18n";
 import { applyApiError } from "@/lib/form";
 import { register as registerApi } from "@/features/auth/api";
 
 import { AuthLayout } from "../components/auth-layout";
 
-// Mirrors the backend RegisterIn constraints (password 12–128, name ≤ 255).
-const schema = z.object({
-  full_name: z.string().max(255).optional(),
-  email: z.string().email("Enter a valid email"),
-  password: z
-    .string()
-    .min(12, "At least 12 characters")
-    .max(128, "At most 128 characters"),
-});
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  full_name?: string;
+  email: string;
+  password: string;
+}
 
 export function RegisterPage() {
   const [done, setDone] = useState<string | null>(null);
+  const { t } = useI18n();
+
+  // Mirrors the backend RegisterIn constraints (password 12–128, name ≤ 255).
+  const schema = useMemo(
+    () =>
+      z.object({
+        full_name: z.string().max(255).optional(),
+        email: z.string().email(t("auth.invalidEmail")),
+        password: z
+          .string()
+          .min(12, t("auth.passwordMin"))
+          .max(128, t("auth.passwordMax")),
+      }),
+    [t],
+  );
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { full_name: "", email: "", password: "" },
@@ -48,10 +60,10 @@ export function RegisterPage() {
   if (done) {
     return (
       <AuthLayout
-        title="Check your email"
+        title={t("auth.checkEmail")}
         footer={
           <Link to="/login" className="font-medium text-primary hover:underline">
-            Back to sign in
+            {t("auth.backToSignIn")}
           </Link>
         }
       >
@@ -65,13 +77,13 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      title="Create your account"
-      subtitle="Start analyzing seed quality in minutes"
+      title={t("auth.createTitle")}
+      subtitle={t("auth.createSubtitle")}
       footer={
         <>
-          Already have an account?{" "}
+          {t("auth.alreadyHaveAccount")}{" "}
           <Link to="/login" className="font-medium text-primary hover:underline">
-            Sign in
+            {t("common.signIn")}
           </Link>
         </>
       }
@@ -79,12 +91,17 @@ export function RegisterPage() {
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <Field
           id="full_name"
-          label="Full name"
+          label={t("auth.fullName")}
           error={form.formState.errors.full_name?.message}
         >
           <Input id="full_name" autoComplete="name" {...form.register("full_name")} />
         </Field>
-        <Field id="email" label="Email" required error={form.formState.errors.email?.message}>
+        <Field
+          id="email"
+          label={t("auth.email")}
+          required
+          error={form.formState.errors.email?.message}
+        >
           <Input
             id="email"
             type="email"
@@ -94,9 +111,9 @@ export function RegisterPage() {
         </Field>
         <Field
           id="password"
-          label="Password"
+          label={t("auth.password")}
           required
-          hint="12–128 characters"
+          hint={t("auth.passwordHint")}
           error={form.formState.errors.password?.message}
         >
           <Input
@@ -108,7 +125,7 @@ export function RegisterPage() {
         </Field>
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? <Spinner /> : null}
-          Create account
+          {t("auth.createAccount")}
         </Button>
       </form>
     </AuthLayout>

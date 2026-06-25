@@ -6,6 +6,7 @@ import { ErrorState, LoadingState } from "@/components/shared/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CountUp } from "@/features/batches/components/count-up";
 import { useSeedTypes } from "@/features/catalog/api";
+import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 import { useAnalytics, type AnalyticsOut } from "../api";
@@ -44,25 +45,26 @@ function StatCard({
 
 /** Per-day batches bar chart across the window. */
 function TrendChart({ trend }: { trend: AnalyticsOut["trend"] }) {
-  const max = Math.max(1, ...trend.map((t) => t.batches));
+  const { t, tn } = useI18n();
+  const max = Math.max(1, ...trend.map((d) => d.batches));
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Activity</CardTitle>
+        <CardTitle className="text-base">{t("analytics.activity")}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex items-end gap-0.5" style={{ height: 120 }}>
-          {trend.map((t) => (
+          {trend.map((d) => (
             <div
-              key={t.day}
+              key={d.day}
               className="group relative flex flex-1 items-end"
               style={{ height: "100%" }}
-              title={`${t.day}: ${t.batches} scan${t.batches === 1 ? "" : "s"}, ${t.detections} seeds`}
+              title={`${d.day}: ${tn("scans", d.batches)} · ${tn("seeds", d.detections)}`}
             >
               <div
                 className="w-full rounded-t-sm bg-primary/70 transition-all duration-500 ease-out group-hover:bg-primary"
                 style={{
-                  height: `${t.batches > 0 ? Math.max(4, (t.batches / max) * 100) : 0}%`,
+                  height: `${d.batches > 0 ? Math.max(4, (d.batches / max) * 100) : 0}%`,
                 }}
               />
             </div>
@@ -70,7 +72,7 @@ function TrendChart({ trend }: { trend: AnalyticsOut["trend"] }) {
         </div>
         <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
           <span>{trend[0]?.day}</span>
-          <span>scans per day</span>
+          <span>{t("analytics.scansPerDay")}</span>
           <span>{trend[trend.length - 1]?.day}</span>
         </div>
       </CardContent>
@@ -80,11 +82,14 @@ function TrendChart({ trend }: { trend: AnalyticsOut["trend"] }) {
 
 /** 10-bucket confidence histogram, amber→green. */
 function ConfidenceChart({ bins }: { bins: AnalyticsOut["confidence_histogram"] }) {
+  const { t } = useI18n();
   const max = Math.max(1, ...bins.map((b) => b.count));
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Confidence distribution</CardTitle>
+        <CardTitle className="text-base">
+          {t("analytics.confidenceDistribution")}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex items-end gap-1" style={{ height: 120 }}>
@@ -110,7 +115,7 @@ function ConfidenceChart({ bins }: { bins: AnalyticsOut["confidence_histogram"] 
         </div>
         <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
           <span>0%</span>
-          <span>detection confidence</span>
+          <span>{t("analytics.detectionConfidence")}</span>
           <span>100%</span>
         </div>
       </CardContent>
@@ -126,15 +131,16 @@ function TypeSplit({
   rows: AnalyticsOut["type_split"];
   seedTypeName: (id: string | null | undefined) => string;
 }) {
+  const { t } = useI18n();
   if (rows.length === 0) {
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Quality by seed type</CardTitle>
+          <CardTitle className="text-base">{t("analytics.qualityBySeedType")}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="py-4 text-center text-sm text-muted-foreground">
-            No detections yet.
+            {t("analytics.noDetections")}
           </p>
         </CardContent>
       </Card>
@@ -143,7 +149,7 @@ function TypeSplit({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Quality by seed type</CardTitle>
+        <CardTitle className="text-base">{t("analytics.qualityBySeedType")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {rows.map((row) => {
@@ -152,10 +158,13 @@ function TypeSplit({
             <div key={row.seed_type_id ?? "unclassified"} className="space-y-1">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium">
-                  {row.seed_type_id ? seedTypeName(row.seed_type_id) : "Unclassified"}
+                  {row.seed_type_id
+                    ? seedTypeName(row.seed_type_id)
+                    : t("analytics.unclassified")}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {row.total} · {Math.round(row.good_rate * 100)}% good
+                  {row.total}
+                  {t("breakdown.goodSuffix", { rate: Math.round(row.good_rate * 100) })}
                 </span>
               </div>
               <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
@@ -177,18 +186,19 @@ function TypeSplit({
 }
 
 export function AnalyticsPage() {
+  const { t } = useI18n();
   const [windowDays, setWindowDays] = useState<number>(30);
   const query = useAnalytics(windowDays);
   const seedTypes = useSeedTypes();
   const seedTypeMap = new Map((seedTypes.data ?? []).map((s) => [s.id, s.display_name]));
   const seedTypeName = (id: string | null | undefined) =>
-    id ? (seedTypeMap.get(id) ?? "Unknown") : "Unclassified";
+    id ? (seedTypeMap.get(id) ?? t("analytics.unknown")) : t("analytics.unclassified");
 
   return (
     <>
       <PageHeader
-        title="Analytics"
-        description="Aggregated detection and quality metrics across your scans."
+        title={t("analytics.title")}
+        description={t("analytics.description")}
         actions={
           <div className="flex items-center gap-1 rounded-md border p-0.5 text-sm">
             {WINDOWS.map((w) => (
@@ -203,7 +213,7 @@ export function AnalyticsPage() {
                     : "hover:bg-accent",
                 )}
               >
-                {w}d
+                {w} {t("analytics.dayShort")}
               </button>
             ))}
           </div>
@@ -219,23 +229,23 @@ export function AnalyticsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               icon={Images}
-              label="Total scans"
+              label={t("analytics.totalScans")}
               value={query.data.totals.batches}
             />
             <StatCard
               icon={Sprout}
-              label="Seeds detected"
+              label={t("analytics.seedsDetected")}
               value={query.data.totals.detections}
             />
             <StatCard
               icon={CheckCircle2}
-              label="Good rate"
+              label={t("analytics.goodRate")}
               value={query.data.totals.good_rate * 100}
               suffix="%"
             />
             <StatCard
               icon={Activity}
-              label="Good / bad"
+              label={t("analytics.goodBad")}
               value={query.data.totals.good}
               suffix={` / ${query.data.totals.bad}`}
             />

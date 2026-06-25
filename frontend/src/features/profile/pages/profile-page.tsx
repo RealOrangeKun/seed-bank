@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/features/auth/use-auth";
+import { useI18n } from "@/i18n";
 import { formatDateTime } from "@/lib/format";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -21,43 +22,47 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export function ProfilePage() {
   const { user } = useAuth();
+  const { t } = useI18n();
   if (!user) return null;
 
   return (
     <>
-      <PageHeader title="Profile" description="Your account details." />
+      <PageHeader title={t("profile.title")} description={t("profile.description")} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Account</CardTitle>
+            <CardTitle className="text-base">{t("profile.account")}</CardTitle>
           </CardHeader>
           <CardContent className="divide-y">
             <Row
-              label="Email"
+              label={t("profile.email")}
               value={
                 <span className="inline-flex items-center gap-1">
                   {user.email}
                   {user.is_verified ? (
-                    <Badge variant="success">Verified</Badge>
+                    <Badge variant="success">{t("profile.verified")}</Badge>
                   ) : (
-                    <Badge variant="warning">Unverified</Badge>
+                    <Badge variant="warning">{t("profile.unverified")}</Badge>
                   )}
                 </span>
               }
             />
-            <Row label="Full name" value={user.full_name || "—"} />
-            <Row label="Role" value={<StatusBadge status={user.role} />} />
+            <Row label={t("profile.fullName")} value={user.full_name || "—"} />
+            <Row label={t("profile.role")} value={<StatusBadge status={user.role} />} />
             <Row
-              label="Status"
+              label={t("profile.status")}
               value={<StatusBadge status={user.is_active ? "active" : "archived"} />}
             />
-            <Row label="Last login" value={formatDateTime(user.last_login_at) || "—"} />
             <Row
-              label="User ID"
+              label={t("profile.lastLogin")}
+              value={formatDateTime(user.last_login_at) || "—"}
+            />
+            <Row
+              label={t("profile.userId")}
               value={
                 <span className="inline-flex items-center gap-1 font-mono text-xs">
                   {user.id}
-                  <CopyButton value={user.id} label="Copy user id" />
+                  <CopyButton value={user.id} label={t("profile.copyUserId")} />
                 </span>
               }
             />
@@ -66,13 +71,13 @@ export function ProfilePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Access</CardTitle>
+            <CardTitle className="text-base">{t("profile.access")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>Create personal API keys for programmatic access to the API.</p>
+            <p>{t("profile.accessDesc")}</p>
             <Button variant="outline" asChild>
               <Link to="/api-keys">
-                <KeyRound className="h-4 w-4" /> Manage API keys
+                <KeyRound className="h-4 w-4" /> {t("profile.manageApiKeys")}
               </Link>
             </Button>
           </CardContent>
