@@ -10,7 +10,10 @@
 > [`docs/adr/`](./adr/), [`docs/operations.md`](./operations.md),
 > [`docs/revamp-status.md`](./revamp-status.md)).
 
-Last updated: 2026-06-25.
+Last updated: 2026-06-25. **Status: v1 — final.** This revision completes the
+infrastructure, observability, and end-to-end tooling coverage; it is intended to
+be exhaustive (every service, queue, image target, metric, dashboard, admin UI,
+Make target, and external tool the project uses is documented here).
 
 ---
 
@@ -110,7 +113,7 @@ seed-bank/
 ├── docs/                    # This file + diagrams/, adr/, operations.md, revamp-status.md
 ├── compose.yaml             # Dev stack (all services)
 ├── compose.prod.yaml        # Production overlay (file secrets, hardening)
-├── Dockerfile               # Multi-stage, 7 targets (api, workers, frontend, …)
+├── Dockerfile               # Multi-stage (9 stages: 4 builders + 5 runtimes — see §7.4)
 ├── Makefile                 # Developer workflow entrypoints
 └── pyproject.toml / uv.lock # Python deps (managed with uv)
 ```
@@ -499,21 +502,96 @@ and the web Analytics page read from here.
 ### 4.11 Workers (Celery)
 
 [`workers/celery_app.py`](../src/seedbank/workers/celery_app.py) defines the app;
-Redis is broker (DB 1) and result backend (DB 2). Queues:
+Redis is the broker (DB 1) and result backend (DB 2). There are **two worker
+containers**, each subscribed to a disjoint set of queues so the heavy ML
+dependencies never load into the lightweight worker:
 
-- **`inference`** — `worker-inference` container; runs the detect→classify
-  pipeline. This is the GPU/CPU-heavy worker that loads model weights.
-- **default / cpu** — `worker-cpu` container; runs DWH dual-write and experiment
-  evaluation.
-- (`housekeeping` queue is declared but has no task yet.)
+| Container | `-Q` queues it consumes | Workload | Image target | Concurrency |
+|---|---|---|---|---|
+| `worker-inference` | `inference`, `evaluation` | detect→classify pipeline; offline-eval model runs | `runtime-inference-cpu` (slim torch) — swappable to `…-full` (YOLO/Roboflow) or `runtime-gpu` | 2 (`WORKER_INFERENCE_CONCURRENCY`) |
+| `worker-cpu` | `default`, `cdc`, `housekeeping`, `experiments`, `dwh` | DWH dual-write, experiment bookkeeping, CDC/housekeeping (declared, mostly stubs) | `runtime-cpu` (no torch) | 2 (`WORKER_CPU_CONCURRENCY`) |
 
-`celery_task_always_eager` makes tasks run inline in tests.
+Why the split: `torch`/`torchvision` live in the `[inference]` dependency extra
+and are intentionally **absent** from the CPU runtime image, so a routine DWH
+write never pays a ~1.6 GB torch import. Both workers cap concurrency explicitly
+(`--concurrency=2`) and recycle children (`--max-tasks-per-child`) because
+Celery's default (host-CPU count) would fork ~12 prefork children that each
+lazily load torch + a model and OOM the memory cap. `celery_task_always_eager`
+(a `Settings` toggle) makes tasks run **inline in-process** during tests, which is
+also how worker-side metrics surface on the integration-test path.
 
-### 4.12 Observability
+### 4.12 Observability (the four signals)
 
-Structured JSON logging (structlog, every line carries `request_id`),
-Prometheus `/metrics`, OpenTelemetry tracing (opt-in via env), Sentry error/
-performance monitoring (opt-in via DSN), and the `/healthz` + `/readyz` probes.
+Observability is a first-class concern (the backend's "Phase 9"). Four signals —
+**logs, metrics, traces, errors** — plus health probes, all centralised in
+[`core/`](../src/seedbank/core/) so labels/format stay consistent. The dashboards
+and scrape config that consume them live in [`ops/`](../ops/) (§7.5).
+
+#### 4.12.1 Structured logging — [`core/logging.py`](../src/seedbank/core/logging.py)
+`structlog` configured once at process start. **Pretty colourised console** in
+`dev`; **one-JSON-object-per-line** in every other env (machine-parseable for a
+log aggregator). Every event is enriched with **context vars** bound per request —
+`request_id` and `path` are bound by `RequestIdMiddleware`, so *every* log line
+emitted while handling a request is automatically correlatable. Rule: always log
+via `structlog.get_logger(__name__)`, never the stdlib `logging` module, or the
+contextvars won't attach.
+
+#### 4.12.2 Metrics — Prometheus ([`core/metrics.py`](../src/seedbank/core/metrics.py))
+A **dedicated `CollectorRegistry`** (not the global default — avoids
+"Duplicated timeseries" when test fixtures rebuild the app) owns every metric.
+`PrometheusMiddleware` ([`api/middleware.py`](../src/seedbank/api/middleware.py))
+records HTTP signals; services/workers increment the domain counters directly.
+The full set the service emits:
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `http_requests_total` | counter | `method, path, status` | requests by route **template** + 2xx/3xx/4xx/5xx class |
+| `http_request_duration_seconds` | histogram | `method, path` | latency (buckets 5 ms → 10 s) |
+| `http_requests_inflight` | gauge | `method` | concurrent in-flight requests |
+| `seedbank_inference_total` | counter | `kind, backend, status` | model inferences (`detection`/`classification` × backend × `ok`/`error`) |
+| `seedbank_inference_duration_seconds` | histogram | `kind, backend` | per-image inference latency (50 ms → 30 s) |
+| `seedbank_dwh_dispatch_total` | counter | `task, result` | OLTP→ClickHouse dispatch attempts (`ok`/`disabled`/`error`) |
+| `seedbank_dwh_task_duration_seconds` | histogram | `task, result` | worker-side DWH sync time |
+| `seedbank_experiment_run_total` | counter | `status` | offline-eval runs by terminal status |
+| `seedbank_auth_login_total` | counter | `result` | logins (`ok`/`invalid_credentials`/`blocked`) |
+
+**Cardinality discipline** (the reason metrics don't melt Prometheus): the `path`
+label is always the **Starlette route template** (`/api/v1/batches/{id}`), never
+the raw URL — resolved by re-walking the router *after* the handler runs; an
+unmatched path collapses to `"_unmatched"`. Status codes are bucketed into
+classes, not kept per-code. The inflight gauge is method-only (gauges retain
+label sets forever). `/metrics` is excluded from its own histograms. Prometheus
+adds a **second** guard: a `metric_relabel_config` drops any series whose `path`
+still looks like a UUID (fail-safe if templating ever regresses). Exposed at
+`GET /metrics` in Prometheus text format.
+
+#### 4.12.3 Tracing — OpenTelemetry ([`core/tracing.py`](../src/seedbank/core/tracing.py))
+A single `TracerProvider` with an **OTLP** span exporter and auto-instrumentation
+across every IO boundary the service crosses: **FastAPI** requests, **SQLAlchemy +
+asyncpg**, **Redis**, outbound **httpx**, and **Celery** tasks — so a trace can
+follow a request from the API through the queue into a worker's DB calls.
+**Opt-in and idempotent**: a complete no-op unless `OTEL_EXPORTER_OTLP_ENDPOINT`
+is set (the dev stack stays free of exporters dialing a dead collector). The API
+initialises it in the FastAPI lifespan; Celery re-initialises **per forked
+worker** (via `worker_process_init`, because forking after init breaks the OTLP
+gRPC channel). Each instrumentor is wrapped in try/except — tracing is best-effort
+and never crashes a request.
+
+#### 4.12.4 Error & performance monitoring — Sentry ([`core/sentry.py`](../src/seedbank/core/sentry.py))
+Initialised once per process; **no-op unless `SENTRY_DSN` is set**. Uses Sentry's
+FastAPI + Celery integrations (request context, user, unhandled exceptions
+captured automatically). **`send_default_pii=False`** — we never ship PII;
+`request_id` already flows through structlog for cross-system correlation. Sample
+rates default conservatively and are env-tunable in production.
+
+#### 4.12.5 Health & readiness probes ([`main.py`](../src/seedbank/main.py))
+- **`GET /healthz`** — liveness; cheap, no dependencies (is the process up?).
+- **`GET /readyz`** — readiness; actively probes **Postgres, Redis, MinIO,
+  ClickHouse** and returns each component's status. ClickHouse is allowed to
+  **degrade without failing** readiness (analytics is non-critical to serving).
+  This is the endpoint Docker healthchecks and an orchestrator's readiness gate
+  hit.
+- **`GET /metrics`** — the Prometheus scrape target (§4.12.2).
 
 ---
 
@@ -696,60 +774,159 @@ Camera needs a real device or an emulator with a virtual camera. See
 
 ## 7. Infrastructure & operations
 
+The entire system — application **and** every backing service, admin UI, and the
+observability stack — runs from a single [`compose.yaml`](../compose.yaml) on a
+laptop. This section documents every container, how to reach it, the build
+images behind them, and the operational tooling.
+
 ### 7.1 Docker Compose services (dev: `compose.yaml`)
 
-The whole stack runs with Docker Compose. Containers (host-published ports as
-configured locally):
+Services are grouped by **compose profiles** so `make up` stays lean and you opt
+into the heavier extras. All host ports are bound to **`127.0.0.1`** (never
+exposed to the LAN by default). The shared `x-app-env` anchor feeds the same
+datastore DSNs/credentials to the API and both workers.
 
-| Service (`container_name`) | Purpose | Notable port |
-|---|---|---|
-| `seedbank-api` | FastAPI app | `8000` |
-| `seedbank-worker-inference` | Celery worker, `inference` queue (detect→classify) | — |
-| `seedbank-worker-cpu` | Celery worker, DWH + experiments | — |
-| `seedbank-postgres` | OLTP database | `5442→5432` |
-| `seedbank-redis` | Cache, Celery broker/result, rate limiter | `6379` |
-| `seedbank-minio` | Object store (images, weights, datasets, experiment artifacts) | `9000`/`9001` |
-| `seedbank-clickhouse` | Analytics warehouse | `8123` |
-| `seedbank-mlflow` | Experiment tracking UI/server | `5000` |
-| `seedbank-frontend` | Built web app served by nginx | `5173→80` |
-| `seedbank-adminer` | Postgres admin UI | — |
-| `seedbank-ch-ui` | ClickHouse admin UI | — |
-| `seedbank-prometheus` / `seedbank-grafana` | Metrics + dashboards | — |
+| Service (`container_name`) | Profile | Purpose | Browser/host URL |
+|---|---|---|---|
+| `api` (`seedbank-api`) | *(default)* | FastAPI app (routers→services→repos) | http://localhost:8000 · docs `/api/v1/docs` |
+| `worker-inference` (`seedbank-worker-inference`) | *(default)* | Celery `inference,evaluation` — detect→classify, offline-eval | *(no port)* |
+| `worker-cpu` (`seedbank-worker-cpu`) | *(default)* | Celery `default,cdc,housekeeping,experiments,dwh` — DWH + experiments | *(no port)* |
+| `postgres` (`seedbank-postgres`) | *(default)* | OLTP database (Postgres 16, `wal_level=logical`) | `localhost:5432` |
+| `redis` (`seedbank-redis`) | *(default)* | Cache, Celery broker (DB 1) + result (DB 2), rate-limit store; `allkeys-lru`, 256 MB | `localhost:6379` |
+| `minio` (`seedbank-minio`) | *(default)* | Object store: images, weights, datasets, experiment artifacts | API `localhost:9000` · **console** http://localhost:9001 |
+| `clickhouse` (`seedbank-clickhouse`) | *(default)* | Analytics warehouse (star schema) | `localhost:8123` |
+| `mlflow` (`seedbank-mlflow`) | *(default)* | Experiment tracking server + UI (Postgres backend store, MinIO artifacts) | http://localhost:5000 |
+| `adminer` (`seedbank-adminer`) | `dev` | Postgres web admin UI | http://localhost:8080 |
+| `ch-ui` (`seedbank-ch-ui`) | `dev` | ClickHouse web admin UI (proxies CH over the compose net) | http://localhost:3488 |
+| `prometheus` (`seedbank-prometheus`) | `obs` | Metrics scraper + TSDB (7-day retention) | http://localhost:9090 |
+| `grafana` (`seedbank-grafana`) | `obs` | Dashboards (auto-provisioned datasource + dashboard) | http://localhost:3000 |
+| `frontend` (`seedbank-frontend`) | `frontend` | **Built** web app served by nginx | http://localhost:5173 |
+
+**Production hardening** ([`compose.prod.yaml`](../compose.prod.yaml) overlay):
+swaps the inference worker to the **`runtime-gpu`** image with a GPU device
+reservation, reads **file secrets** instead of env, and locks down ports.
+
+Every service declares a **healthcheck** and tight CPU/memory `deploy.limits`
+(e.g. the inference worker is capped at 2 CPU / 4 GB because CPU torch can spike
+to ~2 GB on first inference; Grafana **fails closed** — it refuses to start
+unless `GRAFANA_PASSWORD` is set). `depends_on … condition: service_healthy`
+gives a correct boot order (API waits for Postgres/Redis/MinIO/ClickHouse to be
+healthy).
 
 > **Note on CORS for local dev:** the API only allows the origins in
-> `CORS_ALLOW_ORIGINS` (default `http://localhost:5173`). The dockerized
-> `seedbank-frontend` serves the **built** web app on `5173`. To run the Vite dev
-> server (hot reload) against the live API, either serve it on `5173` (stop the
-> frontend container) or add your dev origin to `CORS_ALLOW_ORIGINS` and restart
-> the `api` service.
+> `CORS_ALLOW_ORIGINS` (compose default `http://localhost:5173,http://127.0.0.1:5173`).
+> The dockerized `frontend` serves the **built** app on `5173` and works out of
+> the box. To run the **Vite dev server** (hot reload) against the live API,
+> either serve it on `5173` (don't run the `frontend` profile) or add your dev
+> origin to `CORS_ALLOW_ORIGINS` and restart the `api` service.
 
-### 7.2 Makefile workflows
+### 7.2 Admin & operator UIs (how to actually look inside the system)
 
-The [`Makefile`](../Makefile) is the developer entrypoint. Common targets:
+Everything has a window you can open in a browser — no `psql`/`redis-cli`
+required:
+
+| Tool | URL | What you do there | Brought up by |
+|---|---|---|---|
+| **API Swagger / OpenAPI** | http://localhost:8000/api/v1/docs | Explore & call every endpoint; the web client's types are generated from `/api/v1/openapi.json` | default |
+| **MinIO console** | http://localhost:9001 | Browse buckets (uploaded images, model weights, datasets, experiment reports) | default |
+| **MLflow UI** | http://localhost:5000 | Compare experiment runs, params, metrics, artifacts | default |
+| **Adminer** | http://localhost:8080 | Query/inspect the Postgres OLTP tables | `make up-dev` |
+| **ch-ui** | http://localhost:3488 | Query/inspect the ClickHouse warehouse | `make up-dev` |
+| **Prometheus** | http://localhost:9090 | Raw metric queries, target health (`/targets`) | `make up-obs` |
+| **Grafana** | http://localhost:3000 | The **Seed-Bank Overview** dashboard (§7.5) | `make up-obs` |
+
+### 7.3 Compose profiles & `make` recipes that combine them
+
+| Command | Profiles | Brings up |
+|---|---|---|
+| `make up` | *(none)* | Lean stack: api + both workers + Postgres/Redis/MinIO/ClickHouse/MLflow |
+| `make up-infra` | *(none)* | **Only** the datastores (fast smoke / running the app locally) |
+| `make up-no-inference` | *(none)* | api + worker-cpu + infra (skip the heavy torch worker) |
+| `make up-dev` | `dev` | Lean stack **+ Adminer + ch-ui** |
+| `make up-obs` | `obs` | Lean stack **+ Prometheus + Grafana** |
+| `make up-front` | `frontend` | Lean stack **+ the built React app (nginx :5173)** |
+| `make front` | — | Run the **Vite dev server** locally on :5173 (needs `make up` for the API) |
+
+### 7.4 Container images (multi-stage `Dockerfile`)
+
+One [`Dockerfile`](../Dockerfile) builds every first-party image via 9 stages —
+**4 builder** stages (resolve deps with `uv`) feeding **5 runnable** runtimes.
+Each runtime carries exactly the dependencies its job needs, which is why the API
+image is small and torch only exists where inference runs:
+
+| Runtime target | Used by | Contains |
+|---|---|---|
+| `runtime-cpu` | `api`, `worker-cpu` | App + web/db/storage deps. **No torch.** |
+| `runtime-inference-cpu` | `worker-inference` (default) | + **slim CPU torch + torchvision + headless cv2** (~1.6 GB) for the `torch_local` backend |
+| `runtime-inference-cpu-full` | `worker-inference` (opt-in) | + **ultralytics (YOLO) + inference-sdk (Roboflow)** |
+| `runtime-gpu` | `worker-inference` (prod overlay) | CUDA 12.4 base + GPU torch + device reservation |
+| `mlflow` | `mlflow` | Upstream MLflow image |
+
+### 7.5 Observability stack — Prometheus + Grafana ([`ops/`](../ops/))
+
+`make up-obs` adds the metrics pipeline (config is all in-repo under `ops/`, so
+it's reproducible and version-controlled):
+
+- **Prometheus** ([`ops/prometheus/prometheus.yml`](../ops/prometheus/prometheus.yml))
+  scrapes `api:8000/metrics` every 15 s (plus itself), keeps 7 days of TSDB, and
+  applies the UUID-path `metric_relabel` cardinality guard described in §4.12.2.
+  Workers don't run an embedded HTTP server, so worker metrics surface through
+  the API process's shared registry (or in-process during eager test runs).
+- **Grafana** auto-provisions on first boot
+  ([`ops/grafana/provisioning/`](../ops/grafana/provisioning/)): the **Prometheus
+  datasource** (`url: http://prometheus:9090`, set default, non-editable) and a
+  file-based dashboard provider that loads
+  [`ops/grafana/dashboards/seedbank-overview.json`](../ops/grafana/dashboards/seedbank-overview.json)
+  into a "Seed-Bank" folder. Dashboards are **edit-locked in the UI** on purpose —
+  change the JSON in-repo so edits survive a container recreate.
+
+The **Seed-Bank — Overview** dashboard ships these panels (each wired to the
+metrics in §4.12.2):
+
+| Panel | Query (PromQL) |
+|---|---|
+| HTTP request rate by status class | `sum by (status) (rate(http_requests_total[5m]))` |
+| HTTP p50/p95 latency by route | `histogram_quantile(0.5/0.95, sum by (le,path) (rate(http_request_duration_seconds_bucket[5m])))` |
+| DWH dispatch rate by result | `sum by (result) (rate(seedbank_dwh_dispatch_total[5m]))` |
+| DWH worker task p95 by task | `histogram_quantile(0.95, sum by (le,task) (rate(seedbank_dwh_task_duration_seconds_bucket[5m])))` |
+| Inferences per second by kind | `sum by (kind,status) (rate(seedbank_inference_total[1m]))` |
+| Login attempts (5m) | `sum by (result) (increase(seedbank_auth_login_total[5m]))` |
+
+Grafana credentials: `GRAFANA_USER`/`GRAFANA_PASSWORD` from `.env` (anonymous
+access and sign-up are disabled; gravatar off; strict same-site cookies).
+
+### 7.6 Migrations, seeding, secrets, model registration
+
+- **Postgres schema** — Alembic under [`alembic/`](../alembic/); `make migrate`
+  (roll back one with `make migrate-down`). Postgres boots with
+  `wal_level=logical` + replication slots so logical-replication CDC *can* be
+  added later (today the DWH path is app-level dual-write).
+- **ClickHouse schema** — idempotent star-schema DDL via `make migrate-clickhouse`.
+- **Seeding** — `make seed` (runs `migrate-clickhouse` first) seeds the catalog
+  (seed types/suppliers), registers models, and creates demo users.
+- **Secrets** — dev uses `.env` (provisioned from `*.example` by `make env`);
+  **prod uses file secrets** under `/run/secrets` (one file per `Settings` field)
+  via `compose.prod.yaml` + [`secrets/`](../secrets/). `make secrets-check`
+  enforces the files exist and are `chmod 0400`. Pre-commit runs **gitleaks** so
+  secrets never reach git; `.env` and `secrets/*` contents are gitignored.
+- **Model weights** — **not in git** (history was scrubbed to purge ~165 MB of
+  `.pth`). MinIO is the source of truth; register with
+  [`scripts/register_model.py`](../scripts/register_model.py) or `POST /models`,
+  then promote to `production`. The app cannot infer until at least one detection
+  **and** one classification model are registered and promoted.
+
+### 7.7 Operational Make targets (run / inspect / tear down)
 
 | Target | Does |
 |---|---|
-| `make up` / `make up-dev` | Bring up the stack (dev) |
-| `make up-infra` | Just the datastores (Postgres/Redis/MinIO/ClickHouse) |
-| `make up-no-inference` | Stack without the heavy inference worker |
-| `make up-obs` / `make up-front` | Add observability / frontend |
-| `make migrate` / `make migrate-clickhouse` | Run Postgres / ClickHouse migrations |
-| `make seed` | Seed reference + dev data (`scripts/seed_dev.py`) |
-| `make check` | `fmt` + `lint` + `typecheck` (ruff + mypy) |
-| `make test` / `test-unit` / `test-integration` / `test-e2e` | Test pyramid |
-| `make smoke` | End-to-end smoke (`scripts/smoke.sh`) |
-| `make up-prod` / `down-prod` | Production overlay (`compose.prod.yaml`) |
-
-### 7.3 Migrations, secrets, model registration
-
-- **Postgres** — Alembic under `alembic/`; `make migrate`.
-- **ClickHouse** — `make migrate-clickhouse`.
-- **Secrets** — dev uses `.env`; prod uses **file secrets** under `/run/secrets`
-  (one file per `Settings` field) via `compose.prod.yaml` + `secrets/`.
-- **Model weights** — **not in git** (history was scrubbed to purge ~165 MB of
-  `.pth`). MinIO is the source of truth; register with
-  `scripts/register_model.py` or `POST /models`. The app won't infer without
-  registered weights.
+| `make ps` / `make logs` | Service status / follow all logs |
+| `make wait` | Block until the API healthcheck passes |
+| `make down` | Stop & remove containers (**keeps** volumes/data) |
+| `make down-volumes` | Stop **and wipe** all volumes — total reset |
+| `make restart` | `down` then `up` |
+| `make up-prod` / `down-prod` / `logs-prod` | Production overlay lifecycle (secrets-checked, GPU on) |
+| `make image-sizes` / `make image-bloat` | Inspect built image sizes / largest files |
+| `make clean` | Remove caches, coverage, build artifacts |
 
 ---
 
@@ -778,10 +955,14 @@ Backend health: `GET http://localhost:8000/healthz` and `/readyz`. API docs:
 
 ## 9. Testing & quality gates
 
-- **Backend** — pytest pyramid (`unit`/`integration`/`e2e`) via `make test*`;
-  `make check` runs ruff + mypy; pre-commit runs ruff/mypy/gitleaks. (Caveats:
-  integration tests are **not fully hermetic** — some boot the app and reach for
-  a live Redis; see [`docs/revamp-status.md`](./revamp-status.md).)
+- **Backend** — pytest pyramid: `make test-unit`, `make test-integration`
+  (testcontainers spin up real Postgres/Redis/etc.), `make test-e2e`, all via
+  `make test`. `make check` = **lint (ruff) + typecheck (mypy, strict) +
+  test-unit** (the fast pre-commit gate). `make smoke` runs
+  [`scripts/smoke.sh`](../scripts/smoke.sh) against a live compose stack.
+  Pre-commit runs ruff/mypy/**gitleaks**. (Caveat: integration tests are **not
+  fully hermetic** — some boot the app and reach for a live Redis; see
+  [`docs/revamp-status.md`](./revamp-status.md).)
 - **Web** — `npm run typecheck` (tsc), `npm test` (Vitest, incl. i18n + format +
   insights + token tests), `npm run lint` (ESLint), `npm run build`.
 - **Mobile** — `npm run typecheck` (tsc); validated with `expo-doctor` and a full
@@ -833,6 +1014,9 @@ Tracked in detail in [`docs/revamp-status.md`](./revamp-status.md). Highlights:
 | DB access / tables | [`src/seedbank/infrastructure/db/repositories/`](../src/seedbank/infrastructure/db/repositories/) |
 | ML backends / pipeline | [`src/seedbank/infrastructure/ml/`](../src/seedbank/infrastructure/ml/) |
 | Celery tasks | [`src/seedbank/workers/tasks/`](../src/seedbank/workers/tasks/) |
+| Metrics / logging / tracing / sentry | [`src/seedbank/core/`](../src/seedbank/core/) |
+| Prometheus scrape + Grafana dashboards | [`ops/`](../ops/) |
+| Compose stack / images / Make targets | [`compose.yaml`](../compose.yaml) · [`Dockerfile`](../Dockerfile) · [`Makefile`](../Makefile) |
 | Web app | [`frontend/src/`](../frontend/src/) · [`frontend/README.md`](../frontend/README.md) |
 | Web localization | [`frontend/src/i18n/`](../frontend/src/i18n/) |
 | Mobile app | [`mobile/`](../mobile/) · [`mobile/README.md`](../mobile/README.md) |
@@ -840,4 +1024,69 @@ Tracked in detail in [`docs/revamp-status.md`](./revamp-status.md). Highlights:
 | Operations runbook | [`docs/operations.md`](./operations.md) |
 | Architecture diagrams | [`docs/diagrams/`](./diagrams/) |
 | Architecture decisions | [`docs/adr/`](./adr/) |
+
+---
+
+## 13. Complete tool & technology index
+
+Every external tool, library, and service the project uses, grouped by area — so
+nothing is a mystery when you meet it in the code or the compose file.
+
+**Backend runtime & framework**
+- **Python 3.12** · **FastAPI** (async web framework) · **Starlette** (ASGI
+  primitives / middleware) · **Uvicorn** (ASGI server) · **Pydantic v2** +
+  **pydantic-settings** (validation + central config).
+
+**Data access & datastores**
+- **PostgreSQL 16** (OLTP) · **SQLAlchemy 2 (async)** + **asyncpg** (driver) ·
+  **Alembic** (migrations) · **Redis 7** (cache, Celery broker/result, rate-limit
+  store) · **ClickHouse** (analytics warehouse) + **clickhouse-connect** ·
+  **MinIO** (S3-compatible object store) + **miniopy-async** (async S3 client).
+
+**Async jobs & ML platform**
+- **Celery** (task queue, Redis broker) · **PyTorch** + **torchvision** (Faster
+  R-CNN detector, ResNet18+CBAM classifiers) · **Ultralytics YOLO** (alt backend)
+  · **Roboflow inference-sdk** (hosted backend) · **Pillow** + **OpenCV
+  (headless)** (image decode/crop) · **MLflow** (experiment tracking + artifact
+  store) · **NumPy**.
+
+**Auth & security**
+- **bcrypt/passlib** (password hashing) · **PyJWT** (access/refresh tokens) ·
+  **authlib** (Google/GitHub OAuth) · **slowapi** (rate limiting) · **gitleaks**
+  (secret scanning in pre-commit). Conventions: RFC 9457 problem-details,
+  hashed-at-rest API keys, refresh-token rotation with replay detection.
+
+**Observability**
+- **structlog** (structured JSON/console logs) · **prometheus-client** (metrics)
+  · **Prometheus** (scrape + TSDB) · **Grafana** (dashboards) ·
+  **OpenTelemetry** (OTLP traces, FastAPI/SQLAlchemy/Redis/httpx/Celery
+  instrumentation) · **Sentry** (error/performance monitoring).
+
+**Web frontend**
+- **React 18** · **TypeScript** · **Vite** · **Tailwind CSS** · **shadcn/ui** on
+  **Radix** primitives · **TanStack Query** (server state) · **React Router v6** ·
+  **React Hook Form** + **Zod** · **openapi-fetch** + **openapi-typescript**
+  (typed client generated from the backend OpenAPI) · **sonner** (toasts) ·
+  **Recharts** (charts) · a **dependency-free, fully-typed i18n** system (EN/AR +
+  RTL) · **Vitest** + **Testing Library** · **ESLint**.
+
+**Mobile app**
+- **Expo SDK 52** · **React Native 0.76** (Hermes) · **TypeScript** ·
+  **expo-camera** (realtime capture) · **React Navigation v7** (tabs + native
+  stack) · **TanStack Query** · **expo-secure-store** (token keystore) ·
+  **AsyncStorage** (prefs) · **expo-updates** (RTL reload) · **Ionicons** ·
+  `I18nManager.forceRTL` + hand-rolled CLDR plurals.
+
+**Infra, build & tooling**
+- **Docker** + **Docker Compose** (profiles: default / `dev` / `obs` /
+  `frontend`) · multi-stage **Dockerfile** (CPU / inference-CPU / inference-full /
+  GPU / MLflow) · **nginx** (serves the built web app) · **uv** (Python dependency
+  manager + lockfile) · **Makefile** (developer entrypoint) · **ruff** (format +
+  lint) · **mypy** (strict types) · **pytest** (+ **testcontainers**) ·
+  **pre-commit** · **NVIDIA CUDA 12.4** (prod GPU runtime).
+
+**Operator UIs**
+- **Swagger/OpenAPI** (`/api/v1/docs`) · **MinIO console** · **MLflow UI** ·
+  **Adminer** (Postgres) · **ch-ui** (ClickHouse) · **Prometheus UI** ·
+  **Grafana**. See §7.2 for URLs.
 ```
