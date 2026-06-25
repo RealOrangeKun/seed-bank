@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { formatDateTime, formatDuration, shortId } from "@/lib/format";
 
 import { useExperiment } from "../api";
@@ -30,10 +31,11 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function IdValue({ id }: { id: string }) {
+  const { t } = useI18n();
   return (
     <span className="inline-flex items-center gap-1 font-mono text-xs">
       {shortId(id)}
-      <CopyButton value={id} label="Copy id" />
+      <CopyButton value={id} label={t("experiments.copyId")} />
     </span>
   );
 }
@@ -46,6 +48,7 @@ function renderMetric(value: unknown): string {
 }
 
 export function ExperimentDetailPage() {
+  const { t } = useI18n();
   const { experimentId = "" } = useParams();
   const experiment = useExperiment(experimentId);
   const isTerminal =
@@ -56,12 +59,15 @@ export function ExperimentDetailPage() {
   return (
     <>
       <PageHeader
-        title={experiment.data?.name ?? `Experiment ${shortId(experimentId)}`}
-        description="Offline evaluation run."
+        title={
+          experiment.data?.name ??
+          t("experiments.detailFallback", { id: shortId(experimentId) })
+        }
+        description={t("experiments.detailDescription")}
         actions={
           <Button variant="outline" asChild>
             <Link to="/experiments">
-              <ArrowLeft className="h-4 w-4" /> Back
+              <ArrowLeft className="h-4 w-4" /> {t("common.back")}
             </Link>
           </Button>
         }
@@ -76,30 +82,30 @@ export function ExperimentDetailPage() {
           <Card>
             <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3">
               <MetaRow
-                label="Status"
+                label={t("field.status")}
                 value={<StatusBadge status={experiment.data.status} />}
               />
-              <MetaRow label="Model" value={<IdValue id={experiment.data.model_id} />} />
+              <MetaRow label={t("field.model")} value={<IdValue id={experiment.data.model_id} />} />
               <MetaRow
-                label="Dataset"
+                label={t("field.dataset")}
                 value={<IdValue id={experiment.data.dataset_id} />}
               />
               <MetaRow
-                label="Started"
+                label={t("experiments.metaStarted")}
                 value={formatDateTime(experiment.data.started_at) || "—"}
               />
               <MetaRow
-                label="Finished"
+                label={t("experiments.metaFinished")}
                 value={formatDateTime(experiment.data.finished_at) || "—"}
               />
               <MetaRow
-                label="Duration"
+                label={t("field.duration")}
                 value={formatDuration(experiment.data.duration_ms)}
               />
-              <MetaRow label="Results" value={experiment.data.result_count} />
+              <MetaRow label={t("experiments.metaResults")} value={experiment.data.result_count} />
               {experiment.data.mlflow_run_id ? (
                 <MetaRow
-                  label="MLflow run"
+                  label={t("common.mlflowRun")}
                   value={
                     <span className="font-mono text-xs">
                       {experiment.data.mlflow_run_id}
@@ -114,20 +120,20 @@ export function ExperimentDetailPage() {
             <Card>
               <CardContent className="flex items-center gap-3 p-5 text-sm text-muted-foreground">
                 <Spinner className="text-primary" />
-                Experiment in progress — this page updates automatically.
+                {t("experiments.inProgress")}
               </CardContent>
             </Card>
           ) : metrics.length > 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Summary metrics</CardTitle>
+                <CardTitle className="text-base">{t("experiments.summaryMetrics")}</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Metric</TableHead>
-                      <TableHead>Value</TableHead>
+                      <TableHead>{t("field.metric")}</TableHead>
+                      <TableHead>{t("field.value")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Save, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -37,32 +37,18 @@ import {
 } from "@/components/ui/table";
 import type { ModelKind } from "@/lib/api/types";
 import { MODEL_KINDS } from "@/lib/api/types";
+import { useI18n } from "@/i18n";
 import { formatDateTime, humanize, shortId } from "@/lib/format";
 import { applyApiError } from "@/lib/form";
 
 import { useReplaceTrafficSplits, useTrafficSplits, type TrafficSegment } from "../api";
 
-const entrySchema = z.object({
-  model_id: z.string().uuid("Select a model"),
-  weight: z.coerce
-    .number({ invalid_type_error: "Weight is required" })
-    .int("Whole number")
-    .min(0, "0–100")
-    .max(100, "0–100"),
-});
-
-const schema = z
-  .object({
-    entries: z.array(entrySchema).max(16, "At most 16 entries"),
-  })
-  .refine(
-    (v) => v.entries.reduce((sum, e) => sum + (Number.isFinite(e.weight) ? e.weight : 0), 0) <= 100,
-    { message: "Weights must sum to 100 or less", path: ["entries"] },
-  );
-
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  entries: { model_id: string; weight: number }[];
+}
 
 export function TrafficPage() {
+  const { t } = useI18n();
   // The loaded segment drives the GET; the selector below stages the next one.
   const [kind, setKind] = useState<ModelKind>("detection");
   const [seedTypeId, setSeedTypeId] = useState("");
@@ -70,6 +56,31 @@ export function TrafficPage() {
 
   const splits = useTrafficSplits(segment ?? { kind: "detection" }, segment !== null);
   const replace = useReplaceTrafficSplits();
+
+  const schema = useMemo(
+    () =>
+      z
+        .object({
+          entries: z
+            .array(
+              z.object({
+                model_id: z.string().uuid(t("traffic.selectModel")),
+                weight: z.coerce
+                  .number({ invalid_type_error: t("traffic.weightRequired") })
+                  .int(t("traffic.wholeNumber"))
+                  .min(0, t("traffic.range"))
+                  .max(100, t("traffic.range")),
+              }),
+            )
+            .max(16, t("traffic.maxEntries")),
+        })
+        .refine(
+          (v) =>
+            v.entries.reduce((sum, e) => sum + (Number.isFinite(e.weight) ? e.weight : 0), 0) <= 100,
+          { message: t("traffic.sumMax"), path: ["entries"] },
+        ),
+    [t],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -92,7 +103,7 @@ export function TrafficPage() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (!segment) {
-      toast.error("Load a segment first.");
+      toast.error(t("traffic.loadFirst"));
       return;
     }
     try {
@@ -101,7 +112,7 @@ export function TrafficPage() {
         seedTypeId: segment.seedTypeId,
         entries: values.entries.map((e) => ({ model_id: e.model_id, weight: e.weight })),
       });
-      toast.success("Traffic split updated.");
+      toast.success(t("traffic.updated"));
     } catch (err) {
       applyApiError(err, form.setError);
     }
@@ -111,22 +122,17 @@ export function TrafficPage() {
 
   return (
     <>
-      <PageHeader
-        title="Traffic splits"
-        description="Route inference traffic across model versions per segment."
-      />
+      <PageHeader title={t("traffic.title")} description={t("traffic.description")} />
 
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Segment</CardTitle>
-            <CardDescription>
-              Choose the model kind and an optional seed type, then load its current splits.
-            </CardDescription>
+            <CardTitle className="text-base">{t("traffic.segment")}</CardTitle>
+            <CardDescription>{t("traffic.segmentDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-              <Field id="segment-kind" label="Kind" className="sm:w-48">
+              <Field id="segment-kind" label={t("field.kind")} className="sm:w-48">
                 <Select value={kind} onValueChange={(v) => setKind(v as ModelKind)}>
                   <SelectTrigger id="segment-kind">
                     <SelectValue />
@@ -142,8 +148,8 @@ export function TrafficPage() {
               </Field>
               <Field
                 id="segment-seed-type"
-                label="Seed type"
-                hint="Leave as default to route all seed types"
+                label={t("field.seedType")}
+                hint={t("traffic.seedTypeHint")}
                 className="flex-1"
               >
                 <SeedTypeSelect
@@ -154,7 +160,7 @@ export function TrafficPage() {
                 />
               </Field>
               <Button type="button" onClick={loadSegment}>
-                Load
+                {t("common.load")}
               </Button>
             </div>
           </CardContent>
@@ -164,8 +170,8 @@ export function TrafficPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                Current splits · {humanize(segment.kind)}
-                {segment.seedTypeId ? ` · ${shortId(segment.seedTypeId)}` : " · default"}
+                {t("traffic.currentSplits")} · {humanize(segment.kind)}
+                {segment.seedTypeId ? ` · ${shortId(segment.seedTypeId)}` : ` · ${t("traffic.default")}`}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -175,18 +181,18 @@ export function TrafficPage() {
                 <ErrorState error={splits.error} />
               ) : (splits.data ?? []).length === 0 ? (
                 <EmptyState
-                  title="No active splits"
-                  description="This segment has no traffic splits configured yet."
+                  title={t("traffic.noSplits")}
+                  description={t("traffic.noSplitsDesc")}
                 />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Model</TableHead>
-                      <TableHead>Weight</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>Valid from</TableHead>
-                      <TableHead>Valid until</TableHead>
+                      <TableHead>{t("field.model")}</TableHead>
+                      <TableHead>{t("field.weight")}</TableHead>
+                      <TableHead>{t("traffic.colState")}</TableHead>
+                      <TableHead>{t("traffic.colValidFrom")}</TableHead>
+                      <TableHead>{t("traffic.colValidUntil")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -195,7 +201,7 @@ export function TrafficPage() {
                         <TableCell>
                           <span className="inline-flex items-center gap-1 font-mono text-xs">
                             {shortId(s.model_id)}
-                            <CopyButton value={s.model_id} label="Copy model id" />
+                            <CopyButton value={s.model_id} label={t("traffic.copyModelId")} />
                           </span>
                         </TableCell>
                         <TableCell>{s.weight}</TableCell>
@@ -219,10 +225,8 @@ export function TrafficPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Edit split</CardTitle>
-            <CardDescription>
-              Replace the active splits for the loaded segment. Weights must sum to 100 or less.
-            </CardDescription>
+            <CardTitle className="text-base">{t("traffic.editSplit")}</CardTitle>
+            <CardDescription>{t("traffic.editSplitDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
@@ -231,7 +235,7 @@ export function TrafficPage() {
                   <div key={field.id} className="flex items-start gap-3">
                     <Field
                       id={`entries.${index}.model_id`}
-                      label="Model"
+                      label={t("field.model")}
                       className="flex-1"
                       error={form.formState.errors.entries?.[index]?.model_id?.message}
                     >
@@ -250,7 +254,7 @@ export function TrafficPage() {
                     </Field>
                     <Field
                       id={`entries.${index}.weight`}
-                      label="Weight"
+                      label={t("field.weight")}
                       className="w-28"
                       error={form.formState.errors.entries?.[index]?.weight?.message}
                     >
@@ -267,7 +271,7 @@ export function TrafficPage() {
                       variant="ghost"
                       size="icon"
                       className="mt-7"
-                      aria-label="Remove entry"
+                      aria-label={t("traffic.removeEntry")}
                       disabled={fields.length <= 1}
                       onClick={() => remove(index)}
                     >
@@ -285,12 +289,12 @@ export function TrafficPage() {
                   disabled={fields.length >= 16}
                   onClick={() => append({ model_id: "", weight: 0 })}
                 >
-                  <Plus className="h-4 w-4" /> Add model
+                  <Plus className="h-4 w-4" /> {t("traffic.addModel")}
                 </Button>
                 <span
                   className={`text-sm font-medium ${total > 100 ? "text-destructive" : "text-muted-foreground"}`}
                 >
-                  Total weight: {total} / 100
+                  {t("traffic.totalWeight", { total })}
                 </span>
               </div>
 
@@ -303,7 +307,7 @@ export function TrafficPage() {
               <div className="flex justify-end">
                 <Button type="submit" disabled={replace.isPending || !segment}>
                   <Save className="h-4 w-4" />
-                  Save split
+                  {t("traffic.saveSplit")}
                 </Button>
               </div>
             </form>
