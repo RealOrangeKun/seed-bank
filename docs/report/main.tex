@@ -1,0 +1,174 @@
+\documentclass[12pt, a4paper]{report}
+
+% Margins: 2.5 cm on all sides
+\usepackage[margin=2.5cm]{geometry}
+
+% Line Spacing: 1.5
+\usepackage{setspace}
+\onehalfspacing
+
+% Bottom center page numbers starting from Chapter 1
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0pt} % No header line
+
+% Font & Language Support (XeLaTeX) - Must be loaded before biblatex
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{english}
+\setotherlanguage{arabic}
+
+% Font configurations - standard free fonts included in TeX Live / Linux
+\setmainfont{TeX Gyre Termes}
+\newfontfamily\arabicfont[
+  Path=/usr/local/texlive/2026/texmf-dist/fonts/truetype/public/amiri/,
+  Extension=.ttf,
+  Script=Arabic,
+  BoldFont=Amiri-Bold,
+  ItalicFont=Amiri-Italic,
+  BoldItalicFont=Amiri-BoldItalic
+]{Amiri-Regular}
+
+% References: IEEE style (using BibLaTeX with IEEE style)
+\usepackage[style=ieee, backend=biber]{biblatex}
+\addbibresource{references.bib}
+
+% Clickable links
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Seed Bank Graduation Project Documentation},
+    pdfpagemode=FullScreen,
+}
+
+\begin{document}
+
+% ==============================================================================
+% COVER PAGE
+% ==============================================================================
+\begin{titlepage}
+    \begin{center}
+        \vspace*{1cm}
+        
+        \large\textbf{Cairo University}\\
+        Faculty of Computers and Artificial Intelligence\\
+        Information Technology Department
+        
+        \vspace{2cm}
+        
+        \huge\textbf{Seed Bank}\\
+        \Large\textbf{Quality Intelligence Platform}
+        
+        \vspace{1.5cm}
+        
+        \Large\textbf{Graduation Project Final Documentation}
+        
+        \vspace{2cm}
+        
+        \textbf{Prepared by:}
+        \begin{table}[h]
+            \centering
+            \begin{tabular}{cc}
+                Omar Ezz-ElDein Abdullah & ID: 20220228 \\
+                Youssef Ahmed Awad & ID: 20220385 \\
+                Ali Abdulrahman Mohamed & ID: 20220213 \\
+                Youssef Tarek Ali & ID: 20220397 \\
+                Mohamed Amr Mahmoud & ID: 20220302 \\
+            \end{tabular}
+        \end{table}
+        
+        \vspace{1.5cm}
+        
+        \textbf{Supervised by:}\\
+        Supervisor Name(s) and Title(s)
+        
+        \vfill
+        
+        Academic Year: 2025/2026
+        
+    \end{center}
+\end{titlepage}
+
+% ==============================================================================
+% FRONT MATTER
+% ==============================================================================
+\pagenumbering{roman} % Roman numerals for front matter
+
+\tableofcontents
+\newpage
+
+\listoffigures
+\newpage
+
+\listoftables
+\newpage
+
+% List of Abbreviations
+\chapter*{List of Abbreviations}
+\addcontentsline{toc}{chapter}{List of Abbreviations}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{ll}
+        \textbf{API} & Application Programming Interface \\
+        \textbf{CBAM} & Convolutional Block Attention Module \\
+        \textbf{CDC} & Change Data Capture \\
+        \textbf{DWH} & Data Warehouse \\
+        \textbf{ERD} & Entity-Relationship Diagram \\
+        \textbf{FCAI} & Faculty of Computers and Artificial Intelligence \\
+        \textbf{ML} & Machine Learning \\
+        \textbf{OLAP} & Online Analytical Processing \\
+        \textbf{OLTP} & Online Transaction Processing \\
+        \textbf{OTel} & OpenTelemetry \\
+        \textbf{RBAC} & Role-Based Access Control \\
+        \textbf{RTL} & Right-To-Left \\
+    \end{tabular}
+\end{table}
+\newpage
+
+% Abstract
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\begin{spacing}{1.15}
+\section*{English Abstract}
+% Insert English abstract here (150-250 words)
+
+\vspace{1.5cm}
+
+\section*{Arabic Abstract}
+% Insert Arabic abstract here (150-250 words)
+\begin{Arabic}
+% اكتب الملخص باللغة العربية هنا
+\end{Arabic}
+\end{spacing}
+\newpage
+
+% ==============================================================================
+% MAIN CHAPTERS
+% ==============================================================================
+\pagenumbering{arabic} % Bottom center page numbers starting from Chapter 1
+
+\include{chapters/introduction}
+\include{chapters/related_work}
+\include{chapters/system_analysis}
+\include{chapters/system_design}
+\include{chapters/implementation}
+\include{chapters/testing_evaluation}
+\include{chapters/conclusion_future_work}
+
+% ==============================================================================
+% REFERENCES
+% ==============================================================================
+\printbibliography[heading=bibintoc, title={References}]
+
+% ==============================================================================
+% APPENDICES
+% ==============================================================================
+\appendix
+\include{chapters/appendices}
+
+\end{document}

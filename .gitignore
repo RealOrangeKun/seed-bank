@@ -70,3 +70,20 @@ CLAUDE.md
 
 # Graduation requirements documents
 docs/*.pdf
+
+# LaTeX / Pandoc compilation outputs and intermediate files
+docs/report/**/*.pdf
+docs/report/**/*.docx
+docs/report/**/*.aux
+docs/report/**/*.log
+docs/report/**/*.toc
+docs/report/**/*.lof
+docs/report/**/*.lot
+docs/report/**/*.out
+docs/report/**/*.fls
+docs/report/**/*.fdb_latexmk
+docs/report/**/*.xdv
+docs/report/**/*.bcf
+docs/report/**/*.run.xml
+docs/report/**/*.bbl
+docs/report/**/*.blg
