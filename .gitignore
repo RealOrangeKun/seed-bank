@@ -67,3 +67,6 @@ compose.override.yaml
 # Claude Code harness — local working aids, never committed.
 .claude/
 CLAUDE.md
+
+# Graduation requirements documents
+docs/*.pdf
