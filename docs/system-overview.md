@@ -255,62 +255,226 @@ are the only code that touches the ORM. Core entities:
   status), `traffic_splits` (weighted routing), `datasets` + dataset items,
   `experiments`.
 
-### 4.7 ML platform
+### 4.7 The AI / ML platform (deep dive)
 
-- **Model registry** ([`infrastructure/ml/registry.py`](../src/seedbank/infrastructure/ml/registry.py),
-  `services/model_registry_service.py`) — weights are uploaded to MinIO and
-  recorded in `model_artifacts` (via `scripts/register_model.py` or `POST
-  /models`). Each model has a **`builder_key`** that maps to a Python builder that
-  constructs the right architecture before loading the weights.
-- **Lifecycle** — `registered → staging → production → archived`. Promotion is an
-  API action.
-- **Backends** ([`infrastructure/ml/backends/`](../src/seedbank/infrastructure/ml/backends/)) —
-  pluggable inference engines behind a common `base` interface:
-  - `torch_local` — local PyTorch weights (the default).
-  - `ultralytics_yolo` — YOLO detection.
-  - `roboflow` — hosted Roboflow models.
-- **Builders** ([`infrastructure/ml/builders/`](../src/seedbank/infrastructure/ml/builders/)) —
-  architecture factories, e.g. `faster_rcnn_combined_v1` (detection),
-  `resnet18_cbam_coffee_v3` / `resnet18_cbam_maize_v4` (CBAM-attention
-  classifiers).
-- **Model manager** ([`infrastructure/ml/manager.py`](../src/seedbank/infrastructure/ml/manager.py)) —
-  loads/caches model instances in the worker process so weights aren't reloaded
-  per request.
-- **Traffic router** ([`services/traffic_router.py`](../src/seedbank/services/traffic_router.py)) —
-  chooses which production model serves a given request using weighted
-  `traffic_splits` (A/B testing). `ai_developer`/`admin` can override with an
-  explicit `model_id` at analyze time.
+This is the heart of the product. It is worth understanding in full.
 
-### 4.8 Inference pipeline (the core flow)
+#### 4.7.1 What the AI actually does — a two-stage pipeline
+
+Quality-checking a photo of seeds is **two distinct ML problems**, solved by two
+different models in sequence:
+
+1. **Detection ("where are the seeds?")** — an **object-detection** model scans
+   the whole image and returns a **bounding box + confidence + class** for every
+   individual seed it finds. One photo → N located seeds. The class identifies
+   the *crop* (e.g. `coffee` or `maize`).
+2. **Classification ("is this seed good or bad?")** — for **each** detected seed,
+   the system **crops** that bounding box out of the original image and feeds the
+   crop to a **binary image classifier** that returns `good` / `bad` + a
+   confidence. The crop is routed to the classifier trained for that seed type
+   (coffee crops → the coffee classifier, maize → the maize classifier).
+
+So the data fans out: `1 image → N detections → N quality labels`. Aggregate
+metrics (seed count, good-rate, confidence distribution, per-type breakdown) are
+computed from that detection graph. **Detection and classification are recorded
+as separate `inferences` rows** over the same image, so a detector and a
+classifier can be versioned, swapped, and A/B-tested completely independently.
+
+```
+        ┌──────────────────────── one uploaded image ───────────────────────┐
+        │                                                                    │
+        ▼                                                                    │
+  ┌───────────────┐   boxes[]              ┌──────────────────────────────┐  │
+  │  DETECTION    │ ────────────► for each │  crop bbox from source image │  │
+  │  model        │  (x,y,w,h,              │  → CLASSIFICATION model       │  │
+  │  (Faster R-CNN│   conf, class)          │     (ResNet18+CBAM) → good/bad│  │
+  │   or YOLO …)  │                         │     + confidence              │  │
+  └───────────────┘                         └──────────────────────────────┘  │
+        │  persist 1 inference                     │  persist 1 inference      │
+        │  + N seed_detections (normalized bbox)    │  update each detection's  │
+        ▼                                           ▼  quality column           │
+   seed_detection ──FK──► inference ──FK──► model_artifact   (full traceability)│
+        └────────────────────────────────────────────────────────────────────┘
+```
+
+#### 4.7.2 Model architectures (what's actually inside)
+
+Architectures are **builder functions** registered under a `builder_key`
+([`infrastructure/ml/builders/`](../src/seedbank/infrastructure/ml/builders/)).
+A builder constructs the bare `nn.Module`; weights are then loaded into it from
+MinIO. The currently wired architectures:
+
+- **Detection — Faster R-CNN (`faster-rcnn-combined-v1`)**
+  ([`faster_rcnn_combined_v1.py`](../src/seedbank/infrastructure/ml/builders/faster_rcnn_combined_v1.py)):
+  torchvision `fasterrcnn_resnet50_fpn` (ResNet-50 backbone + Feature Pyramid
+  Network) with a **3-class head** `[background, coffee, maize]`. The model
+  returns `boxes`/`scores`/`labels`; the backend filters by
+  `confidence_threshold`, normalizes pixel boxes to `[0,1]`, and caps at
+  `max_detections`. Class id → name via `{0: background, 1: coffee, 2: maize}`.
+
+- **Classification — ResNet18 + CBAM (`resnet18-cbam-coffee-v3`,
+  `resnet18-cbam-maize-v4`)**
+  ([`resnet18_cbam_coffee_v3.py`](../src/seedbank/infrastructure/ml/builders/resnet18_cbam_coffee_v3.py)):
+  an ImageNet-pretrained **ResNet-18** backbone with a **CBAM** (Convolutional
+  Block Attention Module — channel + spatial attention, see
+  [`_cbam.py`](../src/seedbank/infrastructure/ml/builders/_cbam.py)) inserted
+  after `layer4`, then **hybrid pooling** that concatenates global-average and
+  global-max pools (512 + 512 → **1024 features**) into a single-logit `fc` head.
+  Inference: resize to **224×224**, ImageNet normalization, forward → **sigmoid**
+  → score; `label = "good" if score ≥ threshold else "bad"`, with
+  `confidence = score` (good) or `1 − score` (bad). Trained with
+  `BCEWithLogitsLoss`. There is one classifier **per crop type** (coffee, maize),
+  which is why detections are grouped by seed type before classify.
+
+> **Builders are append-only by convention.** If the math changes, copy to a new
+> `-vN` file + key — never mutate a builder a `production` model references, or
+> you silently change what a deployed model computes.
+
+#### 4.7.3 Inference backends (pluggable engines)
+
+A **backend** is the engine that *runs* a model. Every backend satisfies one
+duck-typed `Protocol`
+([`backends/base.py`](../src/seedbank/infrastructure/ml/backends/base.py)):
+`detect(image, DetectionConfig) -> list[Detection]` and
+`classify(crop, ClassificationConfig) -> Classification`, returning
+**framework-free DTOs** (`BoundingBox`, `Detection`, `Classification`) so torch
+never leaks up the layers. Three backends are registered
+([`backends/`](../src/seedbank/infrastructure/ml/backends/)):
+
+| Backend (`model_backend`) | Engine | Notes |
+|---|---|---|
+| `torch_local` | Local PyTorch from MinIO weights | **Default.** Builds the module via the registry, loads the state dict (`weights_only=True`, `strict=False`), runs the forward pass in a worker thread (`asyncio.to_thread`) so the event loop stays responsive. CUDA used when available. |
+| `yolo` (`ultralytics_yolo`) | Ultralytics YOLO | Loads `.pt` weights into an `ultralytics.YOLO` (needs a filesystem path; the manager spools the bytes to a temp file). |
+| `roboflow` | Hosted Roboflow inference | Network-bound; no local weights. |
+
+Adding a backend = write a class matching the protocol and register it in the
+factory ([`pipeline/factory.py`](../src/seedbank/infrastructure/ml/pipeline/factory.py)).
+Heavy imports (torch, ultralytics) live **inside method bodies**, so the API
+process never imports torch — only the inference worker does (this is why the API
+container is small).
+
+#### 4.7.4 Model registry & lifecycle
+
+Weights are uploaded to MinIO and recorded in the **`model_artifacts`** table
+(via `scripts/register_model.py` or `POST /models`). Each row carries: `kind`
+(`detection`/`classification`), `backend`, `artifact_uri` (MinIO key), a
+`builder_key`, a free-form **`config`** JSON (per-model knobs:
+`confidence_threshold`, `iou_threshold`, `max_detections`, `image_size`,
+`threshold`), an optional `seed_type_id`, and a **lifecycle status**:
+`registered → staging → production → archived` (promotion is an API action).
+Only `staging`/`production` models are eligible to serve requests (a
+`registered`/`archived` model can't be used as an override).
+
+#### 4.7.5 Model manager — loading & caching
+([`infrastructure/ml/manager.py`](../src/seedbank/infrastructure/ml/manager.py))
+
+One `ModelManager` per worker process holds a **process-wide LRU cache** of
+loaded modules (default `max_models=4`, separate caches for torch and YOLO).
+Loading: build module via registry → fetch weights from MinIO → load state dict →
+move to CUDA/CPU → `eval()`. It serializes concurrent loads of the **same**
+`model_id` through a per-id `asyncio.Lock` (so two tasks never duplicate a GPU
+load), LRU-evicts to bound GPU memory, and **hot-reloads** a model when its
+`model_artifacts.updated_at` advances. Pipelines are cheap, created per request;
+the expensive weights live here.
+
+#### 4.7.6 Traffic router — model selection & A/B testing
+([`services/traffic_router.py`](../src/seedbank/services/traffic_router.py))
+
+Given a **segment** `(kind, seed_type_id)`, the router decides *which* model runs:
+
+1. Read active rows from **`traffic_splits`** for the segment (60 s Redis cache).
+2. If splits exist, route by a **sticky bucket** = `hash(user_id) % 100` against
+   the cumulative weights — the **same user always lands on the same model**
+   (stable A/B), and traffic is uniform across the user base.
+3. If no splits, fall back to the **`production`** model for that seed type, then
+   to the **global** (seed-type-agnostic) production model. This makes per-type
+   promotion *optional* — a deployment can promote one global model and every
+   scan (including the mobile point-and-shoot flow, which sends **no** seed type)
+   routes to it.
+4. If still nothing, raise `ModelNotReadyError` → the user gets a clear "no model
+   is available" failure (not a blank error).
+
+`ai_developer`/`admin` can **override** the model with an explicit `model_id` at
+analyze time (must be `staging`/`production`, must match the requested `kind`).
+
+### 4.8 The end-to-end inference flow (orchestration)
 
 ```
 POST /api/v1/analyze  (multipart: files[] + optional seed_type_id/supplier_id/
                        model_id/country_code/gps)
-        │  validate (count/size/MIME), store images → MinIO,
-        │  create scan_batch (pending) + scan_images, enqueue Celery task
+   AnalysisService (services/analysis_service.py) — load-bearing ordering:
+        │  1. validate EVERY file first (count ≤16, size, MIME, real image via PIL)
+        │  2. write images → MinIO  (BEFORE the DB commit, so committed rows
+        │       always reference reachable objects)
+        │  3. create scan_batch (pending) + scan_images, write audit log, COMMIT
+        │  4. dispatch one Celery task per image (queue=inference) AFTER commit
         ▼
-Celery  worker-inference  (queue: inference)
-        │  batch → running (compare-and-set state machine)
-        │  for each image:
-        │     traffic router picks the model (or honors override)
-        │     DETECT  → bounding boxes per seed   (detection model)
-        │     for each detected crop:
-        │        CLASSIFY → good/bad + confidence  (classification model)
-        │     persist inference + seed_detections (full traceability)
+Celery  worker-inference   task: seedbank.analyze_image   (workers/tasks/analyze.py)
+        │  fresh AsyncSession (workers never share the API engine)
+        │  CAS  pending → running   (only the first task to arrive wins; sets started_at)
+        │  fetch image bytes ← MinIO
+        │  ── DETECT ───────────────────────────────────────────────────────────
+        │     resolve detection model (override OR traffic router)
+        │     run detect (torch forward in a thread) → boxes/scores/labels
+        │     persist 1 inference row + N seed_detections rows
+        │        (normalized bbox NUMERIC, confidence, px dims, aspect ratio;
+        │         each detection's seed_type = request override, else mapped from
+        │         the detector's class name coffee/maize → catalog id)
+        │  ── CLASSIFY ─────────────────────────────────────────────────────────
+        │     GROUP detections by seed_type
+        │     for each group: resolve its classifier (router) → crop each seed
+        │        from the source image (JPEG) → classify → good/bad + confidence
+        │     bulk-update each detection's `quality`; add 1 classify inference row
+        │  ── FINALISE ─────────────────────────────────────────────────────────
+        │     when every image in the batch has a detect inference:
+        │       CAS running → succeeded | partial | failed   (+ finished_at, duration)
         ▼
-        batch → succeeded / partial / failed   (partial = some images errored)
-        │  (DWH dual-write to ClickHouse, if enabled)
+        (each persisted batch / inference / detection dual-writes to ClickHouse)
         ▼
-GET /api/v1/batches/{id}   ← clients poll every ~2s until terminal
+GET /api/v1/batches/{id}   ← web & mobile poll every ~2s until a terminal status
 ```
 
-The two ML stages live in
-[`infrastructure/ml/pipeline/`](../src/seedbank/infrastructure/ml/pipeline/)
-(`detect.py`, `classify.py`, `factory.py`); the worker task is
-[`workers/tasks/analyze.py`](../src/seedbank/workers/tasks/analyze.py). The batch
-state machine uses compare-and-set updates so concurrent workers can't corrupt
-state. Image upload is **multipart only** today (presigned-upload was scoped but
-not built).
+Key properties:
+
+- **Concurrency-safe state machine.** Batch transitions use **compare-and-set**
+  updates (`pending→running`, `running→terminal`), so multiple workers
+  processing a multi-image batch can't corrupt state; exactly one task owns each
+  transition.
+- **Per-seed-type routing within one image.** A mixed photo (some coffee, some
+  maize) is detected once, then **grouped by seed type**; each group goes to its
+  own classifier. A detection whose class has **no** registered classifier is
+  simply left **unclassified** (not an error).
+- **Crops are derived, never stored.** Bounding boxes are the source of truth in
+  normalized `[0,1]`; the worker multiplies by the source image's pixel
+  dimensions to cut each crop at classify time.
+- **Pixel precision.** `confidence` is `NUMERIC(5,4)`, bbox columns are
+  `NUMERIC(7,6)` — the worker rounds and passes `Decimal` so SQLAlchemy never
+  coerces floats into a mismatched scale.
+
+#### 4.8.1 Error handling & terminal states
+
+- `ExternalServiceError` (MinIO/Redis hiccup) → Celery **auto-retries** (up to 2).
+- **No routable model** → batch `failed` with a human-readable `error_message`
+  ("An administrator must register and promote a detection model.") surfaced to
+  the clients, so the app never shows a blank failure. (The mobile flow sends no
+  seed type, so it hits this first if nothing is promoted.)
+- **Detect crashes** → the inference row's `error` is recorded and the batch is
+  `failed`.
+- **Classify crashes** (after detect already persisted) → detect data is kept and
+  the batch degrades to **`partial`** (never throws away good detection results).
+- A clean run with every image detected and classified → **`succeeded`**.
+
+#### 4.8.2 What the platform supports (summary)
+
+Multiple **crop types** (coffee, maize today; more via new builders + classifiers)
+· **per-seed-type** classifiers with independent A/B · **mixed batches** ·
+the **mobile point-and-shoot** flow (no seed type → global model) ·
+**multiple backends** (local torch, YOLO, hosted Roboflow) · **GPU or CPU** ·
+**hot model reload** without a restart · **weighted A/B traffic splits** with
+sticky per-user assignment · **per-request model override** for developers ·
+**offline evaluation** of any model against labelled datasets (§4.9) · and full
+**traceability** from every seed label back to the exact model version that
+produced it.
 
 ### 4.9 Experiments, datasets & MLflow
 
