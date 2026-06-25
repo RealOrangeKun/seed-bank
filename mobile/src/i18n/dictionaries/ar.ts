@@ -24,9 +24,19 @@ export const ar: Record<TranslationKey, string> = {
   "auth.serverHint": "تلميح: اضبط عنوان الخادم من الإعدادات إذا تعذّر الدخول.",
 
   // Tabs
+  "tab.home": "الرئيسية",
   "tab.capture": "فحص",
   "tab.history": "السجل",
   "tab.settings": "الإعدادات",
+
+  // Home
+  "home.greeting": "مرحبًا بعودتك",
+  "home.statScans": "إجمالي الفحوصات",
+  "home.statPhotos": "الصور المفحوصة",
+  "home.statDone": "المكتملة",
+  "home.recent": "أحدث الفحوصات",
+  "home.viewAll": "عرض الكل",
+  "home.emptyHint": "اضغط «افحص البذور» لتحليل أول دفعة لك.",
 
   // Camera
   "camera.permTitle": "نحتاج إذن الكاميرا",
@@ -41,6 +51,9 @@ export const ar: Record<TranslationKey, string> = {
   "camera.uploading": "جارٍ الرفع…",
   "camera.uploadError": "فشل الرفع. حاول مرة أخرى.",
   "camera.noPhotos": "التقط صورة للبدء.",
+  "camera.torch": "الفلاش",
+  "camera.flip": "تبديل الكاميرا",
+  "camera.clearAll": "مسح الكل",
 
   // Result
   "result.title": "النتيجة",
@@ -62,6 +75,7 @@ export const ar: Record<TranslationKey, string> = {
   "history.empty": "لا توجد فحوصات بعد",
   "history.emptyHint": "ستظهر فحوصاتك هنا.",
   "history.tapHint": "اضغط على فحص لعرض نتائجه.",
+  "history.loadError": "تعذّر تحميل فحوصاتك.",
 
   // Settings
   "settings.title": "الإعدادات",

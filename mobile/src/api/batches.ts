@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { apiData } from "./client";
 import type {
   BatchDetailOut,
@@ -7,19 +9,32 @@ import type {
 } from "./types";
 
 /**
- * Upload captured photos for analysis. React Native's `FormData` accepts a
- * `{ uri, name, type }` part for a local file; the runtime streams the file and
- * sets the multipart boundary itself.
+ * Build the multipart part for one captured photo.
+ *
+ * Native (iOS/Android) `FormData` accepts a `{ uri, name, type }` descriptor and
+ * streams the local file itself. On web there is no such affordance — appending
+ * that object stringifies it to `"[object Object]"`, which the backend rejects
+ * with HTTP 422 ("files" must be a file, not a string). So on web we resolve the
+ * capture URI (a `blob:`/`data:` URL) into a real `Blob` and append a `File`.
+ */
+async function toUploadPart(photo: CapturedPhoto, index: number): Promise<Blob> {
+  const name = `seed-${index + 1}.jpg`;
+  if (Platform.OS === "web") {
+    const res = await fetch(photo.uri);
+    const blob = await res.blob();
+    return new File([blob], name, { type: blob.type || "image/jpeg" });
+  }
+  return { uri: photo.uri, name, type: "image/jpeg" } as unknown as Blob;
+}
+
+/**
+ * Upload captured photos for analysis as `multipart/form-data` (field `files`).
+ * The runtime sets the multipart boundary itself.
  */
 export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> {
   const form = new FormData();
-  photos.forEach((photo, i) => {
-    form.append("files", {
-      uri: photo.uri,
-      name: `seed-${i + 1}.jpg`,
-      type: "image/jpeg",
-    } as unknown as Blob);
-  });
+  const parts = await Promise.all(photos.map(toUploadPart));
+  parts.forEach((part) => form.append("files", part));
   return apiData<BatchOut>("/api/v1/analyze", { method: "POST", form });
 }
 

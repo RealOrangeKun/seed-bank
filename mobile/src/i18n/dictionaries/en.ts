@@ -23,9 +23,19 @@ export const en = {
   "auth.serverHint": "Tip: set the server address in Settings if you can't sign in.",
 
   // Tabs
+  "tab.home": "Home",
   "tab.capture": "Check",
   "tab.history": "History",
   "tab.settings": "Settings",
+
+  // Home
+  "home.greeting": "Welcome back",
+  "home.statScans": "Total scans",
+  "home.statPhotos": "Photos checked",
+  "home.statDone": "Completed",
+  "home.recent": "Recent scans",
+  "home.viewAll": "View all",
+  "home.emptyHint": "Tap “Check seeds” to analyze your first batch.",
 
   // Camera
   "camera.permTitle": "Camera access needed",
@@ -40,6 +50,9 @@ export const en = {
   "camera.uploading": "Uploading…",
   "camera.uploadError": "Upload failed. Please try again.",
   "camera.noPhotos": "Take a photo to get started.",
+  "camera.torch": "Flash",
+  "camera.flip": "Flip camera",
+  "camera.clearAll": "Clear all",
 
   // Result
   "result.title": "Result",
@@ -61,6 +74,7 @@ export const en = {
   "history.empty": "No scans yet",
   "history.emptyHint": "Your seed checks will appear here.",
   "history.tapHint": "Tap a scan to see its results.",
+  "history.loadError": "Couldn't load your scans.",
 
   // Settings
   "settings.title": "Settings",
