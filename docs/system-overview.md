@@ -236,15 +236,15 @@ client is generated from this — see §5.3).
 
 ### 4.6 Data model (Postgres OLTP)
 
-Async SQLAlchemy over Postgres, **18 tables**, **UUIDv7 primary keys** (time-
+Async SQLAlchemy over Postgres, **all 18 tables**, **UUIDv7 primary keys** (time-
 ordered, index-friendly), Alembic-managed. Repositories
 ([`infrastructure/db/repositories/`](../src/seedbank/infrastructure/db/repositories/))
-are the only code that touches the ORM. Core entities:
+are the only code that touches the ORM. The complete set (grouped):
 
-- **Identity & auth**: `users`, `refresh_tokens`, `oauth_accounts`, `api_keys`,
-  audit log.
-- **Reference / catalog**: `seed_types`, `suppliers`.
-- **Inference graph** (the traceability chain):
+- **Identity & auth** (5): `users`, `refresh_tokens`, `oauth_accounts`,
+  `api_keys`, `audit_log`.
+- **Reference / catalog** (2): `seed_types`, `suppliers`.
+- **Inference graph** (4 — the traceability chain):
   - `scan_batches` — one per `POST /analyze`; carries the **state machine**
     (`pending → running → succeeded / partial / failed`), image count, duration,
     optional geo metadata.
@@ -254,9 +254,11 @@ are the only code that touches the ORM. Core entities:
   - `seed_detections` — one per detected seed: normalized bbox
     (`box_x_norm/y_norm/w_norm/h_norm`), `confidence`, `quality`
     (`good`/`bad`/null), `seed_type_id`, linked to its `inference`.
-- **ML platform**: `model_artifacts` (registered weights + metadata + lifecycle
-  status), `traffic_splits` (weighted routing), `datasets` + dataset items,
-  `experiments`.
+- **ML platform** (7): `model_artifacts` (registered weights + metadata +
+  lifecycle status), `model_metrics` (per-model performance records behind
+  `GET /models/{id}/performance`), `traffic_splits` (weighted A/B routing),
+  `datasets` + `dataset_items` (offline-eval ground truth), `experiments` +
+  `experiment_results` (offline-eval runs and their computed metrics).
 
 ### 4.7 The AI / ML platform (deep dive)
 
