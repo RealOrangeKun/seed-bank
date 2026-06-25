@@ -474,6 +474,8 @@ Key properties:
 Multiple **crop types** (coffee, maize today; more via new builders + classifiers)
 · **per-seed-type** classifiers with independent A/B · **mixed batches** ·
 the **mobile point-and-shoot** flow (no seed type → global model) ·
+**production-line / conveyor-belt batch scanning** via the same multi-shot
+capture + async per-image worker pool, no belt-specific code needed (§6.3.1) ·
 **multiple backends** (local torch, YOLO, hosted Roboflow) · **GPU or CPU** ·
 **hot model reload** without a restart · **weighted A/B traffic splits** with
 sticky per-user assignment · **per-request model override** for developers ·
@@ -745,6 +747,39 @@ all photos as multipart to `/analyze` → navigates to the **Result** screen, wh
 **polls** the batch via TanStack Query until terminal and shows the good-rate,
 seed counts, and confidence. Camera permission is requested with a friendly
 gate; the camera can flip front/back.
+
+#### 6.3.1 Production-line / conveyor-belt batch scanning
+
+The capture-and-analyze design is **not tied to a single hand-held "selfie of a
+few seeds" shot** — the same flow extends naturally to scanning a continuous
+stream of seeds moving past the camera, e.g. on a **conveyor belt** or sorting
+line:
+
+- The shutter is tapped **once per frame of interest** (once per clump of seeds
+  passing under the lens), exactly as in the hand-held flow — there's no limit
+  forcing a single photo per session. Up to `analyze_max_files_per_request`
+  (**16**) frames accumulate in the review strip before being submitted as
+  **one batch**.
+- Each frame in that batch is detected and classified **independently and
+  concurrently** by the `worker-inference` pool (§4.11) — so a belt run's worth
+  of frames is graded in parallel, not one-at-a-time, and throughput scales
+  horizontally by adding more inference workers.
+- Detections are aggregated **per batch** (good-rate, seed count, confidence
+  distribution, per-seed-type breakdown — §4.8), so a single submitted run
+  reports on the *whole pass* of seeds, not just one frame.
+- The mobile client's polling **Result** screen (TanStack Query, 2 s interval)
+  means an operator standing at the line gets the graded report back within
+  seconds of the belt run finishing — practically "realtime" for a sorting
+  workflow, without needing the camera to hold a live network connection while
+  capturing.
+- A camera mounted on a fixed stand over the belt works the same way as a
+  hand-held phone — the app has no dependency on the phone being held by a
+  person; only on `expo-camera` having a `CameraView` to read from.
+
+This is the same code path as §6.3 (no separate "conveyor mode" exists in the
+UI) — the multi-shot review-and-submit design and the async, horizontally
+scalable detect→classify pipeline are what make the conveyor-belt use case
+possible without any belt-specific engineering.
 
 ### 6.4 Localization & RTL on native
 
