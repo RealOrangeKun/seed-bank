@@ -15,6 +15,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from seedbank.schemas.common import STRICT_INPUT
+
 # Cap the bulk-add payload — the underlying transaction grows with item
 # count, and lists this large should come from ``scripts/upload_dataset.py``
 # anyway.
@@ -23,6 +25,8 @@ _MAX_ITEMS_PER_BULK = 1000
 
 class DatasetCreateIn(BaseModel):
     """Request body for ``POST /datasets``."""
+
+    model_config = STRICT_INPUT
 
     name: str = Field(min_length=1, max_length=160)
     description: str | None = Field(default=None, max_length=2000)
@@ -42,6 +46,8 @@ class DatasetItemCreateIn(BaseModel):
     ``{"kind": "classification", "label": "good"}``).
     """
 
+    model_config = STRICT_INPUT
+
     image_storage_key: str = Field(min_length=1, max_length=512)
     ground_truth: dict[str, Any] | None = None
     checksum: str | None = Field(default=None, max_length=128)
@@ -49,6 +55,8 @@ class DatasetItemCreateIn(BaseModel):
 
 class DatasetItemsBulkIn(BaseModel):
     """Request body for ``POST /datasets/{id}/items``."""
+
+    model_config = STRICT_INPUT
 
     items: list[DatasetItemCreateIn] = Field(min_length=1, max_length=_MAX_ITEMS_PER_BULK)
 

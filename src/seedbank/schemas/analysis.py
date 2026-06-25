@@ -55,11 +55,25 @@ class AnalyzeQueryIn(BaseModel):
     ] = None
 
 
+class SeedTypeRef(BaseModel):
+    """Minimal seed-type reference embedded in a detection so clients can
+    render a human label ("Coffee") instead of a raw ``seed_type_id`` UUID."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: str
+    display_name: str
+
+
 class SeedDetectionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     seed_type_id: UUID | None = None
+    # Resolved label for ``seed_type_id`` (eager-loaded via the ORM
+    # relationship). ``None`` when the detector couldn't attribute a type.
+    seed_type: SeedTypeRef | None = None
     quality: SeedQuality | None = None
     confidence: Decimal
     detection_confidence: Decimal | None = None
@@ -241,6 +255,7 @@ __all__ = [
     "InferenceOut",
     "ScanImageOut",
     "SeedDetectionOut",
+    "SeedTypeRef",
     "ShareLinkOut",
     "SharedBatchOut",
 ]

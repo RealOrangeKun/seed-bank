@@ -115,6 +115,32 @@ class Settings(BaseSettings):
     # MinIO's default region is ``us-east-1``.
     minio_region: str = "us-east-1"
 
+    @field_validator("minio_public_endpoint")
+    @classmethod
+    def _validate_public_endpoint(cls, v: str) -> str:
+        """Fail fast on a malformed public endpoint.
+
+        This value signs URLs handed to browsers, so a wrong shape produces
+        presigned links that 404 *at the client* — far from the misconfig and
+        hard to trace. It must be a bare ``host`` or ``host:port`` (the scheme
+        is decided by ``minio_public_secure``); a value carrying a scheme or a
+        path is a configuration error, so reject it at startup rather than mint
+        broken URLs in production.
+        """
+        s = v.strip()
+        if not s:
+            raise ValueError("minio_public_endpoint must not be empty")
+        if "://" in s:
+            raise ValueError(
+                "minio_public_endpoint must be a bare host[:port] without a "
+                f"scheme (set minio_public_secure instead); got {v!r}"
+            )
+        if "/" in s:
+            raise ValueError(
+                f"minio_public_endpoint must not contain a path; got {v!r}"
+            )
+        return s
+
     # ── ClickHouse ───────────────────────────────────────────────────────────
     clickhouse_host: str = "clickhouse"
     clickhouse_port: int = 8123

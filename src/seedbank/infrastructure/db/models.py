@@ -689,6 +689,14 @@ class SeedDetection(Base):
     aspect_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
 
     inference: Mapped[Inference] = relationship(back_populates="detections")
+    # Eager (``selectin``) so detail/compare/share responses always resolve the
+    # human seed-type label without a per-row async lazy-load — which would
+    # raise ``MissingGreenlet`` under asyncpg. ``selectin`` (unlike ``joined``)
+    # propagates through the detail repo's ``selectinload(Inference.detections)``
+    # post-load, so the label loads in one extra IN-query against a tiny
+    # reference table. The worker builds detections by ``seed_type_id`` and
+    # never reads this attribute, so the hot write path is unaffected.
+    seed_type: Mapped[SeedType | None] = relationship(lazy="selectin")
 
     __table_args__ = (
         CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_range"),

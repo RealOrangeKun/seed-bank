@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Seed Bank",
+    "slug": "seedbank-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "seedbank",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#16291f"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.seedbank.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Seed Bank uses the camera to photograph seeds for quality analysis."
+      }
+    },
+    "android": {
+      "package": "org.seedbank.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#16291f"
+      },
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Seed Bank uses the camera to photograph seeds for quality analysis."
+        }
+      ],
+      "expo-font",
+      "expo-asset"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:8000"
+    }
+  }
+}

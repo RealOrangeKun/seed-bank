@@ -224,8 +224,29 @@ async def _async_analyze_image(
                 seed_type_id=seed_type_id,
                 user_id=batch.user_id,
             )
+        except ModelNotReadyError:
+            # No detector is routable for this segment — a config/ops state, not
+            # a code bug. Tell the user plainly so the app doesn't show a blank
+            # failure (the mobile flow sends no seed type and hits this first).
+            await _mark_batch_failed(
+                repos=repos,
+                batch_id=batch.id,
+                started_at=batch_started_at,
+                error_message=(
+                    "No detection model is available to analyze this scan. "
+                    "An administrator must register and promote a detection model."
+                ),
+            )
+            await session.commit()
+            dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
+            raise
         except Exception:
-            await _mark_batch_failed(repos=repos, batch_id=batch.id, started_at=batch_started_at)
+            await _mark_batch_failed(
+                repos=repos,
+                batch_id=batch.id,
+                started_at=batch_started_at,
+                error_message="Could not start analysis: the requested model is invalid or unavailable.",
+            )
             await session.commit()
             dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
             raise
@@ -403,7 +424,12 @@ async def _run_detect_and_persist(
         with suppress(Exception):
             await repos.inferences.set_error(inference.id, repr(exc))
             await session.commit()
-        await _mark_batch_failed(repos=repos, batch_id=batch_id, started_at=started_at)
+        await _mark_batch_failed(
+            repos=repos,
+            batch_id=batch_id,
+            started_at=started_at,
+            error_message="Detection failed while processing the image.",
+        )
         await session.commit()
         dispatch_after_commit(SYNC_SCAN_BATCH, str(batch_id))
         raise
@@ -801,21 +827,34 @@ async def _mark_batch_terminal(
     return (result.rowcount or 0) == 1  # type: ignore[attr-defined]
 
 
-async def _mark_batch_failed(*, repos: _Repos, batch_id: UUID, started_at: datetime | None) -> None:
+async def _mark_batch_failed(
+    *,
+    repos: _Repos,
+    batch_id: UUID,
+    started_at: datetime | None,
+    error_message: str | None = None,
+) -> None:
     """Best-effort transition to ``failed``. Used when detect itself
-    crashes; classify failures use ``partial`` via the normal finaliser."""
+    crashes; classify failures use ``partial`` via the normal finaliser.
+
+    ``error_message`` is surfaced to clients via ``BatchDetailOut`` so the web
+    and mobile apps can explain *why* a scan failed (e.g. no detection model is
+    configured) instead of showing a blank failure."""
     duration_ms = _duration_ms(started_at)
+    values: dict[str, object] = {
+        "status": BatchStatus.FAILED.value,
+        "finished_at": func.now(),
+        "duration_ms": duration_ms,
+    }
+    if error_message is not None:
+        values["error_message"] = error_message
     stmt = (
         update(ScanBatch)
         .where(
             ScanBatch.id == batch_id,
             ScanBatch.status.in_((BatchStatus.PENDING.value, BatchStatus.RUNNING.value)),
         )
-        .values(
-            status=BatchStatus.FAILED.value,
-            finished_at=func.now(),
-            duration_ms=duration_ms,
-        )
+        .values(**values)
         .execution_options(synchronize_session=False)
     )
     await repos.batches.session.execute(stmt)
