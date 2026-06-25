@@ -347,3 +347,51 @@ class ScanBatchRepository(Repository[ScanBatch]):
             deleted=deleted,
         )
         return deleted
+
+    async def set_share_token(self, batch_id: UUID, user_id: UUID, token: str | None) -> bool:
+        """Set (or clear, with ``None``) the share token on an owned batch.
+
+        Returns ``True`` iff a live, owned row was updated. Used for both
+        creating and revoking a share link — pass a fresh token to share, pass
+        ``None`` to revoke.
+        """
+        stmt = (
+            update(ScanBatch)
+            .where(
+                ScanBatch.id == batch_id,
+                ScanBatch.user_id == user_id,
+                ScanBatch.deleted_at.is_(None),
+            )
+            .values(share_token=token)
+            .execution_options(synchronize_session=False)
+        )
+        result = await self.session.execute(stmt)
+        won = (result.rowcount or 0) > 0
+        log.info(
+            "scan_batch.set_share_token",
+            batch_id=str(batch_id),
+            shared=token is not None,
+            updated=won,
+        )
+        return won
+
+    async def get_by_share_token(self, token: str) -> ScanBatch | None:
+        """Public read path: resolve a share token to its full batch graph.
+
+        No ``user_id`` filter — the token itself is the capability. Soft-deleted
+        batches are excluded so revoking a batch (delete) also kills the link.
+        Eager-loads images → inferences → detections for the read-only report.
+        """
+        stmt = (
+            select(ScanBatch)
+            .where(
+                ScanBatch.share_token == token,
+                ScanBatch.deleted_at.is_(None),
+            )
+            .options(
+                selectinload(ScanBatch.images)
+                .selectinload(ScanImage.inferences)
+                .selectinload(Inference.detections)
+            )
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()

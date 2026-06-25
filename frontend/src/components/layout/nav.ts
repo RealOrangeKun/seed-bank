@@ -4,71 +4,76 @@ import {
   LayoutDashboard,
   ScanLine,
   Boxes,
+  ChartColumn,
   Database,
   GitBranch,
+  GitCompareArrows,
   Images,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
+import type { TranslationKey } from "@/i18n/dictionaries/en";
 import type { Role } from "@/lib/api/types";
 
 export interface NavItem {
   to: string;
-  label: string;
+  labelKey: TranslationKey;
   icon: LucideIcon;
   /** Roles allowed to see this item; empty = everyone authenticated. */
   roles?: Role[];
 }
 
 export interface NavSection {
-  heading: string;
+  headingKey: TranslationKey;
   items: NavItem[];
 }
 
 export const NAV_SECTIONS: NavSection[] = [
   {
-    heading: "Analyze",
+    headingKey: "nav.section.analyze",
     items: [
-      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/analyze", label: "New analysis", icon: ScanLine },
-      { to: "/batches", label: "Scan history", icon: Images },
+      { to: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+      { to: "/analyze", labelKey: "nav.analyze", icon: ScanLine },
+      { to: "/batches", labelKey: "nav.batches", icon: Images },
+      { to: "/analytics", labelKey: "nav.analytics", icon: ChartColumn },
+      { to: "/compare", labelKey: "nav.compare", icon: GitCompareArrows },
     ],
   },
   {
-    heading: "ML platform",
+    headingKey: "nav.section.mlPlatform",
     items: [
       {
         to: "/models",
-        label: "Models",
+        labelKey: "nav.models",
         icon: Boxes,
         roles: ["ai_developer", "admin"],
       },
       {
         to: "/datasets",
-        label: "Datasets",
+        labelKey: "nav.datasets",
         icon: Database,
         roles: ["ai_developer", "admin"],
       },
       {
         to: "/experiments",
-        label: "Experiments",
+        labelKey: "nav.experiments",
         icon: FlaskConical,
         roles: ["ai_developer", "admin"],
       },
       {
         to: "/traffic",
-        label: "Traffic splits",
+        labelKey: "nav.traffic",
         icon: GitBranch,
         roles: ["admin"],
       },
     ],
   },
   {
-    heading: "Account",
+    headingKey: "nav.section.account",
     items: [
-      { to: "/users", label: "Users", icon: Users, roles: ["admin"] },
-      { to: "/api-keys", label: "API keys", icon: KeyRound },
+      { to: "/users", labelKey: "nav.users", icon: Users, roles: ["admin"] },
+      { to: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound },
     ],
   },
 ];

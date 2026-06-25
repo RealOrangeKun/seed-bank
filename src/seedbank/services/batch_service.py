@@ -14,6 +14,9 @@ The service raises domain exceptions only — the router maps to HTTP.
 
 from __future__ import annotations
 
+import asyncio
+import io
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -38,6 +41,42 @@ if TYPE_CHECKING:
     from seedbank.infrastructure.storage import MinioStorage
 
 log = get_logger(__name__)
+
+# Box colors by quality (RGB). Mirrors the frontend overlay palette so the
+# server-rendered PNG and the interactive overlay read the same.
+_QUALITY_COLORS: dict[str | None, tuple[int, int, int]] = {
+    "good": (34, 160, 90),
+    "bad": (200, 50, 50),
+    None: (60, 130, 220),
+}
+
+
+def _draw_boxes(raw: bytes, detections: list) -> bytes:  # noqa: ANN001 — ORM rows
+    """Burn normalized detection boxes onto an image, return PNG bytes.
+
+    Pure/CPU-bound (runs in a thread). Coordinates are stored normalized
+    (0–1); we scale to the decoded image's pixel size, so this is resolution
+    independent. Line width scales with image size so boxes stay visible on
+    large scans.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.open(io.BytesIO(raw)).convert("RGB")
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+    line_width = max(2, round(min(w, h) * 0.004))
+
+    for d in detections:
+        x = float(d.box_x_norm) * w
+        y = float(d.box_y_norm) * h
+        bw = float(d.box_w_norm) * w
+        bh = float(d.box_h_norm) * h
+        color = _QUALITY_COLORS.get(d.quality, _QUALITY_COLORS[None])
+        draw.rectangle([x, y, x + bw, y + bh], outline=color, width=line_width)
+
+    out = io.BytesIO()
+    img.save(out, format="PNG")
+    return out.getvalue()
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +270,77 @@ class BatchService:
         """
         owner_id = await self._owner_id_for(batch_id=batch_id, actor=actor)
         return await self.batches.list_detections_for_batch(batch_id, owner_id)
+
+    async def annotated_png_for_user(
+        self,
+        *,
+        batch_id: UUID,
+        image_id: UUID,
+        actor: AuthenticatedUser,
+    ) -> bytes:
+        """Render the scan image with its detection boxes burned in, as PNG.
+
+        Ownership is enforced via the full-graph load (admins any, others their
+        own; ``NotFoundError`` on miss). The image bytes come from object
+        storage; boxes are stored normalized (0–1) so they scale to whatever
+        pixel size the stored image has. Drawing is offloaded to a thread —
+        Pillow is CPU-bound and would otherwise block the event loop.
+        """
+        batch = await self.get_for_user(batch_id=batch_id, actor=actor)
+        image = next((im for im in batch.images if im.id == image_id), None)
+        if image is None:
+            raise NotFoundError("Image not found.")
+
+        raw = await self.storage.get_object(self.settings.minio_bucket_images, image.storage_key)
+        detections = [d for inf in image.inferences for d in inf.detections]
+        return await asyncio.to_thread(_draw_boxes, raw, detections)
+
+    async def create_share_link(
+        self,
+        *,
+        batch_id: UUID,
+        actor: AuthenticatedUser,
+    ) -> str:
+        """Create (or rotate) a public share token for an owned batch.
+
+        Returns the token. Idempotent in spirit but not in value: calling it
+        again rotates the token (the old link stops working), which is the safe
+        default for "re-share". Ownership enforced; ``NotFoundError`` on miss.
+        """
+        owner_id = await self._owner_id_for(batch_id=batch_id, actor=actor)
+        token = secrets.token_urlsafe(32)
+        ok = await self.batches.set_share_token(batch_id, owner_id, token)
+        if not ok:
+            raise NotFoundError("Batch not found.")
+        await self.session.commit()
+        log.info("batch.share_created", batch_id=str(batch_id))
+        return token
+
+    async def revoke_share_link(
+        self,
+        *,
+        batch_id: UUID,
+        actor: AuthenticatedUser,
+    ) -> None:
+        """Clear the share token so the public link stops working."""
+        owner_id = await self._owner_id_for(batch_id=batch_id, actor=actor)
+        ok = await self.batches.set_share_token(batch_id, owner_id, None)
+        if not ok:
+            raise NotFoundError("Batch not found.")
+        await self.session.commit()
+        log.info("batch.share_revoked", batch_id=str(batch_id))
+
+    async def get_shared_batch(self, *, token: str) -> ScanBatch:
+        """Resolve a public share token to its batch graph (no auth).
+
+        The token is the capability — no ownership check. Raises
+        ``NotFoundError`` for an unknown/revoked/deleted token so a guesser
+        can't distinguish those cases.
+        """
+        batch = await self.batches.get_by_share_token(token)
+        if batch is None:
+            raise NotFoundError("Shared batch not found.")
+        return batch
 
     async def _owner_id_for(
         self,

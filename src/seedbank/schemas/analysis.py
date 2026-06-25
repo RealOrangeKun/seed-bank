@@ -55,11 +55,25 @@ class AnalyzeQueryIn(BaseModel):
     ] = None
 
 
+class SeedTypeRef(BaseModel):
+    """Minimal seed-type reference embedded in a detection so clients can
+    render a human label ("Coffee") instead of a raw ``seed_type_id`` UUID."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: str
+    display_name: str
+
+
 class SeedDetectionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     seed_type_id: UUID | None = None
+    # Resolved label for ``seed_type_id`` (eager-loaded via the ORM
+    # relationship). ``None`` when the detector couldn't attribute a type.
+    seed_type: SeedTypeRef | None = None
     quality: SeedQuality | None = None
     confidence: Decimal
     detection_confidence: Decimal | None = None
@@ -169,9 +183,71 @@ class BatchDeleteResult(BaseModel):
     deleted: int
 
 
+class BatchCompareIn(BaseModel):
+    """Request body for ``POST /batches/compare`` — up to 10 owned batches."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    batch_ids: Annotated[list[UUID], Field(min_length=2, max_length=10)]
+
+
+class BatchCompareRow(BaseModel):
+    """Aggregate stats for one batch in a comparison."""
+
+    batch_id: UUID
+    images: int
+    detections: int
+    good: int
+    bad: int
+    unclassified: int
+    good_rate: float
+    mean_confidence: float
+
+
+class BatchCompareOut(BaseModel):
+    """Side-by-side comparison result.
+
+    ``rows`` are returned in the same order the caller requested (ids not owned
+    are dropped). ``missing`` lists requested ids that weren't found/owned so the
+    UI can flag them.
+    """
+
+    rows: list[BatchCompareRow]
+    missing: list[UUID]
+
+
+class ShareLinkOut(BaseModel):
+    """The share token for a batch (and the relative public path)."""
+
+    batch_id: UUID
+    share_token: str
+    # Relative public URL the frontend can turn into an absolute link.
+    share_path: str
+
+
+class SharedBatchOut(BaseModel):
+    """Read-only public view of a shared batch.
+
+    Deliberately omits owner/user identifiers — a share link must not leak who
+    created the scan. Carries just enough to render the report: status, timing,
+    and the image → inference → detection graph.
+    """
+
+    id: UUID
+    status: BatchStatus
+    submitted_at: datetime
+    finished_at: datetime | None = None
+    duration_ms: int | None = None
+    image_count: int = 0
+    images: list[ScanImageOut] = Field(default_factory=list)
+
+
 __all__ = [
     "AnalyzeQueryIn",
     "BatchBulkDeleteIn",
+    "BatchCompareIn",
+    "BatchCompareOut",
+    "BatchCompareRow",
     "BatchDeleteResult",
     "BatchDetailOut",
     "BatchOut",
@@ -179,4 +255,7 @@ __all__ = [
     "InferenceOut",
     "ScanImageOut",
     "SeedDetectionOut",
+    "SeedTypeRef",
+    "ShareLinkOut",
+    "SharedBatchOut",
 ]

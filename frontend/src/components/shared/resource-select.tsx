@@ -8,6 +8,7 @@ import {
 import { useDatasets } from "@/features/datasets/api";
 import { useModels } from "@/features/models/api";
 import { useSeedTypes, useSuppliers } from "@/features/catalog/api";
+import { useI18n } from "@/i18n";
 import type { ModelKind, ModelStatus } from "@/lib/api/types";
 
 export interface SelectOption {
@@ -42,12 +43,13 @@ export function ResourceSelect({
   value,
   onChange,
   options,
-  placeholder = "Select…",
+  placeholder,
   includeNone = false,
-  noneLabel = "— None —",
+  noneLabel,
   loading = false,
   disabled = false,
 }: ResourceSelectProps) {
+  const { t } = useI18n();
   const selectValue = value ? value : includeNone ? NONE : undefined;
   const isEmpty = !loading && options.length === 0;
 
@@ -59,16 +61,24 @@ export function ResourceSelect({
     >
       <SelectTrigger id={id}>
         <SelectValue
-          placeholder={loading ? "Loading…" : isEmpty ? "None available" : placeholder}
+          placeholder={
+            loading
+              ? t("select.loading")
+              : isEmpty
+                ? t("select.noneAvailable")
+                : (placeholder ?? t("select.placeholder"))
+          }
         />
       </SelectTrigger>
       <SelectContent>
-        {includeNone ? <SelectItem value={NONE}>{noneLabel}</SelectItem> : null}
+        {includeNone ? (
+          <SelectItem value={NONE}>{noneLabel ?? t("select.none")}</SelectItem>
+        ) : null}
         {options.map((opt) => (
           <SelectItem key={opt.value} value={opt.value}>
             {opt.label}
             {opt.hint ? (
-              <span className="ml-1 text-muted-foreground">· {opt.hint}</span>
+              <span className="ms-1 text-muted-foreground">· {opt.hint}</span>
             ) : null}
           </SelectItem>
         ))}
@@ -88,6 +98,7 @@ interface BaseSelectProps {
 }
 
 export function SeedTypeSelect({ includeNone = true, ...props }: BaseSelectProps) {
+  const { t } = useI18n();
   const query = useSeedTypes();
   const options: SelectOption[] = (query.data ?? []).map((s) => ({
     value: s.id,
@@ -98,28 +109,29 @@ export function SeedTypeSelect({ includeNone = true, ...props }: BaseSelectProps
       {...props}
       options={options}
       loading={query.isPending}
-      placeholder="Select a seed type"
+      placeholder={t("select.selectSeedType")}
       includeNone={includeNone}
-      noneLabel="Any seed type"
+      noneLabel={t("select.anySeedType")}
     />
   );
 }
 
 export function SupplierSelect({ includeNone = true, ...props }: BaseSelectProps) {
+  const { t } = useI18n();
   const query = useSuppliers();
   const options: SelectOption[] = (query.data ?? []).map((s) => ({
     value: s.id,
     label: s.name,
-    hint: s.is_global ? "global" : "private",
+    hint: s.is_global ? t("select.global") : t("select.private"),
   }));
   return (
     <ResourceSelect
       {...props}
       options={options}
       loading={query.isPending}
-      placeholder="Select a supplier"
+      placeholder={t("select.selectSupplier")}
       includeNone={includeNone}
-      noneLabel="No supplier"
+      noneLabel={t("select.noSupplier")}
     />
   );
 }
@@ -137,6 +149,7 @@ export function ModelSelect({
   noneLabel,
   ...props
 }: ModelSelectProps) {
+  const { t } = useI18n();
   const query = useModels({ page: 1, pageSize: 100, kind, status });
   const options: SelectOption[] = (query.data?.data ?? []).map((m) => ({
     value: m.id,
@@ -148,14 +161,15 @@ export function ModelSelect({
       {...props}
       options={options}
       loading={query.isPending}
-      placeholder="Select a model"
+      placeholder={t("select.selectModel")}
       includeNone={includeNone}
-      noneLabel={noneLabel ?? "Auto (traffic router)"}
+      noneLabel={noneLabel ?? t("select.autoRouter")}
     />
   );
 }
 
 export function DatasetSelect({ includeNone = false, ...props }: BaseSelectProps) {
+  const { t } = useI18n();
   const query = useDatasets({ page: 1, pageSize: 100 });
   const options: SelectOption[] = (query.data?.data ?? []).map((d) => ({
     value: d.id,
@@ -166,7 +180,7 @@ export function DatasetSelect({ includeNone = false, ...props }: BaseSelectProps
       {...props}
       options={options}
       loading={query.isPending}
-      placeholder="Select a dataset"
+      placeholder={t("select.selectDataset")}
       includeNone={includeNone}
     />
   );

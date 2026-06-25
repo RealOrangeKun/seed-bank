@@ -99,8 +99,15 @@ class TrafficRouter:
                 # Defensive fallback: last entry wins (rounding rounding).
                 return splits[-1].model_id
 
-        # No active splits → use the production row.
+        # No active splits → use the production row. When this seed type has
+        # no model of its own, fall back to the global (seed-type-agnostic)
+        # production model. This makes per-seed-type promotion *optional*: a
+        # deployment can promote a single global model and every scan routes to
+        # it — including the mobile point-and-shoot flow, which never sends a
+        # seed type. A typed scan still prefers its own model when one exists.
         prod = await self.models.get_production(kind, seed_type_id)
+        if prod is None and seed_type_id is not None:
+            prod = await self.models.get_production(kind, None)
         if prod is not None:
             return prod.id
 

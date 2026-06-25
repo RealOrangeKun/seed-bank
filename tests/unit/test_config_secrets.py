@@ -14,6 +14,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from seedbank.core.config import Settings
 
 
@@ -33,3 +36,22 @@ def test_jwt_secret_read_from_secrets_dir(tmp_path: Path, monkeypatch) -> None:
     settings = Settings(_secrets_dir=str(tmp_path), _env_file=None)  # type: ignore[call-arg]
 
     assert settings.jwt_secret.get_secret_value() == "from-file-secret"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["", "   ", "http://minio:9000", "https://x:9000", "localhost:9000/bucket"],
+)
+def test_minio_public_endpoint_rejects_malformed(bad: str) -> None:
+    """The public endpoint signs browser-facing URLs, so a scheme or path is a
+    misconfig that must fail fast instead of minting URLs that 404 at the
+    client."""
+    with pytest.raises(ValidationError):
+        Settings(minio_public_endpoint=bad, _env_file=None)  # type: ignore[call-arg]
+
+
+def test_minio_public_endpoint_accepts_bare_host_and_trims() -> None:
+    s = Settings(minio_public_endpoint="minio.example.com:9000", _env_file=None)  # type: ignore[call-arg]
+    assert s.minio_public_endpoint == "minio.example.com:9000"
+    s2 = Settings(minio_public_endpoint="  localhost:9000  ", _env_file=None)  # type: ignore[call-arg]
+    assert s2.minio_public_endpoint == "localhost:9000"

@@ -10,6 +10,10 @@ import type {
   ImageUrlOut,
   Page,
 } from "@/lib/api/types";
+import type { components } from "@/lib/api/schema";
+
+export type ShareLinkOut = components["schemas"]["ShareLinkOut"];
+export type SharedBatchOut = components["schemas"]["SharedBatchOut"];
 
 const TERMINAL = new Set(["succeeded", "failed", "partial"]);
 
@@ -160,4 +164,67 @@ export async function downloadBatchExport(
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(objectUrl);
+}
+
+/** Absolute URL for the server-rendered annotated image (boxes burned in). */
+export function annotatedImageUrl(batchId: string, imageId: string): string {
+  return `${env.apiOrigin}/api/v1/batches/${batchId}/images/${imageId}/annotated.png`;
+}
+
+/**
+ * Fetch the annotated PNG with the bearer token (the <img> tag can't send auth
+ * headers) and return a blob URL the caller renders + revokes.
+ */
+export async function fetchAnnotatedImage(
+  batchId: string,
+  imageId: string,
+): Promise<string> {
+  const token = tokenStore.getAccessToken();
+  const res = await fetch(annotatedImageUrl(batchId, imageId), {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw new Error(`Annotated image failed (${res.status})`);
+  return URL.createObjectURL(await res.blob());
+}
+
+// ── Share links ──────────────────────────────────────────────────────────────
+
+async function createShare(batchId: string): Promise<ShareLinkOut> {
+  const result = await api.POST("/api/v1/batches/{batch_id}/share", {
+    params: { path: { batch_id: batchId } },
+  });
+  const env_ = await unwrap<Envelope<ShareLinkOut>>(result);
+  return env_.data;
+}
+
+async function revokeShare(batchId: string): Promise<void> {
+  const result = await api.DELETE("/api/v1/batches/{batch_id}/share", {
+    params: { path: { batch_id: batchId } },
+  });
+  if (result.error !== undefined || !result.response.ok) await unwrap(result);
+}
+
+export function useCreateShare() {
+  return useMutation({ mutationFn: createShare });
+}
+
+export function useRevokeShare() {
+  return useMutation({ mutationFn: revokeShare });
+}
+
+/** Public read-only shared batch (no auth). Used by the /shared/:token page. */
+async function getSharedBatch(token: string): Promise<SharedBatchOut> {
+  const result = await api.GET("/api/v1/shared/{token}", {
+    params: { path: { token } },
+  });
+  const env_ = await unwrap<Envelope<SharedBatchOut>>(result);
+  return env_.data;
+}
+
+export function useSharedBatch(token: string) {
+  return useQuery({
+    queryKey: ["shared", token],
+    queryFn: () => getSharedBatch(token),
+    retry: false,
+  });
 }

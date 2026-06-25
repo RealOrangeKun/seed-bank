@@ -21,6 +21,12 @@ from pydantic import BaseModel, ConfigDict, Field
 T = TypeVar("T")
 
 
+# Shared config for request (``*In``) schemas: reject unknown keys so a typo'd
+# field (e.g. ``descrption``) surfaces as a 422 instead of being silently
+# dropped. Boundary inputs should be strict; responses stay permissive.
+STRICT_INPUT = ConfigDict(extra="forbid")
+
+
 class Envelope(BaseModel, Generic[T]):
     """Wrapper for a single resource — ``{"data": ...}``."""
 
@@ -101,6 +107,7 @@ class Problem(BaseModel):
 
 
 __all__ = [
+    "STRICT_INPUT",
     "Envelope",
     "Page",
     "PageMeta",

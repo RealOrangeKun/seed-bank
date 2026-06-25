@@ -125,6 +125,46 @@ async def test_no_splits_no_production_raises() -> None:
         )
 
 
+@pytest.mark.asyncio
+async def test_specific_seed_type_falls_back_to_global_production() -> None:
+    """A typed scan with no per-seed-type model/split routes to the global
+    (``seed_type_id=None``) production model. This is what lets a deployment
+    promote ONE global detector and have every scan route to it — including
+    the mobile point-and-shoot flow, which never sends a seed type."""
+    global_model = uuid4()
+    coffee = uuid4()
+
+    class _GlobalOnlyRouter(TrafficRouter):
+        def __init__(self, redis) -> None:
+            self.redis = redis
+
+        async def _query_splits(self, kind, seed_type_id):  # type: ignore[override]
+            return []
+
+        @property
+        def models(self):  # type: ignore[override]
+            class _M:
+                async def get_production(self, kind, seed_type_id):
+                    # Only the global segment has a promoted model.
+                    if seed_type_id is None:
+                        return type("R", (), {"id": global_model})()
+                    return None
+
+            return _M()
+
+    router = _GlobalOnlyRouter(_FakeRedis())
+    # Typed scan (coffee) with no coffee-specific model → global fallback.
+    chosen = await router.select_model(
+        kind=ModelKind.DETECTION, seed_type_id=coffee, user_id=uuid4()
+    )
+    assert chosen == global_model
+    # Seedless scan (the mobile flow) → routes straight to the global model.
+    chosen_none = await router.select_model(
+        kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4()
+    )
+    assert chosen_none == global_model
+
+
 def test_bucket_for_is_deterministic() -> None:
     u = uuid4()
     assert _bucket_for(u) == _bucket_for(u)

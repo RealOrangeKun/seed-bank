@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -7,22 +8,32 @@ import { Field } from "@/components/shared/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { useI18n } from "@/i18n";
 import { applyApiError } from "@/lib/form";
 import { useAuth } from "@/features/auth/use-auth";
 
 import { AuthLayout } from "../components/auth-layout";
 
-const schema = z.object({
-  email: z.string().email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-});
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  email: string;
+  password: string;
+}
 
 export function LoginPage() {
   const { status, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useI18n();
   const from = (location.state as { from?: Location } | null)?.from?.pathname ?? "/dashboard";
+
+  const schema = useMemo(
+    () =>
+      z.object({
+        email: z.string().email(t("auth.invalidEmail")),
+        password: z.string().min(1, t("auth.passwordRequired")),
+      }),
+    [t],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -42,30 +53,34 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Sign in to analyze seeds and manage models"
+      title={t("auth.welcomeBack")}
+      subtitle={t("auth.signInSubtitle")}
       footer={
         <>
-          No account?{" "}
+          {t("auth.noAccount")}{" "}
           <Link to="/register" className="font-medium text-primary hover:underline">
-            Create one
+            {t("auth.createOne")}
           </Link>
         </>
       }
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        <Field id="email" label="Email" error={form.formState.errors.email?.message}>
+        <Field
+          id="email"
+          label={t("auth.email")}
+          error={form.formState.errors.email?.message}
+        >
           <Input
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="you@farm.org"
+            placeholder={t("auth.emailPlaceholder")}
             {...form.register("email")}
           />
         </Field>
         <Field
           id="password"
-          label="Password"
+          label={t("auth.password")}
           error={form.formState.errors.password?.message}
         >
           <Input
@@ -77,7 +92,7 @@ export function LoginPage() {
         </Field>
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? <Spinner /> : null}
-          Sign in
+          {t("common.signIn")}
         </Button>
       </form>
     </AuthLayout>

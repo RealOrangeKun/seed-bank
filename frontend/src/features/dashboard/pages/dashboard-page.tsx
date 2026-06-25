@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBatches } from "@/features/batches/api";
 import { hasRole, useAuth } from "@/features/auth/use-auth";
+import { useI18n } from "@/i18n";
 import { formatDateTime } from "@/lib/format";
 
 import { StatsStrip } from "../components/stats-strip";
@@ -42,21 +43,26 @@ function QuickAction({
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const { t, tn } = useI18n();
   const isDeveloper = hasRole(user, ["ai_developer", "admin"]);
   // One fetch backs both the stats strip (whole window) and the recent list
   // (first five), so the dashboard makes a single batches request.
   const recent = useBatches({ page: 1, pageSize: 50 });
   const recentFive = (recent.data?.data ?? []).slice(0, 5);
 
+  const firstName = user?.full_name ? user.full_name.split(" ")[0] : "";
+
   return (
     <>
       <PageHeader
-        title={`Welcome${user?.full_name ? `, ${user.full_name.split(" ")[0]}` : ""}`}
-        description="Analyze seeds and review recent activity."
+        title={
+          firstName ? t("dashboard.welcomeNamed", { name: firstName }) : t("dashboard.welcome")
+        }
+        description={t("dashboard.subtitle")}
         actions={
           <Button asChild>
             <Link to="/analyze">
-              <ScanLine className="h-4 w-4" /> New analysis
+              <ScanLine className="h-4 w-4" /> {t("dashboard.quickAnalyzeTitle")}
             </Link>
           </Button>
         }
@@ -70,28 +76,28 @@ export function DashboardPage() {
         <QuickAction
           to="/analyze"
           icon={ScanLine}
-          title="Analyze seeds"
-          description="Upload images for detection & grading"
+          title={t("dashboard.quickAnalyzeTitle")}
+          description={t("dashboard.quickAnalyzeDesc")}
         />
         <QuickAction
           to="/batches"
           icon={Images}
-          title="Scan history"
-          description="Review your past analyses"
+          title={t("dashboard.quickBatchesTitle")}
+          description={t("dashboard.quickBatchesDesc")}
         />
         {isDeveloper ? (
           <>
             <QuickAction
               to="/models"
               icon={Boxes}
-              title="Models"
-              description="Register, promote, compare"
+              title={t("dashboard.quickModelsTitle")}
+              description={t("dashboard.quickModelsDesc")}
             />
             <QuickAction
               to="/experiments"
               icon={FlaskConical}
-              title="Experiments"
-              description="Offline evaluation runs"
+              title={t("dashboard.quickExperimentsTitle")}
+              description={t("dashboard.quickExperimentsDesc")}
             />
           </>
         ) : null}
@@ -99,14 +105,14 @@ export function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recent scans</CardTitle>
+          <CardTitle className="text-base">{t("dashboard.recentScans")}</CardTitle>
         </CardHeader>
         <CardContent>
           {recent.isPending ? (
             <LoadingState />
           ) : recent.isError || recentFive.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No scans yet. Start with a new analysis.
+              {t("dashboard.noScans")}
             </p>
           ) : (
             <ul className="divide-y">
@@ -119,7 +125,7 @@ export function DashboardPage() {
                     <span className="font-medium">{formatDateTime(b.submitted_at)}</span>
                     <StatusBadge status={b.status} />
                     <span className="text-muted-foreground">
-                      {b.image_count} image{b.image_count === 1 ? "" : "s"}
+                      {tn("images", b.image_count)}
                     </span>
                   </Link>
                 </li>

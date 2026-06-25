@@ -1,4 +1,6 @@
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useI18n } from "@/i18n";
+import { LanguageSwitcher } from "@/i18n/language-switcher";
 
 interface AuthLayoutProps {
   title: string;
@@ -9,15 +11,17 @@ interface AuthLayoutProps {
 
 /** Centered card on the agricultural field backdrop, for unauthenticated pages. */
 export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
+  const { t } = useI18n();
   return (
     <div className="bg-field flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="absolute right-4 top-4">
+      <div className="absolute end-4 top-4 flex items-center gap-1">
+        <LanguageSwitcher />
         <ThemeToggle />
       </div>
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <img src="/seed.svg" alt="" className="h-12 w-12" />
-          <h1 className="text-xl font-semibold">Seed-Bank</h1>
+          <h1 className="text-xl font-semibold">{t("common.appName")}</h1>
         </div>
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <div className="mb-5 space-y-1 text-center">

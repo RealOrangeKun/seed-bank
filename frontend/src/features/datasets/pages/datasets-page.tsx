@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -31,21 +31,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { usePagination } from "@/hooks/use-pagination";
 import { formatDateTime } from "@/lib/format";
 import { applyApiError } from "@/lib/form";
 
 import { useCreateDataset, useDatasets } from "../api";
 
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional().or(z.literal("")),
-});
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  name: string;
+  description?: string;
+}
 
 function CreateDatasetDialog() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const create = useCreateDataset();
+  const schema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("datasets.nameRequired")),
+        description: z.string().optional().or(z.literal("")),
+      }),
+    [t],
+  );
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", description: "" },
@@ -57,7 +66,7 @@ function CreateDatasetDialog() {
         name: values.name,
         description: values.description || undefined,
       });
-      toast.success("Dataset created.");
+      toast.success(t("datasets.created"));
       form.reset();
       setOpen(false);
     } catch (err) {
@@ -75,29 +84,27 @@ function CreateDatasetDialog() {
     >
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4" /> Create dataset
+          <Plus className="h-4 w-4" /> {t("datasets.create")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create dataset</DialogTitle>
-          <DialogDescription>
-            A dataset groups images and ground truth for offline evaluation.
-          </DialogDescription>
+          <DialogTitle>{t("datasets.create")}</DialogTitle>
+          <DialogDescription>{t("datasets.createDesc")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <Field
             id="name"
-            label="Name"
+            label={t("field.name")}
             required
             error={form.formState.errors.name?.message}
           >
-            <Input id="name" placeholder="e.g. maize-holdout-2026" {...form.register("name")} />
+            <Input id="name" placeholder={t("datasets.namePlaceholder")} {...form.register("name")} />
           </Field>
           <Field
             id="description"
-            label="Description"
-            hint="Optional"
+            label={t("field.description")}
+            hint={t("common.optional")}
             error={form.formState.errors.description?.message}
           >
             <Input id="description" {...form.register("description")} />
@@ -105,7 +112,7 @@ function CreateDatasetDialog() {
           <DialogFooter>
             <Button type="submit" disabled={create.isPending}>
               {create.isPending ? <Spinner /> : null}
-              Create
+              {t("common.create")}
             </Button>
           </DialogFooter>
         </form>
@@ -115,6 +122,7 @@ function CreateDatasetDialog() {
 }
 
 export function DatasetsPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const pagination = usePagination(20);
   const query = useDatasets({ page: pagination.page, pageSize: pagination.pageSize });
@@ -122,8 +130,8 @@ export function DatasetsPage() {
   return (
     <>
       <PageHeader
-        title="Datasets"
-        description="Frozen image sets with ground truth for model evaluation."
+        title={t("datasets.title")}
+        description={t("datasets.description")}
         actions={<CreateDatasetDialog />}
       />
 
@@ -133,8 +141,8 @@ export function DatasetsPage() {
         <ErrorState error={query.error} />
       ) : query.data.data.length === 0 ? (
         <EmptyState
-          title="No datasets yet"
-          description="Create a dataset, then add image storage keys to evaluate models against it."
+          title={t("datasets.empty")}
+          description={t("datasets.emptyDesc")}
           action={<CreateDatasetDialog />}
         />
       ) : (
@@ -143,10 +151,10 @@ export function DatasetsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead>{t("field.name")}</TableHead>
+                  <TableHead>{t("field.description")}</TableHead>
+                  <TableHead>{t("field.items")}</TableHead>
+                  <TableHead>{t("field.created")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useAuth } from "@/features/auth/use-auth";
-import { humanize } from "@/lib/format";
+import { LanguageSwitcher } from "@/i18n/language-switcher";
+import { useI18n } from "@/i18n";
 
 function initials(name: string | null | undefined, email: string): string {
   const base = (name && name.trim()) || email;
@@ -27,6 +28,7 @@ function initials(name: string | null | undefined, email: string): string {
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur">
@@ -34,7 +36,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         variant="ghost"
         size="icon"
         className="md:hidden"
-        aria-label="Open navigation"
+        aria-label={t("nav.section.analyze")}
         onClick={onMenuClick}
       >
         <Menu className="h-5 w-5" />
@@ -42,7 +44,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       <div className="hidden items-center gap-2 md:flex">
         {user ? <StatusBadge status={user.role} /> : null}
       </div>
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ms-auto flex items-center gap-1">
+        <LanguageSwitcher />
         <ThemeToggle />
         {user ? (
           <DropdownMenu>
@@ -63,20 +66,20 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                 <div className="flex flex-col">
                   <span className="truncate">{user.email}</span>
                   <span className="text-xs font-normal text-muted-foreground">
-                    {humanize(user.role)}
+                    {t(`role.${user.role}`)}
                   </span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate("/profile")}>
-                <UserIcon className="h-4 w-4" /> Profile
+                <UserIcon className="h-4 w-4" /> {t("common.profile")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
                   void logout().then(() => navigate("/login"));
                 }}
               >
-                <LogOut className="h-4 w-4" /> Sign out
+                <LogOut className="h-4 w-4" /> {t("common.signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -1,17 +1,19 @@
 import { NavLink } from "react-router-dom";
 
 import { hasRole, useAuth } from "@/features/auth/use-auth";
+import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 import { NAV_SECTIONS } from "./nav";
 
 function Brand() {
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-2 px-2 py-1">
       <img src="/seed.svg" alt="" className="h-7 w-7" />
       <div className="leading-tight">
-        <div className="text-sm font-semibold">Seed-Bank</div>
-        <div className="text-[11px] text-muted-foreground">Seed intelligence</div>
+        <div className="text-sm font-semibold">{t("common.appName")}</div>
+        <div className="text-[11px] text-muted-foreground">{t("common.tagline")}</div>
       </div>
     </div>
   );
@@ -19,6 +21,7 @@ function Brand() {
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
+  const { t } = useI18n();
 
   return (
     <nav className="flex h-full flex-col gap-6 p-3">
@@ -30,9 +33,9 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           );
           if (items.length === 0) return null;
           return (
-            <div key={section.heading} className="space-y-1">
+            <div key={section.headingKey} className="space-y-1">
               <p className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                {section.heading}
+                {t(section.headingKey)}
               </p>
               {items.map((item) => (
                 <NavLink
@@ -49,7 +52,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   }
                 >
                   <item.icon className="h-4 w-4 shrink-0" />
-                  {item.label}
+                  {t(item.labelKey)}
                 </NavLink>
               ))}
             </div>

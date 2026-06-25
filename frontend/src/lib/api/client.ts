@@ -78,6 +78,21 @@ const authMiddleware: Middleware = {
 api.use(authMiddleware);
 
 /**
+ * Ensure an access token is present in memory, minting one from the stored
+ * refresh token when needed. Call this at startup before the first authed
+ * request so session recovery doesn't rely on a guaranteed-401 round-trip
+ * (which surfaces as a scary "Unauthorized" in the console/network tab).
+ *
+ * Returns `true` when a usable access token is available afterwards, `false`
+ * when no session can be established (no refresh token, or it was rejected).
+ */
+export async function ensureAccessToken(): Promise<boolean> {
+  if (tokenStore.getAccessToken()) return true;
+  if (!tokenStore.getRefreshToken()) return false;
+  return refreshTokens();
+}
+
+/**
  * Unwrap an openapi-fetch result: return `data` on success, throw `ApiError`
  * (with the parsed Problem) otherwise. Use in query/mutation functions so
  * components only ever see resolved data or a typed throw.

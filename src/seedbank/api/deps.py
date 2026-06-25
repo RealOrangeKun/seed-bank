@@ -28,6 +28,7 @@ from seedbank.domain.user import AuthenticatedUser, Role
 from seedbank.infrastructure.analytics import ClickHouseClient, get_clickhouse
 from seedbank.infrastructure.cache import get_redis
 from seedbank.infrastructure.db.repositories import (
+    AnalyticsRepository,
     ApiKeyRepository,
     DatasetItemRepository,
     DatasetRepository,
@@ -46,6 +47,7 @@ from seedbank.infrastructure.db.repositories import (
 from seedbank.infrastructure.db.session import get_db as _get_db
 from seedbank.infrastructure.storage import MinioStorage, get_storage
 from seedbank.services.analysis_service import AnalysisService
+from seedbank.services.analytics_service import AnalyticsService
 from seedbank.services.api_key_service import ApiKeyService
 from seedbank.services.auth_service import AuthService
 from seedbank.services.batch_service import BatchService
@@ -109,6 +111,10 @@ def scan_batch_repo(session: DbSession) -> ScanBatchRepository:
     return ScanBatchRepository(session)
 
 
+def analytics_repo(session: DbSession) -> AnalyticsRepository:
+    return AnalyticsRepository(session)
+
+
 def scan_image_repo(session: DbSession) -> ScanImageRepository:
     return ScanImageRepository(session)
 
@@ -150,6 +156,7 @@ RefreshTokenRepoDep = Annotated[RefreshTokenRepository, Depends(refresh_token_re
 OAuthAccountRepoDep = Annotated[OAuthAccountRepository, Depends(oauth_account_repo)]
 ApiKeyRepoDep = Annotated[ApiKeyRepository, Depends(api_key_repo)]
 ScanBatchRepoDep = Annotated[ScanBatchRepository, Depends(scan_batch_repo)]
+AnalyticsRepoDep = Annotated[AnalyticsRepository, Depends(analytics_repo)]
 ScanImageRepoDep = Annotated[ScanImageRepository, Depends(scan_image_repo)]
 SeedTypeRepoDep = Annotated[SeedTypeRepository, Depends(seed_type_repo)]
 SupplierRepoDep = Annotated[SupplierRepository, Depends(supplier_repo)]
@@ -222,6 +229,10 @@ def batch_service(
     )
 
 
+def analytics_service(analytics: AnalyticsRepoDep) -> AnalyticsService:
+    return AnalyticsService(analytics=analytics)
+
+
 def catalog_service(
     session: DbSession,
     seed_types: SeedTypeRepoDep,
@@ -262,6 +273,7 @@ AuthServiceDep = Annotated[AuthService, Depends(auth_service)]
 ApiKeyServiceDep = Annotated[ApiKeyService, Depends(api_key_service)]
 AnalysisServiceDep = Annotated[AnalysisService, Depends(analysis_service)]
 BatchServiceDep = Annotated[BatchService, Depends(batch_service)]
+AnalyticsServiceDep = Annotated[AnalyticsService, Depends(analytics_service)]
 CatalogServiceDep = Annotated[CatalogService, Depends(catalog_service)]
 DatasetServiceDep = Annotated[DatasetService, Depends(dataset_service)]
 ExperimentServiceDep = Annotated[ExperimentService, Depends(experiment_service)]

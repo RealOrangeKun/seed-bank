@@ -5,6 +5,12 @@
  * (NUMERIC columns) to avoid float drift. We keep them as strings end-to-end
  * and only parse to a number at the moment of rendering.
  */
+import { getLocale, LOCALE_INTL } from "@/i18n/locale";
+
+/** BCP-47 tag for the active locale (Latin digits, localized month names). */
+function intlLocale(): string {
+  return LOCALE_INTL[getLocale()];
+}
 
 /** Parse an API decimal string (or number) to a JS number for layout/rendering. */
 export function toNumber(value: string | number | null | undefined): number {
@@ -22,7 +28,7 @@ export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(intlLocale(), {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -36,7 +42,7 @@ export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString(intlLocale(), {
     year: "numeric",
     month: "short",
     day: "numeric",

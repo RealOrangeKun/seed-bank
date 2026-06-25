@@ -2,17 +2,19 @@ import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 
 /** Small icon button that copies text to the clipboard with a brief confirm. */
 export function CopyButton({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon"
       className="h-6 w-6"
-      aria-label={label ?? "Copy"}
+      aria-label={label ?? t("common.copy")}
       onClick={() => {
         void navigator.clipboard.writeText(value);
         setCopied(true);

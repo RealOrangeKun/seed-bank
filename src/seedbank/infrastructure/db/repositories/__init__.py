@@ -5,6 +5,7 @@ and never write raw SQL strings or hand-craft `select(...)` statements
 themselves.
 """
 
+from .analytics import AnalyticsRepository
 from .api_key import ApiKeyRepository
 from .base import Repository
 from .dataset import DatasetItemRepository, DatasetRepository
@@ -25,6 +26,7 @@ from .supplier import SupplierRepository
 from .user import UserRepository
 
 __all__ = [
+    "AnalyticsRepository",
     "ApiKeyRepository",
     "CasResult",
     "DatasetItemRepository",

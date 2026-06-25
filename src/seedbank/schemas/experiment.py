@@ -17,8 +17,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from seedbank.infrastructure.db.enums import ExperimentStatus
 
 # ``model_*`` fields collide with Pydantic's protected namespaces; opt out
-# at the class level so the schema generator stays quiet.
-_ALLOW_MODEL_PREFIX = ConfigDict(protected_namespaces=())
+# at the class level so the schema generator stays quiet. Request bodies are
+# also strict (reject typo'd keys), so the input config carries both flags.
+_STRICT_ALLOW_MODEL_PREFIX = ConfigDict(extra="forbid", protected_namespaces=())
 
 
 class ExperimentCreateIn(BaseModel):
@@ -28,7 +29,7 @@ class ExperimentCreateIn(BaseModel):
     only required references. The worker resolves both during dispatch.
     """
 
-    model_config = _ALLOW_MODEL_PREFIX
+    model_config = _STRICT_ALLOW_MODEL_PREFIX
 
     name: str = Field(min_length=1, max_length=160)
     model_id: UUID

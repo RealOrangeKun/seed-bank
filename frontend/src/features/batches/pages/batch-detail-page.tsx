@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, MapPin, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Download, MapPin, Share2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -37,12 +37,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { formatDateTime, formatDuration, humanize, shortId } from "@/lib/format";
 import type { ScanImageOut } from "@/lib/api/types";
 import { useSeedTypes } from "@/features/catalog/api";
 import { useModels } from "@/features/models/api";
 
-import { downloadBatchExport, useBatch, useBatchImageUrls, useDeleteBatch } from "../api";
+import {
+  downloadBatchExport,
+  useBatch,
+  useBatchImageUrls,
+  useCreateShare,
+  useDeleteBatch,
+  useRevokeShare,
+} from "../api";
 import { AnalyzingIndicator } from "../components/analyzing-indicator";
 import { InsightsPanel } from "../components/insights-panel";
 import { OverlayControls, type QualityKey } from "../components/overlay-controls";
@@ -74,6 +82,7 @@ function ImageCard({
   seedTypeName: Labeler;
   modelName: Labeler;
 }) {
+  const { t, tn } = useI18n();
   const inferences = image.inferences ?? [];
   const detections = inferences.flatMap((inf) => inf.detections ?? []);
 
@@ -103,7 +112,7 @@ function ImageCard({
           <span className="font-mono text-xs text-muted-foreground">
             {shortId(image.id)}
           </span>
-          <Badge variant="secondary">{detections.length} detections</Badge>
+          <Badge variant="secondary">{tn("detections", detections.length)}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -144,7 +153,7 @@ function ImageCard({
                     <Badge variant="outline">{humanize(inf.backend)}</Badge>
                     <span className="inline-flex items-center gap-1">
                       {modelName(inf.model_id)}
-                      <CopyButton value={inf.model_id} label="Copy model id" />
+                      <CopyButton value={inf.model_id} label={t("detail.copyModelId")} />
                     </span>
                     <span>·</span>
                     <span>{formatDuration(inf.latency_ms)}</span>
@@ -156,9 +165,9 @@ function ImageCard({
                     <Table className="mt-2">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Seed type</TableHead>
-                          <TableHead>Quality</TableHead>
-                          <TableHead>Confidence</TableHead>
+                          <TableHead>{t("detail.colSeedType")}</TableHead>
+                          <TableHead>{t("detail.colQuality")}</TableHead>
+                          <TableHead>{t("detail.colConfidence")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -177,7 +186,7 @@ function ImageCard({
                     </Table>
                   ) : (
                     <p className="mt-2 text-sm text-muted-foreground">
-                      No seeds detected.
+                      {t("detail.noSeedsDetected")}
                     </p>
                   )}
                 </div>
@@ -193,6 +202,7 @@ function ImageCard({
 export function BatchDetailPage() {
   const { batchId = "" } = useParams();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const batch = useBatch(batchId);
   const isTerminal =
     batch.data && ["succeeded", "partial", "failed"].includes(batch.data.status);
@@ -201,9 +211,14 @@ export function BatchDetailPage() {
   const seedTypes = useSeedTypes();
   const models = useModels({ page: 1, pageSize: 100 });
   const deleteBatch = useDeleteBatch();
+  const createShare = useCreateShare();
+  const revokeShare = useRevokeShare();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const urlMap = new Map((imageUrls.data ?? []).map((u) => [u.image_id, u.url]));
   const seedTypeMap = new Map((seedTypes.data ?? []).map((s) => [s.id, s.display_name]));
@@ -211,22 +226,24 @@ export function BatchDetailPage() {
     (models.data?.data ?? []).map((m) => [m.id, `${m.name} ${m.version}`]),
   );
   const seedTypeName: Labeler = (id) =>
-    id ? (seedTypeMap.get(id) ?? "Unclassified") : "—";
+    id ? (seedTypeMap.get(id) ?? t("detail.unclassified")) : "—";
   const modelName: Labeler = (id) =>
-    id ? (modelMap.get(id) ?? `model ${shortId(id)}`) : "—";
+    id ? (modelMap.get(id) ?? t("detail.modelFallback", { id: shortId(id) })) : "—";
 
   const insights = batch.data ? computeInsights(batch.data) : null;
   const hasDetections = insights ? insights.total > 0 : false;
 
-  const title = batch.data ? `Scan · ${formatDateTime(batch.data.submitted_at)}` : "Scan";
+  const title = batch.data
+    ? t("detail.titleDated", { date: formatDateTime(batch.data.submitted_at) })
+    : t("detail.title");
 
   async function handleExport(format: "csv" | "json") {
     setExporting(true);
     try {
       await downloadBatchExport(batchId, format);
-      toast.success(`Exported ${format.toUpperCase()}.`);
+      toast.success(t("detail.exported", { format: format.toUpperCase() }));
     } catch {
-      toast.error("Export failed.");
+      toast.error(t("detail.exportFailed"));
     } finally {
       setExporting(false);
     }
@@ -235,49 +252,88 @@ export function BatchDetailPage() {
   async function handleDelete() {
     try {
       await deleteBatch.mutateAsync(batchId);
-      toast.success("Scan deleted.");
+      toast.success(t("detail.deleted"));
       navigate("/batches");
     } catch {
-      toast.error("Couldn't delete the scan.");
+      toast.error(t("detail.deleteFailed"));
     }
+  }
+
+  async function handleShare() {
+    try {
+      const link = await createShare.mutateAsync(batchId);
+      setShareUrl(`${window.location.origin}/shared/${link.share_token}`);
+      setShareOpen(true);
+    } catch {
+      toast.error(t("share.createFailed"));
+    }
+  }
+
+  async function handleRevokeShare() {
+    try {
+      await revokeShare.mutateAsync(batchId);
+      setShareUrl(null);
+      setShareOpen(false);
+      toast.success(t("share.revoked"));
+    } catch {
+      toast.error(t("share.revokeFailed"));
+    }
+  }
+
+  function copyShareUrl() {
+    if (!shareUrl) return;
+    void navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+    toast.success(t("share.linkCopied"));
   }
 
   return (
     <>
       <PageHeader
         title={title}
-        description="Detection and quality results."
+        description={t("detail.description")}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
               <Link to="/batches">
-                <ArrowLeft className="h-4 w-4" /> Back
+                <ArrowLeft className="h-4 w-4" /> {t("common.back")}
               </Link>
             </Button>
             {isTerminal && hasDetections ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" disabled={exporting}>
-                    {exporting ? <Spinner /> : <Download className="h-4 w-4" />}
-                    Export
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleExport("csv")}>
-                    Download CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("json")}>
-                    Download JSON
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleShare}
+                  disabled={createShare.isPending}
+                >
+                  {createShare.isPending ? <Spinner /> : <Share2 className="h-4 w-4" />}
+                  {t("share.button")}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={exporting}>
+                      {exporting ? <Spinner /> : <Download className="h-4 w-4" />}
+                      {t("detail.export")}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleExport("csv")}>
+                      {t("detail.downloadCsv")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("json")}>
+                      {t("detail.downloadJson")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
             ) : null}
             <Button
               variant="outline"
               className="text-destructive hover:text-destructive"
               onClick={() => setConfirmOpen(true)}
             >
-              <Trash2 className="h-4 w-4" /> Delete
+              <Trash2 className="h-4 w-4" /> {t("common.delete")}
             </Button>
           </div>
         }
@@ -292,27 +348,30 @@ export function BatchDetailPage() {
           <Card>
             <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
               <MetaRow
-                label="Status"
+                label={t("detail.metaStatus")}
                 value={<StatusBadge status={batch.data.status} />}
               />
-              <MetaRow label="Images" value={batch.data.image_count} />
+              <MetaRow label={t("detail.metaImages")} value={batch.data.image_count} />
               <MetaRow
-                label="Submitted"
+                label={t("detail.metaSubmitted")}
                 value={formatDateTime(batch.data.submitted_at)}
               />
-              <MetaRow label="Duration" value={formatDuration(batch.data.duration_ms)} />
               <MetaRow
-                label="Scan ID"
+                label={t("detail.metaDuration")}
+                value={formatDuration(batch.data.duration_ms)}
+              />
+              <MetaRow
+                label={t("detail.metaScanId")}
                 value={
                   <span className="inline-flex items-center gap-1 font-mono text-xs">
                     {shortId(batch.data.id)}
-                    <CopyButton value={batch.data.id} label="Copy scan id" />
+                    <CopyButton value={batch.data.id} label={t("detail.copyScanId")} />
                   </span>
                 }
               />
               {batch.data.geo_country_code ? (
                 <MetaRow
-                  label="Location"
+                  label={t("detail.metaLocation")}
                   value={
                     <span className="inline-flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5" />
@@ -368,15 +427,12 @@ export function BatchDetailPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this scan?</DialogTitle>
-            <DialogDescription>
-              This removes the scan and all its detections from your history. This can't
-              be undone.
-            </DialogDescription>
+            <DialogTitle>{t("detail.deleteDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("detail.deleteDialogDesc")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="outline">{t("common.cancel")}</Button>
             </DialogClose>
             <Button
               variant="destructive"
@@ -384,8 +440,52 @@ export function BatchDetailPage() {
               disabled={deleteBatch.isPending}
             >
               {deleteBatch.isPending ? <Spinner /> : <Trash2 className="h-4 w-4" />}
-              Delete
+              {t("common.delete")}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5 text-primary" />
+              {t("share.title")}
+            </DialogTitle>
+            <DialogDescription>{t("share.description")}</DialogDescription>
+          </DialogHeader>
+          {shareUrl ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+                <code className="flex-1 truncate font-mono text-xs" dir="ltr">
+                  {shareUrl}
+                </code>
+                <Button type="button" size="sm" variant="secondary" onClick={copyShareUrl}>
+                  {copied ? (
+                    <Check className="h-4 w-4 text-success" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  {copied ? t("share.copied") : t("share.copyLink")}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("share.activeNote")}</p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={handleRevokeShare}
+              disabled={revokeShare.isPending}
+            >
+              {revokeShare.isPending ? <Spinner /> : null}
+              {t("share.revoke")}
+            </Button>
+            <DialogClose asChild>
+              <Button>{t("common.done")}</Button>
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>

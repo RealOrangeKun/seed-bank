@@ -1,0 +1,42 @@
+{
+  "name": "seedbank-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Seed-Bank mobile app — realtime seed-quality checks for farmers (Expo / React Native).",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~56.0.15",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.2.0",
+    "@react-navigation/native": "^7.0.14",
+    "@react-navigation/native-stack": "^7.2.0",
+    "@tanstack/react-query": "^5.62.0",
+    "babel-preset-expo": "~56.0.0",
+    "expo": "^56.0.12",
+    "expo-asset": "~56.0.17",
+    "expo-camera": "~56.0.8",
+    "expo-constants": "~56.0.18",
+    "expo-font": "~56.0.7",
+    "expo-secure-store": "~56.0.4",
+    "expo-status-bar": "~56.0.4",
+    "expo-updates": "~56.0.19",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "babel-plugin-module-resolver": "^5.0.2",
+    "typescript": "~6.0.3"
+  }
+}

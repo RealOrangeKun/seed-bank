@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { usePagination } from "@/hooks/use-pagination";
 
@@ -34,6 +35,7 @@ import { useBatches, useBulkDeleteBatches } from "../api";
 
 export function BatchesPage() {
   const navigate = useNavigate();
+  const { t, tn } = useI18n();
   const pagination = usePagination(20);
   const query = useBatches({ page: pagination.page, pageSize: pagination.pageSize });
   const bulkDelete = useBulkDeleteBatches();
@@ -67,19 +69,19 @@ export function BatchesPage() {
   async function handleBulkDelete() {
     try {
       const count = await bulkDelete.mutateAsync([...selected]);
-      toast.success(`Deleted ${count} scan${count === 1 ? "" : "s"}.`);
+      toast.success(tn("deletedScans", count));
       setSelected(new Set());
       setConfirmOpen(false);
     } catch {
-      toast.error("Bulk delete failed.");
+      toast.error(t("batches.bulkDeleteFailed"));
     }
   }
 
   return (
     <>
       <PageHeader
-        title="Scan history"
-        description="Every batch you've submitted for analysis."
+        title={t("batches.title")}
+        description={t("batches.description")}
         actions={
           <div className="flex items-center gap-2">
             {selected.size > 0 ? (
@@ -88,12 +90,12 @@ export function BatchesPage() {
                 className="text-destructive hover:text-destructive"
                 onClick={() => setConfirmOpen(true)}
               >
-                <Trash2 className="h-4 w-4" /> Delete ({selected.size})
+                <Trash2 className="h-4 w-4" /> {tn("deleteScans", selected.size)}
               </Button>
             ) : null}
             <Button asChild>
               <Link to="/analyze">
-                <ScanLine className="h-4 w-4" /> New analysis
+                <ScanLine className="h-4 w-4" /> {t("batches.newAnalysis")}
               </Link>
             </Button>
           </div>
@@ -106,11 +108,11 @@ export function BatchesPage() {
         <ErrorState error={query.error} />
       ) : rows.length === 0 ? (
         <EmptyState
-          title="No scans yet"
-          description="Upload seed images to run detection and quality classification."
+          title={t("batches.noScansTitle")}
+          description={t("batches.noScansDesc")}
           action={
             <Button asChild>
-              <Link to="/analyze">Start a scan</Link>
+              <Link to="/analyze">{t("batches.startScan")}</Link>
             </Button>
           }
         />
@@ -125,14 +127,14 @@ export function BatchesPage() {
                       type="checkbox"
                       checked={allOnPageSelected}
                       onChange={toggleAll}
-                      aria-label="Select all on page"
+                      aria-label={t("batches.selectAll")}
                       className="cursor-pointer accent-[hsl(var(--primary))]"
                     />
                   </TableHead>
-                  <TableHead>Scan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Images</TableHead>
-                  <TableHead>Duration</TableHead>
+                  <TableHead>{t("batches.colScan")}</TableHead>
+                  <TableHead>{t("batches.colStatus")}</TableHead>
+                  <TableHead>{t("batches.colImages")}</TableHead>
+                  <TableHead>{t("batches.colDuration")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -147,7 +149,7 @@ export function BatchesPage() {
                         type="checkbox"
                         checked={selected.has(b.id)}
                         onChange={() => toggle(b.id)}
-                        aria-label={`Select scan ${b.id}`}
+                        aria-label={t("batches.colScan")}
                         className="cursor-pointer accent-[hsl(var(--primary))]"
                       />
                     </TableCell>
@@ -176,15 +178,12 @@ export function BatchesPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {selected.size} scans?</DialogTitle>
-            <DialogDescription>
-              This removes the selected scans and all their detections from your history.
-              This can't be undone.
-            </DialogDescription>
+            <DialogTitle>{tn("deleteScansTitle", selected.size)}</DialogTitle>
+            <DialogDescription>{t("batches.deleteDialogDesc")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="outline">{t("common.cancel")}</Button>
             </DialogClose>
             <Button
               variant="destructive"
@@ -192,7 +191,7 @@ export function BatchesPage() {
               disabled={bulkDelete.isPending}
             >
               {bulkDelete.isPending ? <Spinner /> : <Trash2 className="h-4 w-4" />}
-              Delete
+              {t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

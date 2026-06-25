@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -19,32 +19,44 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { hasRole, useAuth } from "@/features/auth/use-auth";
+import { useI18n } from "@/i18n";
 import { applyApiError } from "@/lib/form";
 
 import { useAnalyze } from "../api";
 
-const uuid = z.string().uuid("Must be a valid UUID").optional().or(z.literal(""));
-const schema = z.object({
-  supplierId: uuid,
-  seedTypeId: uuid,
-  modelId: uuid,
-  countryCode: z
-    .string()
-    .regex(/^[A-Z]{2}$/, "Two uppercase letters, e.g. KE")
-    .optional()
-    .or(z.literal("")),
-  gpsLat: z.string().optional().or(z.literal("")),
-  gpsLong: z.string().optional().or(z.literal("")),
-});
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  supplierId?: string;
+  seedTypeId?: string;
+  modelId?: string;
+  countryCode?: string;
+  gpsLat?: string;
+  gpsLong?: string;
+}
 
 export function AnalyzePage() {
   const { user } = useAuth();
+  const { t, tn } = useI18n();
   const canOverrideModel = hasRole(user, ["ai_developer", "admin"]);
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const analyze = useAnalyze();
+
+  const schema = useMemo(() => {
+    const uuid = z.string().uuid(t("analyze.errUuid")).optional().or(z.literal(""));
+    return z.object({
+      supplierId: uuid,
+      seedTypeId: uuid,
+      modelId: uuid,
+      countryCode: z
+        .string()
+        .regex(/^[A-Z]{2}$/, t("analyze.errCountryCode"))
+        .optional()
+        .or(z.literal("")),
+      gpsLat: z.string().optional().or(z.literal("")),
+      gpsLong: z.string().optional().or(z.literal("")),
+    });
+  }, [t]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -60,7 +72,7 @@ export function AnalyzePage() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (files.length === 0) {
-      toast.error("Add at least one image.");
+      toast.error(t("analyze.needImage"));
       return;
     }
     try {
@@ -73,7 +85,7 @@ export function AnalyzePage() {
         gpsLat: values.gpsLat || undefined,
         gpsLong: values.gpsLong || undefined,
       });
-      toast.success("Analysis started.");
+      toast.success(t("analyze.started"));
       navigate(`/batches/${batch.id}`);
     } catch (err) {
       applyApiError(err, form.setError);
@@ -82,10 +94,7 @@ export function AnalyzePage() {
 
   return (
     <>
-      <PageHeader
-        title="New analysis"
-        description="Upload seed images to run detection and quality classification."
-      />
+      <PageHeader title={t("analyze.title")} description={t("analyze.description")} />
 
       <form onSubmit={onSubmit} className="space-y-6">
         <Card>
@@ -105,7 +114,7 @@ export function AnalyzePage() {
               onClick={() => setShowAdvanced((s) => !s)}
               className="flex w-full items-center justify-between text-sm font-medium"
             >
-              Optional metadata
+              {t("analyze.optionalMetadata")}
               <ChevronDown
                 className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
               />
@@ -115,8 +124,8 @@ export function AnalyzePage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
                   id="seedTypeId"
-                  label="Seed type"
-                  hint="Helps pick the right grading model"
+                  label={t("analyze.seedType")}
+                  hint={t("analyze.seedTypeHint")}
                   error={form.formState.errors.seedTypeId?.message}
                 >
                   <Controller
@@ -133,8 +142,8 @@ export function AnalyzePage() {
                 </Field>
                 <Field
                   id="supplierId"
-                  label="Supplier"
-                  hint="Where the seeds came from"
+                  label={t("analyze.supplier")}
+                  hint={t("analyze.supplierHint")}
                   error={form.formState.errors.supplierId?.message}
                 >
                   <Controller
@@ -151,8 +160,8 @@ export function AnalyzePage() {
                 </Field>
                 <Field
                   id="countryCode"
-                  label="Country code"
-                  hint="ISO-2, e.g. KE"
+                  label={t("analyze.countryCode")}
+                  hint={t("analyze.countryCodeHint")}
                   error={form.formState.errors.countryCode?.message}
                 >
                   <Input id="countryCode" maxLength={2} {...form.register("countryCode")} />
@@ -160,14 +169,14 @@ export function AnalyzePage() {
                 <div className="grid grid-cols-2 gap-2">
                   <Field
                     id="gpsLat"
-                    label="GPS lat"
+                    label={t("analyze.gpsLat")}
                     error={form.formState.errors.gpsLat?.message}
                   >
                     <Input id="gpsLat" {...form.register("gpsLat")} />
                   </Field>
                   <Field
                     id="gpsLong"
-                    label="GPS long"
+                    label={t("analyze.gpsLong")}
                     error={form.formState.errors.gpsLong?.message}
                   >
                     <Input id="gpsLong" {...form.register("gpsLong")} />
@@ -176,8 +185,8 @@ export function AnalyzePage() {
                 {canOverrideModel ? (
                   <Field
                     id="modelId"
-                    label="Model override"
-                    hint="Developer-only: force a specific model instead of the traffic router"
+                    label={t("analyze.modelOverride")}
+                    hint={t("analyze.modelOverrideHint")}
                     error={form.formState.errors.modelId?.message}
                     className="sm:col-span-2"
                   >
@@ -203,7 +212,9 @@ export function AnalyzePage() {
         <div className="flex justify-end">
           <Button type="submit" size="lg" disabled={analyze.isPending}>
             {analyze.isPending ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-            Analyze {files.length > 0 ? `${files.length} image${files.length > 1 ? "s" : ""}` : ""}
+            {files.length > 0
+              ? `${t("analyze.submit")} · ${tn("images", files.length)}`
+              : t("analyze.submit")}
           </Button>
         </div>
       </form>

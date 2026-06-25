@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ensureAccessToken } from "@/lib/api/client";
 import { tokenStore } from "@/lib/auth/token-store";
 import type { MeOut } from "@/lib/api/types";
 
@@ -16,16 +17,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("authenticated");
   }, []);
 
-  // On mount, recover a session if a refresh token is present. The API client
-  // mints a fresh access token from it via refresh-on-401.
+  // On mount, recover a session if a refresh token is present. Proactively mint
+  // an access token from it *before* the first authed call, so a normal reload
+  // doesn't fire a guaranteed-401 `/users/me` (which shows up as a misleading
+  // "Unauthorized" error). A rejected/stale refresh token resolves to false →
+  // we clear it and fall back to the login screen.
   useEffect(() => {
     let active = true;
     if (!tokenStore.hasSession()) {
       setStatus("unauthenticated");
       return;
     }
-    authApi
-      .fetchMe()
+    ensureAccessToken()
+      .then((ok) => {
+        if (!ok) throw new Error("session expired");
+        return authApi.fetchMe();
+      })
       .then((me) => {
         if (!active) return;
         setUser(me);
