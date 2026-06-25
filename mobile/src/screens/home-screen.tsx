@@ -29,7 +29,7 @@ export function HomeScreen() {
   });
 
   const rows = query.data?.data ?? [];
-  const total = query.data?.meta.total ?? rows.length;
+  const total = query.data?.meta?.total ?? rows.length;
   const photos = rows.reduce((sum, b) => sum + b.image_count, 0);
   const done = rows.filter((b) => b.status === "succeeded").length;
   const recent = rows.slice(0, 4);

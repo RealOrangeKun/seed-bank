@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-import { apiData } from "./client";
+import { apiData, apiFetch } from "./client";
 import type {
   BatchDetailOut,
   BatchOut,
@@ -39,7 +39,11 @@ export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> 
 }
 
 export async function listBatches(page = 1, pageSize = 20): Promise<Page<BatchOut>> {
-  return apiData<Page<BatchOut>>(
+  // Paginated endpoints return `{ data: [...], meta: {...} }` where `meta` is a
+  // sibling of `data` — i.e. the whole body IS the `Page`. Use `apiFetch` (full
+  // body) rather than `apiData` (which would unwrap to just the `data` array and
+  // drop `meta`, leaving callers to crash on `page.meta.total`).
+  return apiFetch<Page<BatchOut>>(
     `/api/v1/batches?page=${page}&page_size=${pageSize}`,
   );
 }
