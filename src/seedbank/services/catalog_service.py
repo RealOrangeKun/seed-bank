@@ -121,6 +121,11 @@ class CatalogService:
             # that's already taken.
             await self.session.rollback()
             raise ConflictError(f"Supplier name {name!r} already exists.") from exc
+        # Populate DB-side defaults (created_at/updated_at) before the router
+        # serialises SupplierOut: without it, Pydantic's attribute read triggers
+        # a lazy refresh outside the async context (MissingGreenlet). Same
+        # pattern as model_registry_service.
+        await self.session.refresh(supplier)
         log.info(
             "supplier.created",
             supplier_id=str(supplier.id),
@@ -163,6 +168,9 @@ class CatalogService:
                 if name is not None
                 else "Supplier update violates a uniqueness constraint."
             ) from exc
+        # See create_supplier: refresh so updated_at/created_at are loaded before
+        # the router validates SupplierOut.
+        await self.session.refresh(supplier)
         log.info(
             "supplier.updated",
             supplier_id=str(supplier.id),
