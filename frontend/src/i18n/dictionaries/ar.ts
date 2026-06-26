@@ -474,6 +474,7 @@ export const ar: Record<TranslationKey, string> = {
   "models.updateStatus": "تحديث الحالة",
   "models.statusSet": "تم ضبط الحالة على {status}.",
   "models.statusFailed": "تعذّر تحديث الحالة.",
+  "models.terminalStatus": "النموذج بحالة {status} نهائية ولا يمكن تغيير حالته. أعد تسجيله لإعادته إلى دورة الحياة.",
   "models.performance": "الأداء",
   "models.offlineMetrics": "مقاييس دون اتصال",
   "models.noOfflineMetrics": "لا توجد مقاييس دون اتصال بعد — شغّل تجربة لملئها.",

@@ -476,6 +476,7 @@ export const en = {
   "models.updateStatus": "Update status",
   "models.statusSet": "Status set to {status}.",
   "models.statusFailed": "Failed to update status.",
+  "models.terminalStatus": "A {status} model is in a terminal state and cannot change status. Re-register it to put it back into the lifecycle.",
   "models.performance": "Performance",
   "models.offlineMetrics": "Offline metrics",
   "models.noOfflineMetrics": "No offline metrics yet — run an experiment to populate them.",
