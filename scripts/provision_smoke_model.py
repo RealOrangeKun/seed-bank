@@ -25,14 +25,20 @@ from __future__ import annotations
 import asyncio
 import io
 import sys
-from uuid import uuid4
 
 import torch
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from seedbank.core.config import get_settings
 from seedbank.core.logging import get_logger
-from seedbank.infrastructure.db.enums import ModelBackend, ModelKind, ModelStatus
+from seedbank.infrastructure.db.enums import (
+    ModelBackend,
+    ModelKind,
+    ModelStatus,
+    UserRole,
+)
+from seedbank.infrastructure.db.models import User
 from seedbank.infrastructure.db.repositories import ModelArtifactRepository
 from seedbank.infrastructure.ml.registry import get_builder
 from seedbank.infrastructure.storage import get_storage
@@ -79,6 +85,15 @@ async def main() -> int:
                 )
                 return 0
 
+            # ``created_by`` and the audit-log actor are FK → users.id, so use
+            # the seeded admin as the operator rather than a synthetic UUID.
+            stmt = select(User).where(User.role == UserRole.ADMIN.value).order_by(User.created_at)
+            actor = (await session.execute(stmt)).scalars().first()
+            if actor is None:
+                log.error("provision_smoke_model.no_admin_user")
+                return 2
+            actor_id = actor.id
+
             bucket = settings.minio_bucket_models
             key = f"{_BUILDER_KEY}/{_VERSION}/weights.pth"
             artifact_uri = f"s3://{bucket}/{key}"
@@ -93,7 +108,6 @@ async def main() -> int:
             svc = ModelRegistryService(
                 session=session, models=models, storage=storage, settings=settings
             )
-            actor_id = uuid4()  # synthetic operator for the audit_log trail
             row = await svc.register(
                 actor_id=actor_id,
                 payload=RegisterModelInput(
