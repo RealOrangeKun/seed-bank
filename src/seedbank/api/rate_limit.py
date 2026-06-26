@@ -14,6 +14,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from seedbank.api.errors import build_problem
 from seedbank.core.config import get_settings
@@ -22,20 +23,22 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
 
-def _redis_uri_for_limits() -> str:
-    """Build a `redis://...` URI for the `limits` library to consume.
+def _limiter_storage_uri() -> str:
+    """Storage backend URI for the `limits` library behind slowapi.
 
-    `limits` does not accept the `redis+async://` form; we pass the same DSN
-    used by the rest of the app and rely on its sync redis client (limited to
-    the few atomic commands we need) — tolerable here because slowapi's hot
-    path is INCR + EXPIRE, not per-request.
+    Defaults to the app's Redis DSN — `limits` wants the plain `redis://`
+    form (not `redis+async://`), and slowapi's hot path is INCR + EXPIRE so
+    the sync client is tolerable. Overridable via ``RATE_LIMIT_STORAGE_URI``
+    (Settings) so the test suite uses `memory://` and the import-time limiter
+    never dials a real Redis.
     """
-    return str(get_settings().redis_dsn)
+    settings = get_settings()
+    return settings.rate_limit_storage_uri or str(settings.redis_dsn)
 
 
 limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=_redis_uri_for_limits(),
+    storage_uri=_limiter_storage_uri(),
     # `headers_enabled=True` requires every rate-limited route to declare an
     # explicit `response: Response` parameter so slowapi can attach
     # X-RateLimit-* headers. Without that param it raises "parameter
@@ -47,7 +50,7 @@ limiter = Limiter(
 )
 
 
-def install_rate_limiter(app: "FastAPI") -> None:
+def install_rate_limiter(app: FastAPI) -> None:
     """Mount the limiter on the app and register the 429 handler.
 
     The 429 response shares the RFC 9457 Problem Details shape with every
@@ -57,7 +60,7 @@ def install_rate_limiter(app: "FastAPI") -> None:
     """
     app.state.limiter = limiter
 
-    async def _handler(request: Request, exc: RateLimitExceeded):
+    async def _handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
         # Compute Retry-After from the limit's window. slowapi's
         # RateLimitExceeded does not expose an `exc.retry_after`; the
         # underlying `limits.RateLimitItem.get_expiry()` returns the
@@ -73,9 +76,7 @@ def install_rate_limiter(app: "FastAPI") -> None:
                 retry_after_seconds = None
 
         extra_headers = (
-            {"Retry-After": str(retry_after_seconds)}
-            if retry_after_seconds is not None
-            else None
+            {"Retry-After": str(retry_after_seconds)} if retry_after_seconds is not None else None
         )
         return build_problem(
             request=request,
@@ -86,7 +87,7 @@ def install_rate_limiter(app: "FastAPI") -> None:
             extra_headers=extra_headers,
         )
 
-    app.add_exception_handler(RateLimitExceeded, _handler)
+    app.add_exception_handler(RateLimitExceeded, _handler)  # type: ignore[arg-type]
 
 
 __all__ = ["install_rate_limiter", "limiter"]
