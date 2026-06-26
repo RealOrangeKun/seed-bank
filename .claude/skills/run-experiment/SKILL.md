@@ -45,27 +45,26 @@ curl -X POST http://localhost:8000/api/v1/datasets \
   -H "Authorization: Bearer $AI_DEV_TOKEN" \
   -d '{"name": "coffee-2026-q1-holdout", "description": "Held-out 200 images, expert-labeled."}'
 
-# Upload items (image + ground truth).
-python scripts/upload_dataset.py \
-  --dataset-id <id> \
-  --root /path/to/coffee-2026-q1-holdout/ \
-  --gt /path/to/labels.json
+# Upload each image to MinIO's seedbank-datasets bucket yourself (presigned
+# PUT, or the minio/mc client) and pick the object key — there is no upload
+# script for this yet. Then bulk-add items by key:
+curl -X POST http://localhost:8000/api/v1/datasets/<id>/items \
+  -H "Authorization: Bearer $AI_DEV_TOKEN" \
+  -d '{"items": [
+    {"image_storage_key": "coffee-2026-q1-holdout/img_0001.jpg",
+     "ground_truth": {"kind": "detection", "boxes": [
+       {"x": 0.10, "y": 0.20, "w": 0.05, "h": 0.06, "label": "coffee", "quality": "good"}
+     ]}}
+  ]}'
 ```
 
-`labels.json` schema (full spec in `docs/ml-platform.md`):
-
-```json
-{
-  "images/img_0001.jpg": {
-    "boxes": [
-      {"x": 0.10, "y": 0.20, "w": 0.05, "h": 0.06, "label": "coffee", "quality": "good"}
-    ]
-  }
-}
-```
-
-Boxes are normalized 0–1, matching how detections are stored — the evaluator
-never deals in pixel coordinates.
+`image_storage_key` and `ground_truth` are `DatasetItemCreateIn`
+(`src/seedbank/schemas/dataset.py`) — boxes are normalized 0–1, matching how
+detections are stored, so the evaluator never deals in pixel coordinates.
+`ground_truth` is `{"kind": "detection", "boxes": [...]}` or
+`{"kind": "classification", "label": "good"}`; full narrative in
+`docs/system-overview.md` §4.9. The bulk-add endpoint caps at 1000 items per
+call, so a large dataset needs several calls.
 
 ### 2. Kick the experiment
 

@@ -5,8 +5,8 @@ tools: Read, Glob, Grep, Bash
 ---
 
 You review the seed-bank service for security defects, treating every input as
-potentially hostile. `CLAUDE.md` and `docs/auth.md` carry the auth and RBAC
-context — read them before reviewing an auth-adjacent change.
+potentially hostile. `CLAUDE.md` and `docs/system-overview.md` §4.5 carry the
+auth and RBAC context — read them before reviewing an auth-adjacent change.
 
 ## Scope
 

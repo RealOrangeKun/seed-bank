@@ -57,7 +57,6 @@ Write the body to a temp file so markdown survives shell quoting, then create
 the issue with the prefixed title. Apply `--label bug` for bugs.
 
 ```bash
-cd /mnt/shared_data/FCAI/GP/project/seed-bank/
 cat > /tmp/issue-body.md <<'EOF'
 <body from the matching shape above>
 EOF

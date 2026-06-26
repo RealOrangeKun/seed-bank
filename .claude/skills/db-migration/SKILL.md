@@ -152,16 +152,26 @@ def upgrade():
 Bulk DML on a large table: chunk it. A single table-wide `UPDATE` holds locks
 for the whole statement and can block writers for the duration.
 
-## Replication / CDC implications
+## DWH (ClickHouse) implications
 
-If the migration touches a table published for ClickHouse CDC:
+The warehouse is fed by an **app-level dual-write, not CDC**
+([decision + why](../../memory/decisions.md#dwh-is-app-level-dual-write-not-cdc)).
+Postgres runs `wal_level=logical` with replication slots provisioned, but
+nothing consumes them today — don't write a migration that assumes a
+publication/CDC consumer exists. If the migrated table needs to feed
+ClickHouse:
 
-1. Add a new table to the publication in a `transactional_ddl = False`
-   revision: `ALTER PUBLICATION seedbank_pub ADD TABLE widgets;`.
-2. Add the matching `dim_*` / `fact_*` schema under the ClickHouse migrations.
-3. Update the CDC worker mapping (table → ClickHouse insert shape) in
-   `workers/tasks/dwh.py`.
-4. Add an integration test asserting a Postgres write lands in ClickHouse.
+1. Add the matching `dim_*` / `fact_*` schema via `scripts/init_clickhouse.py`
+   (run through `make migrate-clickhouse`).
+2. Add or extend a `sync_*` task in `workers/tasks/dwh.py` that reads the
+   authoritative row back from Postgres after commit and writes the
+   dim/fact tuples to ClickHouse (see the existing `sync_inference` /
+   `sync_detections` / `sync_experiment_results` / `sync_scan_batch` tasks for
+   the pattern).
+3. Call `dispatch_after_commit(<task_name>, <id>)` from the API/service call
+   site right after the source row's transaction commits.
+4. Add an integration test asserting the Postgres write lands in ClickHouse
+   after the dispatched task runs.
 
 ## Gotchas
 
@@ -181,7 +191,7 @@ If the migration touches a table published for ClickHouse CDC:
 - [ ] Timestamps are TZ-aware
 - [ ] `CONCURRENTLY` used for indexes on large tables
 - [ ] Any data migration is in its own revision
-- [ ] Publication / DWH updated if the table is CDC-published
+- [ ] DWH `dim_*`/`fact_*` schema + matching `sync_*` task updated if the table feeds the warehouse
 - [ ] App code runs against both old and new schema during the deploy window
 
 ## Useful commands

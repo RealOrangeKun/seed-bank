@@ -15,15 +15,14 @@ is the fast loop.
 
 ## Steps
 
-1. Verify cwd is `/mnt/shared_data/FCAI/GP/project/seed-bank/`.
-2. Verify the dev DB is up so autogenerate can introspect it:
+1. Verify the dev DB is up so autogenerate can introspect it:
    `docker compose ps postgres | grep -q "running\|healthy"` (start it with `make up` if not).
-3. Generate:
+2. Generate:
    ```bash
    alembic revision --autogenerate -m $ARGUMENTS
    ```
-4. Find the new revision under `alembic/versions/` (newest mtime) and **read it**.
-5. Apply the project conventions (see the `db-migration` skill for the full list) —
+3. Find the new revision under `alembic/versions/` (newest mtime) and **read it**.
+4. Apply the project conventions (see the `db-migration` skill for the full list) —
    the ones autogenerate routinely drops:
    - **Index every FK** — Postgres does not create them automatically, and joins/
      `ON DELETE CASCADE` scans get slow without them.
@@ -37,13 +36,13 @@ is the fast loop.
      migration lives in its own revision and never mixes DDL with bulk DML.
    - For an index on an already-populated table, set `transactional_ddl = False`
      and create it `CONCURRENTLY` to avoid locking writes.
-6. Round-trip on the dev DB to prove upgrade and downgrade both run:
+5. Round-trip on the dev DB to prove upgrade and downgrade both run:
    ```bash
    alembic upgrade head
    alembic downgrade -1
    alembic upgrade head
    ```
-7. Summarize for the user: revision file path, the changes autogenerate detected,
+6. Summarize for the user: revision file path, the changes autogenerate detected,
    the fixes you applied (or "no fixes needed"), and the round-trip result.
 
 ## If autogenerate produced an empty migration

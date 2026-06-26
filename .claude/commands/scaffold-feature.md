@@ -34,7 +34,7 @@ Derive the name forms:
 - `feature_snake` = `feature_kebab.replace("-", "_")` (e.g. `api_keys`)
 - `Feature` = singular PascalCase (e.g. `Widget`, `ApiKey`)
 
-Files (all under `/mnt/shared_data/FCAI/GP/project/seed-bank/`):
+Files:
 
 1. `src/seedbank/domain/<feature_snake_singular>.py` — framework-free dataclass entity stub.
 2. `src/seedbank/schemas/<feature_snake>.py` — `<Feature>Create` and `<Feature>Read`
@@ -87,7 +87,6 @@ fail loudly until written — but make sure every stub **imports cleanly** so
 ## After writing the files
 
 ```bash
-cd /mnt/shared_data/FCAI/GP/project/seed-bank
 ruff format src tests 2>/dev/null || true
 ruff check src tests 2>/dev/null || true
 python -c "import seedbank.api.v1.<feature_snake>" 2>&1 | head -50 || true

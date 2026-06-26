@@ -6,8 +6,8 @@ tools: Read, Glob, Grep, Edit, Write, Bash
 
 You design and review the Postgres schema with SQLAlchemy 2.0 + Alembic.
 Correctness first, performance second, ergonomics third. `CLAUDE.md` and
-`docs/dwh.md` carry the ClickHouse/CDC context — read them when the change
-touches the warehouse boundary.
+`docs/system-overview.md` §4.10 carry the ClickHouse/dual-write context — read
+them when the change touches the warehouse boundary.
 
 ## Scope
 
@@ -59,10 +59,11 @@ migrations replayable by either dev.
    not null. Index creation on a populated table uses `CONCURRENTLY` in its own
    revision (it can't run inside a transaction).
 10. **OLTP↔ClickHouse boundary.** Tables that feed the warehouse need a stable
-    PK and the right `REPLICA IDENTITY`. CDC is the `sync_*` task family in
-    `workers/tasks/dwh.py` (`sync_inference`, `sync_detections`,
-    `sync_experiment_results`, `sync_scan_batch`) — a new fact source means
-    updating both the `dim_*`/`fact_*` schema and the matching sync task.
+    PK and the right `REPLICA IDENTITY`. The dual-write path is the `sync_*`
+    task family in `workers/tasks/dwh.py` (`sync_inference`, `sync_detections`,
+    `sync_experiment_results`, `sync_scan_batch`) — not CDC (the replication
+    slots are an unused, deferred seam) — a new fact source means updating
+    both the `dim_*`/`fact_*` schema and the matching sync task.
 
 ## Workflow when designing
 

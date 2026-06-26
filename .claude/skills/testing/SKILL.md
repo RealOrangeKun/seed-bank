@@ -189,7 +189,7 @@ tests/
   conftest.py          # session-scoped containers: postgres, clickhouse; faked redis; minio
   factories/           # factory_boy: UserFactory, BatchFactory, DetectionFactory, ModelArtifactFactory
   unit/                # services with mocked repos; pure logic; no I/O
-  integration/         # repos against real Postgres; storage; CDC
+  integration/         # repos against real Postgres; storage; DWH dual-write
   e2e/                 # full HTTP flows via httpx.AsyncClient
   load/                # locust scenarios
 ```

@@ -15,7 +15,6 @@ Prefer `make check` — it owns the source of truth for flags so this command
 never drifts. Run it and report the result:
 
 ```bash
-cd /mnt/shared_data/FCAI/GP/project/seed-bank/
 make check
 ```
 

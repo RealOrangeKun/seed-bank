@@ -42,7 +42,7 @@ files, different packaging.
 | `.claude/agents/*.md` | Subagents | Invoked by name or auto-delegated | Isolated-context roles: `backend-engineer`, `db-architect`, `ml-platform`, `security-reviewer`, `test-writer`, `devops-helper`, `frontend-engineer`, `mobile-engineer` |
 | `.claude/skills/<name>/SKILL.md` | Agent Skills | Auto-loaded by description, or you invoke | Procedures: `backend-dev`, `add-endpoint`, `add-model`, `db-migration`, `run-experiment`, `incident-response`, `testing`, `frontend-dev`, `mobile-dev`, `api-contract`, `write-adr`, `docs-sync` |
 | `.claude/commands/*.md` | Slash commands | You type `/<name>` | Explicit actions: `check`, `new-migration`, `scaffold-feature`, `grade-pr`, `open-pr`, `new-issue` |
-| `.claude/hooks/*.sh` | Hooks | Fired by the harness on events | Deterministic must-happens: format on edit, typecheck changed files, guard unsafe bash, inject stack reminders |
+| `.claude/hooks/*.sh` | Hooks | Fired by the harness on events | Deterministic must-happens: format on edit, typecheck changed files, guard unsafe bash, inject stack reminders, flag doc staleness after a schema/router edit |
 
 Nested `CLAUDE.md` keeps the root file small: frontend/mobile rules only cost
 context when you're actually in those trees. Subagents exist so a focused job

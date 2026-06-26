@@ -38,7 +38,6 @@ safety contract).
 ## Step 1 — Survey the change
 
 ```bash
-cd /mnt/shared_data/FCAI/GP/project/seed-bank/
 git fetch origin master --quiet
 git status --short
 git diff origin/master...HEAD --stat

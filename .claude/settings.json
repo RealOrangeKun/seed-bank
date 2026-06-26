@@ -63,6 +63,16 @@
             "description": "Run mypy on edited files under src/seedbank/"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-doc-staleness.sh",
+            "description": "Advise re-running docs-sync after a models.py/migration/router edit"
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -72,7 +82,7 @@
           {
             "type": "command",
             "command": ".claude/hooks/guard-bash.sh",
-            "description": "Block pushes to main and unsafe alembic in non-dev"
+            "description": "Block pushes/force-pushes to main/master and top-level rm -rf; warn on alembic upgrade head"
           }
         ]
       }

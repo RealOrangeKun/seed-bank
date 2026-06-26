@@ -13,7 +13,6 @@ backend-only PR isn't graded against frontend rules it can't violate.
 ## Step 1 — Capture the diff and decide who reviews
 
 ```bash
-cd /mnt/shared_data/FCAI/GP/project/seed-bank/
 git fetch origin master --quiet
 git diff origin/master...HEAD --stat
 git diff origin/master...HEAD --name-only
