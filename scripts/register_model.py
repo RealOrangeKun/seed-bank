@@ -133,7 +133,7 @@ async def _cmd_upload(args: argparse.Namespace) -> int:
                 storage=storage,
                 settings=settings,
             )
-            actor_id = args.actor_id and UUID(args.actor_id) or uuid4()  # best-effort
+            actor_id = (args.actor_id and UUID(args.actor_id)) or uuid4()  # best-effort
             row = await svc.register(
                 actor_id=actor_id,
                 payload=RegisterModelInput(
@@ -167,7 +167,7 @@ async def _cmd_promote(args: argparse.Namespace) -> int:
                 storage=storage,
                 settings=settings,
             )
-            actor_id = args.actor_id and UUID(args.actor_id) or uuid4()
+            actor_id = (args.actor_id and UUID(args.actor_id)) or uuid4()
             row = await svc.change_status(
                 actor_id=actor_id,
                 model_id=args.model_id,

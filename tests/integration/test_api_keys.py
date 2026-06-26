@@ -14,9 +14,7 @@ from seedbank.infrastructure.db.repositories import UserRepository
 pytestmark = pytest.mark.integration
 
 
-async def _seed_and_login(
-    client: AsyncClient, db_session: AsyncSession, email: str
-) -> str:
+async def _seed_and_login(client: AsyncClient, db_session: AsyncSession, email: str) -> str:
     repo = UserRepository(db_session)
     user = User(
         email=email,
@@ -33,12 +31,11 @@ async def _seed_and_login(
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["data"]["access_token"]
+    token: str = r.json()["data"]["access_token"]
+    return token
 
 
-async def test_create_use_revoke_api_key(
-    app_client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_create_use_revoke_api_key(app_client: AsyncClient, db_session: AsyncSession) -> None:
     bearer = await _seed_and_login(app_client, db_session, "k@e.com")
 
     # Create
@@ -61,9 +58,7 @@ async def test_create_use_revoke_api_key(
 
     # Subsequent list does NOT expose the plaintext (the schema field defaults
     # to None and we only set it on creation).
-    r = await app_client.get(
-        "/api/v1/api-keys", headers={"Authorization": f"Bearer {bearer}"}
-    )
+    r = await app_client.get("/api/v1/api-keys", headers={"Authorization": f"Bearer {bearer}"})
     assert r.status_code == 200
     body = r.json()
     rows = body["data"]

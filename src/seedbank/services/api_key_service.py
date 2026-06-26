@@ -78,9 +78,7 @@ class ApiKeyService:
         total = await self.api_keys.count_for_user(user_id)
         return rows, total
 
-    async def revoke(
-        self, *, user_id: UUID, key_id: UUID, ip: str | None = None
-    ) -> None:
+    async def revoke(self, *, user_id: UUID, key_id: UUID, ip: str | None = None) -> None:
         revoked = await self.api_keys.revoke(key_id, user_id)
         if not revoked:
             raise NotFoundError("API key not found or already revoked.")

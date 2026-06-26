@@ -14,7 +14,7 @@ import torch
 from torch import nn
 
 
-class CBAM(nn.Module):
+class CBAM(nn.Module):  # type: ignore[misc]
     """Channel + spatial attention with a residual signal."""
 
     def __init__(self, channels: int, reduction: int = 16) -> None:

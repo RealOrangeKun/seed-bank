@@ -12,8 +12,8 @@ caller treats the absence of an ``mlflow_run_id`` as the signal.
 
 from __future__ import annotations
 
-import os
 import tempfile
+from pathlib import Path
 from uuid import UUID
 
 from seedbank.core.logging import get_logger
@@ -74,11 +74,11 @@ def log_run(
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            report_path = os.path.join(tmpdir, "report.md")
-            with open(report_path, "w", encoding="utf-8") as f:
+            report_path = Path(tmpdir) / "report.md"
+            with report_path.open("w", encoding="utf-8") as f:
                 f.write(report_markdown)
             adapter = get_mlflow()
-            adapter.log_artifact(run_id, report_path)
+            adapter.log_artifact(run_id, str(report_path))
     except Exception as exc:
         log.warning("mlflow.log_artifact_failed", run_id=run_id, error=repr(exc))
 

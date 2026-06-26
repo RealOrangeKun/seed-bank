@@ -101,9 +101,7 @@ async def test_promote_through_full_state_machine(db_session: AsyncSession) -> N
     )
     assert row.status == ModelStatus.REGISTERED.value
 
-    row = await svc.change_status(
-        actor_id=user.id, model_id=row.id, new_status=ModelStatus.STAGING
-    )
+    row = await svc.change_status(actor_id=user.id, model_id=row.id, new_status=ModelStatus.STAGING)
     assert row.status == ModelStatus.STAGING.value
 
     row = await svc.change_status(
@@ -143,9 +141,7 @@ async def test_promotion_archives_incumbent(db_session: AsyncSession) -> None:
         ),
     )
     await svc.change_status(actor_id=user.id, model_id=old.id, new_status=ModelStatus.STAGING)
-    await svc.change_status(
-        actor_id=user.id, model_id=old.id, new_status=ModelStatus.PRODUCTION
-    )
+    await svc.change_status(actor_id=user.id, model_id=old.id, new_status=ModelStatus.PRODUCTION)
 
     new = await svc.register(
         actor_id=user.id,
@@ -158,9 +154,7 @@ async def test_promotion_archives_incumbent(db_session: AsyncSession) -> None:
         ),
     )
     await svc.change_status(actor_id=user.id, model_id=new.id, new_status=ModelStatus.STAGING)
-    await svc.change_status(
-        actor_id=user.id, model_id=new.id, new_status=ModelStatus.PRODUCTION
-    )
+    await svc.change_status(actor_id=user.id, model_id=new.id, new_status=ModelStatus.PRODUCTION)
 
     refreshed_old = await svc.get(old.id)
     refreshed_new = await svc.get(new.id)

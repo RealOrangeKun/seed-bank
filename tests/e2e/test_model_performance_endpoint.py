@@ -24,7 +24,10 @@ from seedbank.infrastructure.db.models import (
 )
 from tests.e2e.conftest import SeededUser, auth_header
 
-pytestmark = pytest.mark.e2e
+# The endpoint injects ``ClickHouseDep``; wire a real ClickHouse testcontainer
+# (and reset the cached process-wide client) so injection connects instead of
+# dialing the compose hostname ``clickhouse:8123``.
+pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("clickhouse_client")]
 
 
 async def _seed_model_with_metrics(

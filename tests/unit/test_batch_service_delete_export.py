@@ -62,7 +62,7 @@ def _build_service() -> tuple[BatchService, MagicMock, MagicMock, MagicMock]:
     images = MagicMock()
     storage = MagicMock()
     svc = BatchService(
-        session=session,  # type: ignore[arg-type]
+        session=session,
         batches=batches,
         images=images,
         storage=storage,
@@ -132,7 +132,7 @@ class TestDeleteForUser:
 
     async def test_admin_already_deleted_batch_raises_not_found(self) -> None:
         """An already soft-deleted batch is invisible even to admin delete."""
-        svc, batches, _images, session = _build_service()
+        svc, batches, _images, _session = _build_service()
         actor = _make_actor(Role.ADMIN)
         batches.get.return_value = SimpleNamespace(id=uuid4(), user_id=uuid4(), deleted_at=object())
 
@@ -185,7 +185,7 @@ class TestBulkDeleteForUser:
         session.commit.assert_awaited_once()
 
     async def test_duplicate_ids_are_deduped_before_the_repo_call(self) -> None:
-        svc, batches, _images, session = _build_service()
+        svc, batches, _images, _session = _build_service()
         actor = _make_actor(Role.END_USER)
         a, b = uuid4(), uuid4()
         batches.soft_delete_many_for_user.return_value = 2

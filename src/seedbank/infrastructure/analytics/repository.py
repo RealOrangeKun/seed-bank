@@ -16,13 +16,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from seedbank.infrastructure.analytics.clickhouse_client import ClickHouseClient
-
 
 # ── Row dataclasses ─────────────────────────────────────────────────────────
 
@@ -221,8 +220,8 @@ def _aware_utc(dt: datetime) -> datetime:
     """ClickHouse columns are ``DateTime64(3, 'UTC')``; coerce naive
     timestamps so the driver doesn't drop the offset."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _opt_aware_utc(dt: datetime | None) -> datetime | None:

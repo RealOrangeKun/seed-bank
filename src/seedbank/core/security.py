@@ -15,7 +15,7 @@ import hashlib
 import hmac
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 from jose import JWTError, jwt
@@ -74,9 +74,7 @@ def enforce_password_policy(password: str) -> None:
     Policy: ≥ 12 chars, mix of upper/lower/digit. Symbols not required (we don't
     want to push users to reuse passwords elsewhere)."""
     if len(password) < PASSWORD_MIN_LENGTH:
-        raise ValidationError(
-            f"Password must be at least {PASSWORD_MIN_LENGTH} characters."
-        )
+        raise ValidationError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters.")
     if not _PWD_RE_LOWER.search(password):
         raise ValidationError("Password must contain a lowercase letter.")
     if not _PWD_RE_UPPER.search(password):
@@ -92,7 +90,7 @@ JWT_TYPE_REFRESH: Final[str] = "refresh"
 
 
 def _now_utc() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def encode_jwt(
@@ -143,9 +141,7 @@ def decode_jwt(
     return payload
 
 
-def issue_access_token(
-    *, subject: str, role: str, settings: Settings | None = None
-) -> str:
+def issue_access_token(*, subject: str, role: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
     return encode_jwt(
         subject=subject,
@@ -156,9 +152,7 @@ def issue_access_token(
     )
 
 
-def issue_refresh_token(
-    *, subject: str, settings: Settings | None = None
-) -> tuple[str, datetime]:
+def issue_refresh_token(*, subject: str, settings: Settings | None = None) -> tuple[str, datetime]:
     """Return `(token, expires_at)`. The plaintext token is shown to the
     client once; we persist only its hash."""
     s = settings or get_settings()

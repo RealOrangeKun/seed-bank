@@ -8,6 +8,8 @@ and the success envelope.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from httpx import AsyncClient
 
@@ -17,8 +19,8 @@ from tests.factories import DEFAULT_TEST_PASSWORD
 pytestmark = pytest.mark.e2e
 
 
-def _payload(**overrides: object) -> dict:
-    base = {
+def _payload(**overrides: object) -> dict[str, Any]:
+    base: dict[str, Any] = {
         "email": "root@e.com",
         "password": DEFAULT_TEST_PASSWORD,
         "full_name": "Root Admin",

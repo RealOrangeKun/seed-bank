@@ -94,7 +94,10 @@ def _build_user_specs() -> tuple[list[DemoUserSpec], list[str]]:
     specs: list[DemoUserSpec] = []
     used_default_for: list[str] = []
     for env_var, fallback, role, email, full_name in _DEMO_USERS:
-        password = os.environ.get(env_var)
+        # `or None`: an unset var is None, but compose passes `${SEED_*:-}` as an
+        # empty string — treat both as "use the demo default" rather than seeding
+        # an empty password (which fails the 12-char policy).
+        password = os.environ.get(env_var) or None
         if password is None:
             password = fallback
             used_default_for.append(env_var)

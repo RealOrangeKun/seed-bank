@@ -24,7 +24,6 @@ from seedbank.core.security import (
     verify_password,
 )
 
-
 # ── Password hashing ────────────────────────────────────────────────────────
 
 
@@ -97,7 +96,9 @@ class TestJWT:
 
     def test_expired_token_rejected(self) -> None:
         token = encode_jwt(
-            subject="u1", token_type=JWT_TYPE_ACCESS, expires_in_seconds=-1,
+            subject="u1",
+            token_type=JWT_TYPE_ACCESS,
+            expires_in_seconds=-1,
         )
         # Give clock-skew leeway zero by sleeping 1 second.
         time.sleep(0.1)

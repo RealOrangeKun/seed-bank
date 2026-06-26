@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-
 # ── DTOs ─────────────────────────────────────────────────────────────────────
 
 

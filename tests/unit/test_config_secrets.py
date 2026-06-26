@@ -20,7 +20,7 @@ from pydantic import ValidationError
 from seedbank.core.config import Settings
 
 
-def test_jwt_secret_read_from_secrets_dir(tmp_path: Path, monkeypatch) -> None:
+def test_jwt_secret_read_from_secrets_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Drop a file whose stem matches the Pydantic field name. Pydantic
     # strips the trailing newline; we keep the value bare to mirror the
     # `printf '%s' ...` recipe in `secrets/README.md`.
@@ -33,7 +33,7 @@ def test_jwt_secret_read_from_secrets_dir(tmp_path: Path, monkeypatch) -> None:
     # `_secrets_dir` is the documented init-kwarg override in
     # pydantic-settings v2.x. Don't load the host .env so the test is
     # hermetic.
-    settings = Settings(_secrets_dir=str(tmp_path), _env_file=None)  # type: ignore[call-arg]
+    settings = Settings(_secrets_dir=str(tmp_path), _env_file=None)
 
     assert settings.jwt_secret.get_secret_value() == "from-file-secret"
 
@@ -47,11 +47,11 @@ def test_minio_public_endpoint_rejects_malformed(bad: str) -> None:
     misconfig that must fail fast instead of minting URLs that 404 at the
     client."""
     with pytest.raises(ValidationError):
-        Settings(minio_public_endpoint=bad, _env_file=None)  # type: ignore[call-arg]
+        Settings(minio_public_endpoint=bad, _env_file=None)
 
 
 def test_minio_public_endpoint_accepts_bare_host_and_trims() -> None:
-    s = Settings(minio_public_endpoint="minio.example.com:9000", _env_file=None)  # type: ignore[call-arg]
+    s = Settings(minio_public_endpoint="minio.example.com:9000", _env_file=None)
     assert s.minio_public_endpoint == "minio.example.com:9000"
-    s2 = Settings(minio_public_endpoint="  localhost:9000  ", _env_file=None)  # type: ignore[call-arg]
+    s2 = Settings(minio_public_endpoint="  localhost:9000  ", _env_file=None)
     assert s2.minio_public_endpoint == "localhost:9000"

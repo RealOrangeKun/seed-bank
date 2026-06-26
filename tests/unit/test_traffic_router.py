@@ -7,14 +7,16 @@ distribution logic without spinning up Postgres.
 from __future__ import annotations
 
 from collections import Counter
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
 
 from seedbank.core.exceptions import ModelNotReadyError
 from seedbank.infrastructure.db.enums import ModelKind
-from seedbank.services.traffic_router import TrafficRouter, _bucket_for
-
+from seedbank.infrastructure.db.models import ModelArtifact
+from seedbank.infrastructure.db.repositories import ModelArtifactRepository
+from seedbank.services.traffic_router import TrafficRouter, _bucket_for, _SplitEntry
 
 # ── Fakes ────────────────────────────────────────────────────────────────────
 
@@ -37,27 +39,33 @@ class _FakeRouter(TrafficRouter):
     """Subclass that swaps the DB query for an in-memory fixture so we can
     exercise the routing math without spinning up Postgres."""
 
-    def __init__(self, *, splits, production_id, redis):
+    def __init__(
+        self,
+        *,
+        splits: list[tuple[UUID, int]],
+        production_id: UUID | None,
+        redis: _FakeRedis,
+    ) -> None:
         self._splits_fixture = splits
         self._production_id = production_id
-        self.redis = redis
+        self.redis = redis  # type: ignore[assignment]
 
-    async def _query_splits(self, kind, seed_type_id):  # type: ignore[override]
-        from seedbank.services.traffic_router import _SplitEntry
-
+    async def _query_splits(self, kind: ModelKind, seed_type_id: UUID | None) -> list[_SplitEntry]:
         return [_SplitEntry(model_id=mid, weight=w) for mid, w in self._splits_fixture]
 
     @property
-    def models(self):  # type: ignore[override]
+    def models(self) -> ModelArtifactRepository:  # type: ignore[override]
         production_id = self._production_id
 
         class _M:
-            async def get_production(self, kind, seed_type_id):
+            async def get_production(
+                self, kind: ModelKind, seed_type_id: UUID | None
+            ) -> ModelArtifact | None:
                 if production_id is None:
                     return None
-                return type("R", (), {"id": production_id})()
+                return cast("ModelArtifact", type("R", (), {"id": production_id})())
 
-        return _M()
+        return cast("ModelArtifactRepository", _M())
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
@@ -75,9 +83,7 @@ async def test_50_50_split_is_balanced() -> None:
     counter: Counter[UUID] = Counter()
     for _ in range(1000):
         u = uuid4()
-        chosen = await router.select_model(
-            kind=ModelKind.DETECTION, seed_type_id=None, user_id=u
-        )
+        chosen = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=u)
         counter[chosen] += 1
     # Each side should land near 500. ±50 is comfortably inside ±2σ for n=1000
     # and p=0.5 (σ ≈ 15.8 → 2σ ≈ 32; allow 50 for headroom in CI).
@@ -96,13 +102,9 @@ async def test_user_routing_is_sticky() -> None:
         redis=_FakeRedis(),
     )
     user = uuid4()
-    first = await router.select_model(
-        kind=ModelKind.DETECTION, seed_type_id=None, user_id=user
-    )
+    first = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=user)
     for _ in range(20):
-        again = await router.select_model(
-            kind=ModelKind.DETECTION, seed_type_id=None, user_id=user
-        )
+        again = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=user)
         assert again == first
 
 
@@ -110,9 +112,7 @@ async def test_user_routing_is_sticky() -> None:
 async def test_no_splits_falls_back_to_production() -> None:
     prod = uuid4()
     router = _FakeRouter(splits=[], production_id=prod, redis=_FakeRedis())
-    chosen = await router.select_model(
-        kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4()
-    )
+    chosen = await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4())
     assert chosen == prod
 
 
@@ -120,9 +120,7 @@ async def test_no_splits_falls_back_to_production() -> None:
 async def test_no_splits_no_production_raises() -> None:
     router = _FakeRouter(splits=[], production_id=None, redis=_FakeRedis())
     with pytest.raises(ModelNotReadyError):
-        await router.select_model(
-            kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4()
-        )
+        await router.select_model(kind=ModelKind.DETECTION, seed_type_id=None, user_id=uuid4())
 
 
 @pytest.mark.asyncio
@@ -135,22 +133,26 @@ async def test_specific_seed_type_falls_back_to_global_production() -> None:
     coffee = uuid4()
 
     class _GlobalOnlyRouter(TrafficRouter):
-        def __init__(self, redis) -> None:
-            self.redis = redis
+        def __init__(self, redis: _FakeRedis) -> None:
+            self.redis = redis  # type: ignore[assignment]
 
-        async def _query_splits(self, kind, seed_type_id):  # type: ignore[override]
+        async def _query_splits(
+            self, kind: ModelKind, seed_type_id: UUID | None
+        ) -> list[_SplitEntry]:
             return []
 
         @property
-        def models(self):  # type: ignore[override]
+        def models(self) -> ModelArtifactRepository:  # type: ignore[override]
             class _M:
-                async def get_production(self, kind, seed_type_id):
+                async def get_production(
+                    self, kind: ModelKind, seed_type_id: UUID | None
+                ) -> ModelArtifact | None:
                     # Only the global segment has a promoted model.
                     if seed_type_id is None:
-                        return type("R", (), {"id": global_model})()
+                        return cast("ModelArtifact", type("R", (), {"id": global_model})())
                     return None
 
-            return _M()
+            return cast("ModelArtifactRepository", _M())
 
     router = _GlobalOnlyRouter(_FakeRedis())
     # Typed scan (coffee) with no coffee-specific model → global fallback.

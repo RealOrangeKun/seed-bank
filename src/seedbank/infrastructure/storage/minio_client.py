@@ -85,9 +85,11 @@ class MinioStorage:
         import aiohttp
 
         try:
-            async with aiohttp.ClientSession() as session:
+            # Nested, not combined: the inner CM needs `session` from the outer.
+            async with aiohttp.ClientSession() as session:  # noqa: SIM117
                 async with await self._client.get_object(bucket, key, session) as resp:
-                    return await resp.read()
+                    data: bytes = await resp.read()
+                    return data
         except S3Error as exc:
             raise ExternalServiceError(f"minio: get {bucket}/{key}: {exc}") from exc
 
@@ -107,17 +109,23 @@ class MinioStorage:
             raise ExternalServiceError(f"minio: stat {bucket}/{key}: {exc}") from exc
 
     async def presigned_put_url(
-        self, bucket: str, key: str, ttl: timedelta, content_type: str | None = None
+        self,
+        bucket: str,
+        key: str,
+        ttl: timedelta,
+        content_type: str | None = None,  # noqa: ARG002
     ) -> str:
         # `content_type` is enforced by the client headers when uploading; the
         # presign just authorizes the operation.
-        return await self._client.presigned_put_object(bucket, key, expires=ttl)
+        url: str = await self._client.presigned_put_object(bucket, key, expires=ttl)
+        return url
 
     async def presigned_get_url(self, bucket: str, key: str, ttl: timedelta) -> str:
         # Signed against the public endpoint so the resulting URL is reachable
         # from a browser, not just from inside the compose network.
         try:
-            return await self._presign_client.presigned_get_object(bucket, key, expires=ttl)
+            url: str = await self._presign_client.presigned_get_object(bucket, key, expires=ttl)
+            return url
         except S3Error as exc:
             raise ExternalServiceError(f"minio: presign get {bucket}/{key}: {exc}") from exc
 

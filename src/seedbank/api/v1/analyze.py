@@ -95,9 +95,7 @@ async def analyze(
     )
 
     # Standard REST hint for "we accepted, here's where to find the result".
-    response.headers["Location"] = (
-        f"{get_settings().api_v1_prefix}/batches/{batch.id}"
-    )
+    response.headers["Location"] = f"{get_settings().api_v1_prefix}/batches/{batch.id}"
 
     out = BatchOut.model_validate(batch)
     # ScanBatch ORM has no image_count column; the service ships it back

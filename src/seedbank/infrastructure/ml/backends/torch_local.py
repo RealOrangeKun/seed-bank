@@ -41,7 +41,7 @@ class TorchLocalBackend:
 
     name = "torch_local"
 
-    def __init__(self, manager: "object | None" = None) -> None:
+    def __init__(self, manager: object | None = None) -> None:
         # The manager is injected lazily to avoid a circular import; we keep
         # it as a generic object since the protocol is duck-typed.
         self._manager = manager
@@ -57,14 +57,12 @@ class TorchLocalBackend:
         module, device = await self._manager.load(  # type: ignore[attr-defined]
             cfg.model_id, cfg.builder_key, cfg.artifact_uri
         )
-        return await asyncio.to_thread(
-            self._detect_sync, module, device, image, cfg
-        )
+        return await asyncio.to_thread(self._detect_sync, module, device, image, cfg)
 
     @staticmethod
     def _detect_sync(
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         image: bytes,
         cfg: DetectionConfig,
     ) -> list[Detection]:
@@ -111,22 +109,18 @@ class TorchLocalBackend:
 
     # ── Classification ───────────────────────────────────────────────────────
 
-    async def classify(
-        self, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:
+    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:
         if self._manager is None:
             raise RuntimeError("TorchLocalBackend requires a ModelManager.")
         module, device = await self._manager.load(  # type: ignore[attr-defined]
             cfg.model_id, cfg.builder_key, cfg.artifact_uri
         )
-        return await asyncio.to_thread(
-            self._classify_sync, module, device, crop, cfg
-        )
+        return await asyncio.to_thread(self._classify_sync, module, device, crop, cfg)
 
     @staticmethod
     def _classify_sync(
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         crop: bytes,
         cfg: ClassificationConfig,
     ) -> Classification:
@@ -139,9 +133,7 @@ class TorchLocalBackend:
             [
                 transforms.Resize((cfg.image_size, cfg.image_size)),
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ]
         )
         tensor = tfm(img).unsqueeze(0).to(device)

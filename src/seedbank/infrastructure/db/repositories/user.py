@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -26,11 +26,7 @@ class UserRepository(Repository[User]):
         return user
 
     async def touch_last_login(self, user_id: UUID) -> None:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(last_login_at=datetime.now(tz=timezone.utc))
-        )
+        stmt = update(User).where(User.id == user_id).values(last_login_at=datetime.now(tz=UTC))
         await self.session.execute(stmt)
 
     async def mark_verified(self, user_id: UUID) -> int:
@@ -39,23 +35,17 @@ class UserRepository(Repository[User]):
             .where(User.id == user_id, User.is_verified.is_(False))
             .values(is_verified=True)
         )
-        return (await self.session.execute(stmt)).rowcount or 0
+        return (await self.session.execute(stmt)).rowcount or 0  # type: ignore[attr-defined]
 
     async def update_password(self, user_id: UUID, hashed_password: str) -> None:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(hashed_password=hashed_password)
-        )
+        stmt = update(User).where(User.id == user_id).values(hashed_password=hashed_password)
         await self.session.execute(stmt)
 
     async def set_role(self, user_id: UUID, role: str) -> int:
         stmt = update(User).where(User.id == user_id).values(role=role)
-        return (await self.session.execute(stmt)).rowcount or 0
+        return (await self.session.execute(stmt)).rowcount or 0  # type: ignore[attr-defined]
 
-    async def list_active(
-        self, *, limit: int = 50, offset: int = 0
-    ) -> list[User]:
+    async def list_active(self, *, limit: int = 50, offset: int = 0) -> list[User]:
         stmt = (
             select(User)
             .where(User.deleted_at.is_(None))
@@ -75,9 +65,5 @@ class UserRepository(Repository[User]):
         Used by the bootstrap-admin path to enforce the "exactly one
         first admin" rule without loading any rows.
         """
-        stmt = (
-            select(User.id)
-            .where(User.role == role, User.deleted_at.is_(None))
-            .limit(1)
-        )
+        stmt = select(User.id).where(User.role == role, User.deleted_at.is_(None)).limit(1)
         return (await self.session.execute(stmt)).scalar_one_or_none() is not None

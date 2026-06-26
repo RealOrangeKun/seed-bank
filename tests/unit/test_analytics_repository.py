@@ -11,11 +11,11 @@ the round-trip against a real CH container.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -58,7 +58,7 @@ def _await_kwargs(mock: AsyncMock) -> Mapping[str, Any]:
 
 
 def _utc(year: int = 2026, month: int = 5, day: int = 1) -> datetime:
-    return datetime(year, month, day, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(year, month, day, 12, 0, 0, tzinfo=UTC)
 
 
 # ── Dim writes ─────────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ async def test_insert_inference_row_shape() -> None:
     assert row[9] == 0  # has_error → 0
     # timestamp coerced to aware UTC
     assert isinstance(row[10], datetime)
-    assert row[10].tzinfo is timezone.utc
+    assert row[10].tzinfo is UTC
 
 
 async def test_insert_inference_naive_datetime_promotes_to_utc() -> None:
@@ -196,7 +196,7 @@ async def test_insert_inference_naive_datetime_promotes_to_utc() -> None:
     [row] = _await_kwargs(client._client.insert)["data"]
     assert row[8] is None
     assert row[9] == 1  # has_error
-    assert row[10].tzinfo is timezone.utc
+    assert row[10].tzinfo is UTC
 
 
 async def test_insert_detections_empty_skips_call() -> None:

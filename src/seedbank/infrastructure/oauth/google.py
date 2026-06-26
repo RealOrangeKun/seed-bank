@@ -47,9 +47,7 @@ def is_configured(settings: Settings) -> bool:
     )
 
 
-async def authorize_redirect(
-    oauth: OAuth, request: Request, redirect_uri: str
-) -> Any:
+async def authorize_redirect(oauth: OAuth, request: Request, redirect_uri: str) -> Any:
     client = oauth.create_client(PROVIDER_NAME)
     if client is None:
         raise ExternalServiceError("Google OAuth is not configured.")
