@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     from datetime import datetime
     from uuid import UUID
 
+    from sqlalchemy import ScalarSelect
+
 log = get_logger(__name__)
 
 
@@ -89,7 +91,7 @@ class BatchStats:
 class AnalyticsRepository(Repository[ScanBatch]):
     model = ScanBatch
 
-    def _live_batch_ids(self, user_id: UUID):
+    def _live_batch_ids(self, user_id: UUID) -> ScalarSelect[UUID]:
         """Subquery of the user's non-deleted batch ids — the spine every
         aggregation joins against so soft-deleted batches never leak in."""
         return (
@@ -261,8 +263,8 @@ class AnalyticsRepository(Repository[ScanBatch]):
 
 
 __all__ = [
-    "BatchStats",
     "AnalyticsRepository",
+    "BatchStats",
     "ConfidenceBin",
     "Totals",
     "TrendPoint",

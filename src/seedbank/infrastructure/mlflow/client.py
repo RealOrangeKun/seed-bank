@@ -29,7 +29,7 @@ class MLflowAdapter:
         self._default_experiment = default_experiment
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "MLflowAdapter":
+    def from_settings(cls, settings: Settings) -> MLflowAdapter:
         mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
         return cls(MlflowClient(settings.mlflow_tracking_uri), settings.mlflow_experiment_name)
 
@@ -38,12 +38,14 @@ class MLflowAdapter:
         exp = self._client.get_experiment_by_name(self._default_experiment)
         if exp is None:
             return self._client.create_experiment(self._default_experiment)
-        return exp.experiment_id
+        experiment_id: str = exp.experiment_id
+        return experiment_id
 
     def start_run(self, run_name: str, tags: dict[str, str] | None = None) -> str:
         exp_id = self.ensure_experiment()
         run = self._client.create_run(exp_id, tags=tags or {}, run_name=run_name)
-        return run.info.run_id
+        run_id: str = run.info.run_id
+        return run_id
 
     def log_params(self, run_id: str, params: dict[str, Any]) -> None:
         for k, v in params.items():

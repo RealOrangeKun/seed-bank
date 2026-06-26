@@ -17,7 +17,7 @@ Hard rules enforced here:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -203,7 +203,10 @@ class AuthService:
         )
 
         await self._audit(
-            actor_id=user.id, action="user.register", target=user, ip=ip,
+            actor_id=user.id,
+            action="user.register",
+            target=user,
+            ip=ip,
             metadata={"email": email},
         )
 
@@ -236,7 +239,7 @@ class AuthService:
                 raise NotFoundError("User no longer exists.")
         else:
             user = await self.users.get(user_id)
-            assert user is not None  # noqa: S101
+            assert user is not None
 
         await self.session.commit()
         return user
@@ -249,8 +252,10 @@ class AuthService:
         user = await self.users.get_by_email(email)
         if user is None or user.hashed_password is None:
             await self._audit(
-                actor_id=None, action="user.login_failed",
-                metadata={"email": email, "reason": "no_user"}, ip=ip,
+                actor_id=None,
+                action="user.login_failed",
+                metadata={"email": email, "reason": "no_user"},
+                ip=ip,
             )
             await self.session.commit()
             AUTH_LOGIN.labels(result="invalid_credentials").inc()
@@ -258,8 +263,10 @@ class AuthService:
 
         if not verify_password(password, user.hashed_password):
             await self._audit(
-                actor_id=user.id, action="user.login_failed",
-                metadata={"email": email, "reason": "bad_password"}, ip=ip,
+                actor_id=user.id,
+                action="user.login_failed",
+                metadata={"email": email, "reason": "bad_password"},
+                ip=ip,
             )
             await self.session.commit()
             AUTH_LOGIN.labels(result="invalid_credentials").inc()
@@ -275,7 +282,10 @@ class AuthService:
         pair = await self._issue_token_pair(user, ip=ip, user_agent=None)
         await self.users.touch_last_login(user.id)
         await self._audit(
-            actor_id=user.id, action="user.login", target=user, ip=ip,
+            actor_id=user.id,
+            action="user.login",
+            target=user,
+            ip=ip,
         )
         await self.session.commit()
         AUTH_LOGIN.labels(result="ok").inc()
@@ -314,7 +324,9 @@ class AuthService:
             raise AuthError("User no longer active.")
 
         pair, new_token_id = await self._issue_token_pair_returning_id(
-            user, ip=ip, user_agent=user_agent,
+            user,
+            ip=ip,
+            user_agent=user_agent,
         )
         rowcount = await self.refresh_tokens.rotate(existing.id, new_token_id)
         if rowcount == 0:
@@ -331,7 +343,7 @@ class AuthService:
         if existing is None:
             await self.session.commit()
             return
-        existing.revoked_at = datetime.now(tz=timezone.utc)
+        existing.revoked_at = datetime.now(tz=UTC)
         await self.session.commit()
 
     # ── Password change ──────────────────────────────────────────────────────
@@ -358,8 +370,10 @@ class AuthService:
         # change. Belt-and-braces against credential stuffing.
         await self.refresh_tokens.revoke_all_for_user(user_id)
         await self._audit(
-            actor_id=user_id, action="user.password_change",
-            target=user, ip=ip,
+            actor_id=user_id,
+            action="user.password_change",
+            target=user,
+            ip=ip,
         )
         await self.session.commit()
 
@@ -370,7 +384,8 @@ class AuthService:
     ) -> tuple[User, TokenPair]:
         """Create-or-link the OAuth identity, then issue a fresh token pair."""
         existing_link = await self.oauth_accounts.get_by_provider_subject(
-            identity.provider, identity.subject,
+            identity.provider,
+            identity.subject,
         )
         if existing_link is not None:
             user = await self.users.get(existing_link.user_id)
@@ -399,8 +414,10 @@ class AuthService:
             )
             await self.session.flush()
             await self._audit(
-                actor_id=user.id, action="user.oauth_link",
-                metadata={"provider": identity.provider}, ip=ip,
+                actor_id=user.id,
+                action="user.oauth_link",
+                metadata={"provider": identity.provider},
+                ip=ip,
             )
 
         # Cross-table invariant: a user must have password OR oauth.
@@ -409,8 +426,10 @@ class AuthService:
         pair = await self._issue_token_pair(user, ip=ip, user_agent=None)
         await self.users.touch_last_login(user.id)
         await self._audit(
-            actor_id=user.id, action="user.login",
-            metadata={"provider": identity.provider}, ip=ip,
+            actor_id=user.id,
+            action="user.login",
+            metadata={"provider": identity.provider},
+            ip=ip,
         )
         await self.session.commit()
         # OAuth success collapses onto the same ``ok`` label as password
@@ -422,18 +441,24 @@ class AuthService:
     # ── Role management (admin) ──────────────────────────────────────────────
 
     async def set_user_role(
-        self, *, actor_id: UUID, target_user_id: UUID, role: Role,
+        self,
+        *,
+        actor_id: UUID,
+        target_user_id: UUID,
+        role: Role,
         ip: str | None = None,
     ) -> User:
         rowcount = await self.users.set_role(target_user_id, role.value)
         if rowcount == 0:
             raise NotFoundError("Target user not found.")
         target = await self.users.get(target_user_id)
-        assert target is not None  # noqa: S101
+        assert target is not None
         await self._audit(
-            actor_id=actor_id, action="user.role_change",
+            actor_id=actor_id,
+            action="user.role_change",
             target=target,
-            metadata={"new_role": role.value}, ip=ip,
+            metadata={"new_role": role.value},
+            ip=ip,
         )
         await self.session.commit()
         return target
@@ -448,7 +473,9 @@ class AuthService:
         user_agent: str | None,
     ) -> TokenPair:
         pair, _ = await self._issue_token_pair_returning_id(
-            user, ip=ip, user_agent=user_agent,
+            user,
+            ip=ip,
+            user_agent=user_agent,
         )
         return pair
 
@@ -460,10 +487,13 @@ class AuthService:
         user_agent: str | None,
     ) -> tuple[TokenPair, UUID]:
         access = issue_access_token(
-            subject=str(user.id), role=user.role, settings=self.settings,
+            subject=str(user.id),
+            role=user.role,
+            settings=self.settings,
         )
         refresh, expires_at = issue_refresh_token(
-            subject=str(user.id), settings=self.settings,
+            subject=str(user.id),
+            settings=self.settings,
         )
         token_hash = sha256_hex(refresh)
         rt = RefreshToken(
@@ -486,9 +516,7 @@ class AuthService:
             return
         existing = await self.oauth_accounts.find_by(user_id=user.id)
         if existing is None:
-            raise ValidationError(
-                "User must have either a password or a linked OAuth account."
-            )
+            raise ValidationError("User must have either a password or a linked OAuth account.")
 
     async def _audit(
         self,

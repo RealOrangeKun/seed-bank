@@ -6,13 +6,15 @@ and lookup against an isolated registry state via ``_reset_for_tests``.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
 from seedbank.infrastructure.ml import registry
 
 
 @pytest.fixture(autouse=True)
-def _isolate_registry() -> None:
+def _isolate_registry() -> Iterator[None]:
     registry._reset_for_tests()
     # Pretend autodiscovery already ran so tests don't import the builder
     # files (which need torch).
@@ -47,8 +49,9 @@ def test_duplicate_key_raises() -> None:
         return object()
 
     with pytest.raises(registry.BuilderAlreadyRegisteredError):
+
         @registry.register_builder("dup-v1")
-        def second() -> object:  # noqa: F811
+        def second() -> object:
             return object()
 
 
@@ -58,8 +61,8 @@ def test_unknown_key_raises() -> None:
 
 
 def test_empty_key_rejected() -> None:
-    with pytest.raises(ValueError):
-        registry.register_builder("")(lambda: object())
+    with pytest.raises(ValueError, match="non-empty string"):
+        registry.register_builder("")(object)
 
 
 def test_re_registering_same_function_is_idempotent() -> None:

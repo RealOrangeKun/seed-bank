@@ -13,6 +13,6 @@ discards messages.
 
 from __future__ import annotations
 
-from seedbank.workers.tasks import analyze, dwh, experiment  # noqa: F401
+from seedbank.workers.tasks import analyze, dwh, experiment
 
 __all__ = ["analyze", "dwh", "experiment"]

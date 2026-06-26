@@ -12,7 +12,11 @@ endpoint should pick the resource shape (see the ``add-endpoint`` skill).
 
 from __future__ import annotations
 
+from types import ModuleType
+from typing import cast
+
 from fastapi import APIRouter, Request, status
+from starlette.responses import Response
 
 from seedbank.api.deps import AuthServiceDep, SettingsDep
 from seedbank.api.rate_limit import limiter
@@ -106,9 +110,7 @@ async def register(
 
 
 @router.post("/verify-email", response_model=Envelope[MessageOut])
-async def verify_email(
-    payload: VerifyEmailIn, service: AuthServiceDep
-) -> Envelope[MessageOut]:
+async def verify_email(payload: VerifyEmailIn, service: AuthServiceDep) -> Envelope[MessageOut]:
     await service.verify_email(token=payload.token)
     return Envelope[MessageOut](data=MessageOut(message="Email verified."))
 
@@ -152,7 +154,7 @@ async def logout(payload: LogoutIn, service: AuthServiceDep) -> Envelope[Message
 # ── OAuth ───────────────────────────────────────────────────────────────────
 
 
-def _provider_module(provider: str):
+def _provider_module(provider: str) -> ModuleType | None:
     if provider == google.PROVIDER_NAME:
         return google
     if provider == github.PROVIDER_NAME:
@@ -165,17 +167,18 @@ async def oauth_login(
     provider: str,
     request: Request,
     settings: SettingsDep,
-):
+) -> Response:
     mod = _provider_module(provider)
     if mod is None:
         raise AuthError(f"Unknown OAuth provider: {provider}")
     if not mod.is_configured(settings):
         raise ExternalServiceError(f"{provider} OAuth is not configured.")
     redirect_uri = (
-        f"{settings.oauth_redirect_base_url}{settings.api_v1_prefix}"
-        f"/auth/oauth/{provider}/callback"
+        f"{settings.oauth_redirect_base_url}{settings.api_v1_prefix}/auth/oauth/{provider}/callback"
     )
-    return await mod.authorize_redirect(get_oauth(settings), request, redirect_uri)
+    return cast(
+        "Response", await mod.authorize_redirect(get_oauth(settings), request, redirect_uri)
+    )
 
 
 @router.get("/oauth/{provider}/callback", response_model=Envelope[TokenPair])
@@ -193,7 +196,8 @@ async def oauth_callback(
 
     identity = await mod.fetch_identity(get_oauth(settings), request)
     _user, pair = await service.upsert_oauth_user(
-        identity=identity, ip=_client_ip(request),
+        identity=identity,
+        ip=_client_ip(request),
     )
     return Envelope[TokenPair](data=_to_token_pair_dto(pair))
 

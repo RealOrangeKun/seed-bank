@@ -162,12 +162,13 @@ async def _async_build_redis(settings: Settings) -> Redis:
     guarantees that the asyncio primitives it allocates (locks, futures)
     are tied to the loop we want.
     """
-    return Redis.from_url(
+    client: Redis = Redis.from_url(
         str(settings.redis_dsn),
         encoding="utf-8",
         decode_responses=True,
         health_check_interval=30,
     )
+    return client
 
 
 __all__ = [

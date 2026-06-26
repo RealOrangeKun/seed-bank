@@ -37,12 +37,12 @@ log = get_logger(__name__)
 
 
 class _CacheEntry:
-    __slots__ = ("module", "device", "loaded_at", "updated_at")
+    __slots__ = ("device", "loaded_at", "module", "updated_at")
 
     def __init__(
         self,
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         loaded_at: datetime,
         updated_at: datetime | None,
     ) -> None:
@@ -90,10 +90,7 @@ class ModelManager:
             # than all-time cardinality. Tasks that already hold a reference
             # to the old Lock complete on it; new tasks lazily allocate a
             # fresh one in ``_lock_for`` — safe under the GIL/asyncio loop.
-            if (
-                evicted_id not in self._cache
-                and evicted_id not in self._yolo_cache
-            ):
+            if evicted_id not in self._cache and evicted_id not in self._yolo_cache:
                 self._locks.pop(evicted_id, None)
             log.info("ml.manager.evict", model_id=str(evicted_id), kind=kind)
 
@@ -111,10 +108,8 @@ class ModelManager:
         bucket = bucket or self._bucket
         try:
             return await self._storage.get_object(bucket, key)
-        except Exception as exc:  # noqa: BLE001
-            raise ExternalServiceError(
-                f"manager: fetch {bucket}/{key}: {exc}"
-            ) from exc
+        except Exception as exc:
+            raise ExternalServiceError(f"manager: fetch {bucket}/{key}: {exc}") from exc
 
     # ── Torch (registry-built) loading ───────────────────────────────────────
 
@@ -124,14 +119,12 @@ class ModelManager:
         builder_key: str,
         artifact_uri: str,
         updated_at: datetime | None = None,
-    ) -> tuple["nn.Module", "torch.device"]:
+    ) -> tuple[nn.Module, torch.device]:
         """Return the cached ``(module, device)`` for ``model_id``, loading
         from MinIO + builder if missing or stale."""
         async with self._lock_for(model_id):
             entry = self._cache.get(model_id)
-            if entry is not None and (
-                updated_at is None or entry.updated_at == updated_at
-            ):
+            if entry is not None and (updated_at is None or entry.updated_at == updated_at):
                 # LRU touch.
                 self._cache.move_to_end(model_id)
                 return entry.module, entry.device
@@ -159,9 +152,7 @@ class ModelManager:
             return module, device
 
     @staticmethod
-    def _build_and_load_sync(
-        builder_key: str, weights: bytes
-    ) -> tuple["nn.Module", "torch.device"]:
+    def _build_and_load_sync(builder_key: str, weights: bytes) -> tuple[nn.Module, torch.device]:
         import torch
 
         builder = get_builder(builder_key)

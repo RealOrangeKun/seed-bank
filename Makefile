@@ -170,8 +170,8 @@ check: lint typecheck test-unit ## Fast pre-commit gate.
 test: ## Full test pyramid (unit + integration + e2e).
 	$(VENV)/bin/pytest
 
-test-unit: ## Unit tests only.
-	$(VENV)/bin/pytest -m "unit or not integration and not e2e" tests/unit
+test-unit: ## Unit tests only (fast gate — no full-suite coverage threshold).
+	$(VENV)/bin/pytest -m "unit or not integration and not e2e" tests/unit --cov-fail-under=0
 
 test-integration: ## Integration tests (testcontainers).
 	$(VENV)/bin/pytest -m integration tests/integration

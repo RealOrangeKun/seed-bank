@@ -288,7 +288,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        won = (result.rowcount or 0) > 0
+        won = (result.rowcount or 0) > 0  # type: ignore[attr-defined]
         log.info("scan_batch.soft_delete", batch_id=str(batch_id), deleted=won)
         return won
 
@@ -313,7 +313,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        deleted = result.rowcount or 0
+        deleted = result.rowcount or 0  # type: ignore[attr-defined]
         log.info(
             "scan_batch.soft_delete_many",
             requested=len(batch_ids),
@@ -340,7 +340,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        deleted = result.rowcount or 0
+        deleted = result.rowcount or 0  # type: ignore[attr-defined]
         log.info(
             "scan_batch.soft_delete_many_any_owner",
             requested=len(batch_ids),
@@ -366,7 +366,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        won = (result.rowcount or 0) > 0
+        won = (result.rowcount or 0) > 0  # type: ignore[attr-defined]
         log.info(
             "scan_batch.set_share_token",
             batch_id=str(batch_id),

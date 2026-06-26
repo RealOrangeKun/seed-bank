@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from seedbank.infrastructure.db.enums import ModelBackend, ModelKind, ModelStatus
 
-
 # ── model_artifacts ─────────────────────────────────────────────────────────
 
 

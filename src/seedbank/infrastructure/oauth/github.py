@@ -25,7 +25,7 @@ def register(oauth: OAuth, settings: Settings) -> None:
         name=PROVIDER_NAME,
         client_id=settings.oauth_github_client_id.get_secret_value(),
         client_secret=settings.oauth_github_client_secret.get_secret_value(),
-        access_token_url="https://github.com/login/oauth/access_token",
+        access_token_url="https://github.com/login/oauth/access_token",  # noqa: S106
         authorize_url="https://github.com/login/oauth/authorize",
         api_base_url="https://api.github.com/",
         client_kwargs={"scope": "read:user user:email"},
@@ -39,9 +39,7 @@ def is_configured(settings: Settings) -> bool:
     )
 
 
-async def authorize_redirect(
-    oauth: OAuth, request: Request, redirect_uri: str
-) -> Any:
+async def authorize_redirect(oauth: OAuth, request: Request, redirect_uri: str) -> Any:
     client = oauth.create_client(PROVIDER_NAME)
     if client is None:
         raise ExternalServiceError("GitHub OAuth is not configured.")
@@ -67,9 +65,7 @@ async def fetch_identity(oauth: OAuth, request: Request) -> OAuthIdentity:
     if not email:
         emails_resp = await client.get("user/emails", token=token)
         emails: list[dict[str, Any]] = emails_resp.json() or []
-        primary = next(
-            (e for e in emails if e.get("primary") and e.get("verified")), None
-        )
+        primary = next((e for e in emails if e.get("primary") and e.get("verified")), None)
         if primary is None:
             primary = next((e for e in emails if e.get("verified")), None)
         if primary is None:
