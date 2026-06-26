@@ -203,7 +203,7 @@ class ModelRegistryService:
             return row  # idempotent no-op
         allowed = _TRANSITIONS[current]
         if new_status not in allowed:
-            raise ValidationError(f"Illegal transition {current.value} → {new_status.value}.")
+            raise ConflictError(f"Illegal transition {current.value} → {new_status.value}.")
 
         # Verify the artifact still exists in MinIO before promoting it onto
         # the staging/production hot path. Skipped for archive transitions.

@@ -29,7 +29,7 @@ import {
 import { useI18n } from "@/i18n";
 import { formatDateTime, humanize, shortId } from "@/lib/format";
 import { isApiError } from "@/lib/api/errors";
-import { MODEL_STATUSES } from "@/lib/api/types";
+import { MODEL_STATUS_TRANSITIONS } from "@/lib/api/types";
 import type { ModelOut, ModelStatus } from "@/lib/api/types";
 
 import { useModel, useModelPerformance, useUpdateModelStatus } from "../api";
@@ -45,10 +45,14 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 function PromoteCard({ model }: { model: ModelOut }) {
   const { t } = useI18n();
-  const [target, setTarget] = useState<ModelStatus>(model.status);
+  // Only transitions the backend allows from the current state are offered.
+  // A terminal state (e.g. `archived`) yields an empty list.
+  const options = MODEL_STATUS_TRANSITIONS[model.status];
+  const [target, setTarget] = useState<ModelStatus | undefined>(options[0]);
   const update = useUpdateModelStatus(model.id);
 
   const onUpdate = async () => {
+    if (!target) return;
     try {
       const next = await update.mutateAsync(target);
       toast.success(t("models.statusSet", { status: humanize(next.status) }));
@@ -62,32 +66,37 @@ function PromoteCard({ model }: { model: ModelOut }) {
       <CardHeader>
         <CardTitle className="text-base">{t("models.lifecycle")}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            {t("field.status")}
-          </span>
-          <Select value={target} onValueChange={(v) => setTarget(v as ModelStatus)}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MODEL_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {humanize(s)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          onClick={onUpdate}
-          disabled={update.isPending || target === model.status}
-        >
-          {update.isPending ? <Spinner /> : null}
-          {t("models.updateStatus")}
-        </Button>
-      </CardContent>
+      {options.length === 0 ? (
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {t("models.terminalStatus", { status: humanize(model.status) })}
+          </p>
+        </CardContent>
+      ) : (
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+              {t("field.status")}
+            </span>
+            <Select value={target} onValueChange={(v) => setTarget(v as ModelStatus)}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {humanize(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={onUpdate} disabled={update.isPending || !target}>
+            {update.isPending ? <Spinner /> : null}
+            {t("models.updateStatus")}
+          </Button>
+        </CardContent>
+      )}
     </Card>
   );
 }
