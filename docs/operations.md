@@ -149,6 +149,13 @@ you want a known-clean slate.
   rebuild the worker image. The task modules are imported from
   `src/seedbank/workers/tasks/__init__.py`; if your local copy is
   pre-Phase-10 the file is empty and Celery never picks them up.
+- **Analyze batch goes straight to `failed` (`ModelNotReadyError: No
+  production model ...`)**: no detection model is promoted, so the traffic
+  router has nothing to route to. Production weights live in MinIO (never in
+  git), so a fresh stack has no model. Provision the CI/dev fixture — a tiny,
+  untrained detector — with `make provision-smoke-model` (the `smoke`
+  workflow runs this between `make seed` and the smoke check). For a real
+  model, use `scripts/register_model.py`.
 
 ## Observability (Phase 9)
 

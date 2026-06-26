@@ -139,7 +139,7 @@ wait: ## Wait until api becomes healthy.
 	done; echo "api did not become ready"; $(COMPOSE) ps; exit 1
 
 # ── Migrations / seed ────────────────────────────────────────────────────────
-.PHONY: migrate migrate-down migrate-clickhouse seed
+.PHONY: migrate migrate-down migrate-clickhouse seed provision-smoke-model
 migrate: ## Apply Alembic migrations against the dev DB.
 	$(COMPOSE) exec api alembic upgrade head
 
@@ -149,8 +149,11 @@ migrate-down: ## Roll back one Alembic revision.
 migrate-clickhouse: ## Apply ClickHouse star-schema DDL (idempotent).
 	$(COMPOSE) exec api python -m scripts.init_clickhouse
 
-seed: migrate-clickhouse ## Seed catalog, register models, create demo users.
+seed: migrate-clickhouse ## Seed catalog, suppliers, and demo users.
 	$(COMPOSE) exec api python -m scripts.seed_dev
+
+provision-smoke-model: ## CI/dev only: register a tiny untrained detector so the analyze pipeline can run.
+	$(COMPOSE) exec worker-inference python -m scripts.provision_smoke_model
 
 # ── Quality gates ────────────────────────────────────────────────────────────
 .PHONY: fmt lint typecheck check test test-unit test-integration test-e2e cov
