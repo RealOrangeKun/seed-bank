@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from seedbank.core.exceptions import ConflictError, ValidationError
+from seedbank.core.exceptions import ConflictError
 from seedbank.core.ids import uuid7
 from seedbank.infrastructure.db.enums import (
     ModelBackend,
@@ -120,8 +120,9 @@ async def test_illegal_transition_raises(db_session: AsyncSession) -> None:
     svc = _service(db_session)
     user_id = row.created_by
     assert user_id is not None
-    # registered → production is illegal (must go through staging).
-    with pytest.raises(ValidationError):
+    # registered → production is illegal (must go through staging). An illegal
+    # transition conflicts with the resource's current state → ConflictError (409).
+    with pytest.raises(ConflictError):
         await svc.change_status(
             actor_id=user_id, model_id=row.id, new_status=ModelStatus.PRODUCTION
         )
