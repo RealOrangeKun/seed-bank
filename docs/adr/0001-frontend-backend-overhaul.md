@@ -1,9 +1,9 @@
 # ADR 0001 — Frontend + Backend Overhaul: kill UUID inputs, fix the catalog cascade, redesign dark mode
 
-- **Status:** Accepted — in progress (P0 + P1 landed; P2–P4 pending)
-- **Date:** 2026-06-21
+- **Status:** Accepted — partially implemented (P0 + P1 done; P3 mostly done; P2 + P4 still open). See [Status update — 2026-06-26](#status-update--2026-06-26).
+- **Date:** 2026-06-21 (last verified against `master` on 2026-06-26)
 - **Deciders:** Mohamed Amr (owner), with a verified read-only audit of the running app
-- **Branch:** `feat/frontend`
+- **Branch:** `feat/frontend` — this ADR's content and the P0/P1/P3 work now live on `master` (shipped in the v1.0.0 release)
 - **Supersedes / relates to:** `docs/revamp-status.md` (overall revamp roadmap)
 
 > **Read this first if you are picking up the work.** Sections
@@ -106,11 +106,75 @@ A **full, phased overhaul** of both tiers. Scope locked with the owner:
 |---|---|---|
 | **P0** | Catalog & foundations (seed-type + supplier endpoints) — unblocks the UX work | ✅ Done |
 | **P1** | Core UX: kill UUID inputs, redesign dark mode, fix visible bugs | ✅ Done |
-| **P2** | Feature parity & new flows: datasets, OAuth + password change, experiment results, audit log, model config | ⬜ Pending |
-| **P3** | Backend correctness & architecture hardening | ⬜ Pending |
-| **P4** | Accessibility & responsive polish | ⬜ Pending |
+| **P2** | Feature parity & new flows: datasets, OAuth + password change, experiment results, audit log, model config | ⬜ Open (only model config/metadata backend landed) |
+| **P3** | Backend correctness & architecture hardening | 🟡 Mostly done (only the `traffic.py` layer violation remains) |
+| **P4** | Accessibility & responsive polish | 🟡 ~50% done |
 
 P0 unblocks P1. Once P0/P1 are in, **P3 and P4 can proceed in parallel with P2**.
+
+---
+
+## Status update — 2026-06-26
+
+Re-audited against the current `master`. The original work was authored on
+`feat/frontend`; `master` has since shipped a **v1.0.0** release — bilingual
+i18n/RTL web, a mobile app, an analytics dashboard, public share links, and batch
+export/compare — **none of which are in this ADR's scope**. Net: **P0 and P1 are
+fully landed and intact, most of P3 landed, and P2 + P4 are the genuine remaining
+backlog** — they were leapfrogged by the v1.0.0 work.
+
+### P3 — backend hardening: mostly done
+
+| Item | Status | Evidence |
+|---|---|---|
+| `SeedDetection.seed_type` relationship + label in `SeedDetectionOut` | ✅ Done | `infrastructure/db/models.py:699` (`relationship(lazy="selectin")`); `schemas/analysis.py:76` exposes a `SeedTypeRef`. |
+| `seed_type` deduction in the worker | ✅ Done | `workers/tasks/analyze.py:448-457` — request `seed_type_id` wins, else the detector's class code maps to a `seed_type_id`. |
+| Pydantic `extra="forbid"` on `*In` schemas | ✅ Done | shared `STRICT_INPUT` in `schemas/common.py`, applied across dataset/experiment inputs. |
+| MinIO public endpoint | 🟡 Partial | `@field_validator` (rejects scheme/path/empty) + `minio_region` landed (`core/config.py`), but `minio_public_endpoint` still **defaults** to `localhost:9000`. |
+| Authorization filter on list endpoints | 🟡 By design | `batches`/`api-keys` filter by actor; `experiments`/`datasets`/`models` are role-gated (ai_dev+) but not actor-filtered — currently intentional (AI-developer artefacts, not user data). |
+| **Router imports ORM (layer violation)** | ❌ Open | `api/v1/traffic.py` still does `select(...)` + `session.execute` + model imports directly (lines 16, 23, 48–101). **The only remaining P3 item.** |
+
+### P2 — feature parity: still open
+
+Backend service/repo plumbing mostly exists; the **routes and UI do not**. All
+flows reuse existing tables (`audit_log`, `experiment_results`, `dataset_items`,
+`oauth_accounts`) — **no Alembic migration required**.
+
+| Flow | Status | Note |
+|---|---|---|
+| Datasets presigned upload (`POST /datasets/{id}/upload-url`) + drag-drop UI | ❌ Open | `MinioStorage.presigned_put_url` exists (`storage/minio_client.py:95`); no route/UI. |
+| Datasets build-from-batch (`POST /datasets/{id}/items/from-batch`) | ❌ Open | reuse the existing `add_items`; needs a `ScanImage` list + service method. |
+| OAuth FE buttons + `/auth/callback` + `GET /auth/oauth/providers` | ❌ Open | login/callback routes already exist (`auth.py:165`/`184`); FE + a providers-discovery endpoint missing. |
+| Password change (`POST /auth/password-change` + profile form) | ❌ Open | `auth_service.change_password` + `PasswordChangeIn` exist; no route/UI. |
+| Experiment results (`GET /experiments/{id}/results` + table) | ❌ Open | `ExperimentResultRepository.list_for_experiment` exists; detail page still shows only the scalar `result_count`. |
+| Audit-log read path (`GET /audit-log` + admin page) | ❌ Open | write path exists; no repository/service/router/page. |
+| Model `config` / `training_metadata` | 🟡 Backend done | `ModelRegisterIn`/`ModelOut` carry both; FE surfacing pending. |
+
+### P4 — accessibility & responsive: ~50%
+
+- **Done:** badges carry text (not color-only), tables have an `overflow-auto`
+  wrapper, theme-toggle + copy buttons have `aria-label`, `<main>` landmark,
+  spinner `aria-hidden`.
+- **Open:** keyboard-accessible rows (list rows use `onClick={navigate}`, not
+  `<Link>`), `scope="col"` on `<th>`, a skip-to-content link, `CopyButton`
+  clipboard `.catch()` + toast, pagination icon-button `aria-label`s, ARIA on the
+  analyze "Optional metadata" accordion, and dialog form-reset-on-close
+  (models + experiments).
+
+### Known issues — updated
+
+- **Tooling debt: resolved.** The ruff/mypy red-CI noted below was cleared; CI now
+  runs green via `.github/workflows/{check,test,build,smoke}.yml`.
+- **Blank-seed-type scans:** still routed via `(kind, seed_type_id)`, but the box
+  is made runnable by `make provision-smoke-model` (registers + promotes a tiny
+  detector to `production` so the `seed_type_id=None` fallback resolves), which CI
+  runs before `make smoke`. The worker `seed_type` deduction (P3, above) also
+  landed. **Verified 2026-06-26:** a no-seed-type analyze ran to `succeeded`.
+- **Ops gotcha (found while verifying):** the `api` container does **not** run
+  migrations on boot — only `make migrate` does. After a pull that adds a
+  migration, the dev DB drifts until it's run (this caused a live `scan_batches`
+  INSERT 500 on the later `share_token` migration `0002`). CI runs `make migrate`
+  explicitly before smoke.
 
 ---
 
@@ -190,6 +254,12 @@ default `us-east-1`), so SigV4 signing happens **offline**.
 ---
 
 ## Remaining work — P2/P3/P4
+
+> **Note (2026-06-26):** the sections below are the *original* handoff. For what
+> has since landed vs. what is still open, see
+> [Status update — 2026-06-26](#status-update--2026-06-26) — several P3 items here
+> (the `seed_type` relationship, worker deduction, and `extra="forbid"`) are now
+> **done**, and most of P2 is still open.
 
 ### P2 — Feature parity & new flows
 
@@ -281,7 +351,9 @@ short id (both have a copy button) — low priority.
 
 ### Known issues & risks (read before continuing)
 
-- **Pre-existing tooling debt — NOT introduced by this work.** The committed tree
+- **Pre-existing tooling debt — NOT introduced by this work.** _(Resolved
+  2026-06-26 — CI is now green; see the [Status update](#status-update--2026-06-26).)_
+  The committed tree
   does not pass `ruff check .` (~200 violations: TC001/TC003/PLC0415/…),
   `ruff format --check .`, or `mypy` under the pinned **ruff 0.15.18 / mypy
   1.20.2** — almost certainly the "pin deps" commit bumping tools without a
@@ -290,7 +362,10 @@ short id (both have a copy button) — low priority.
   pass:** `ruff check --fix` for the autofixable bulk + a
   `runtime-evaluated-base-classes` config so Pydantic models stop tripping the
   typing-only-import rules.
-- **Blank-seed-type scans currently fail.** A scan submitted with **no** seed
+- **Blank-seed-type scans currently fail.** _(Updated 2026-06-26 — now made
+  runnable via `make provision-smoke-model`, plus the worker `seed_type`
+  deduction landed; see the [Status update](#status-update--2026-06-26).)_ A scan
+  submitted with **no** seed
   type raises `ModelNotReadyError: No production model and no traffic splits for
   kind=detection seed_type_id=None`. Cause: the seeded demo data only has
   detection traffic splits for specific seed types (coffee, maize), there is **no
