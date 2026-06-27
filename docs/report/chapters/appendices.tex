@@ -41,64 +41,71 @@ POST   & \texttt{/auth/verify-email}    & Confirm an account from an emailed tok
 POST   & \texttt{/auth/login}           & Exchange email and password for access + refresh tokens. \\
 POST   & \texttt{/auth/refresh}         & Rotate the refresh token and mint a new access token. \\
 POST   & \texttt{/auth/logout}          & Revoke the current refresh-token chain. \\
-GET    & \texttt{/auth/oauth/\{provider\}}          & Start a Google or GitHub OAuth flow. \\
+GET    & \texttt{/auth/oauth/\{provider\}/login}    & Start a Google or GitHub OAuth flow. \\
 GET    & \texttt{/auth/oauth/\{provider\}/callback} & Complete the OAuth redirect and issue tokens. \\
 POST   & \texttt{/auth/bootstrap-admin} & One-shot first-admin creation, guarded by a shared token. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{users}}\\
-GET    & \texttt{/users/me}        & Return the authenticated user's profile. \\
-GET    & \texttt{/users}           & Admin: list users with pagination. \\
-PATCH  & \texttt{/users/\{id\}/role} & Admin: change a user's role. \\
+GET    & \texttt{/users/me}             & Return the authenticated user's profile. \\
+GET    & \texttt{/users}                & Admin: list users with pagination. \\
+PATCH  & \texttt{/users/\{user\_id\}/role} & Admin: change a user's role. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{api\_keys}}\\
-POST   & \texttt{/api-keys}        & Create a personal key (returned in plaintext once). \\
-GET    & \texttt{/api-keys}        & List the caller's keys (metadata only). \\
-DELETE & \texttt{/api-keys/\{id\}}   & Revoke a key. \\
+POST   & \texttt{/api-keys}             & Create a personal key (returned in plaintext once). \\
+GET    & \texttt{/api-keys}             & List the caller's keys (metadata only). \\
+DELETE & \texttt{/api-keys/\{key\_id\}}  & Revoke a key. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{models}}\\
-POST   & \texttt{/models}                       & Register a model artifact and its metadata. \\
+POST   & \texttt{/models}                       & Register a model artifact and its weights/metadata. \\
 GET    & \texttt{/models}                       & List registered models. \\
-GET    & \texttt{/models/\{id\}}                  & Fetch one model. \\
-POST   & \texttt{/models/\{id\}/promote}          & Advance the lifecycle status (staging/production/archived). \\
-GET    & \texttt{/models/\{id\}/performance}      & Per-model metric records from \texttt{model\_metrics}. \\
+GET    & \texttt{/models/\{model\_id\}}         & Fetch metadata for a specific model. \\
+PATCH  & \texttt{/models/\{model\_id\}}         & Advance lifecycle status (staging/production/archived). \\
+GET    & \texttt{/models/\{model\_id\}/performance} & Per-model offline metrics and ClickHouse analytics. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{traffic}}\\
-POST   & \texttt{/traffic-splits}      & Admin: create a weighted A/B split for a segment. \\
-GET    & \texttt{/traffic-splits}      & Admin: list active splits. \\
-DELETE & \texttt{/traffic-splits/\{id\}} & Admin: remove a split. \\
+GET    & \texttt{/traffic-splits}       & Admin: list active splits. \\
+PATCH  & \texttt{/traffic-splits}       & Admin: atomically replace splits for a segment. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{analyze}}\\
-POST   & \texttt{/analyze}             & Multipart image upload that opens a scan batch. \\
+POST   & \texttt{/analyze}              & Multipart image upload that starts an inference batch. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{batches}}\\
-GET    & \texttt{/batches}                  & List the caller's batches. \\
-GET    & \texttt{/batches/\{id\}}             & Poll one batch for status and results. \\
-DELETE & \texttt{/batches/\{id\}}             & Delete a batch and its images. \\
-POST   & \texttt{/batches/bulk-delete}      & Delete several batches in one call. \\
-GET    & \texttt{/batches/\{id\}/export}      & Export results as CSV or JSON. \\
-GET    & \texttt{/batches/\{id\}/annotated}   & Render the annotated PNG of a result. \\
-POST   & \texttt{/batches/\{id\}/share}       & Create a public read-only share link. \\
-DELETE & \texttt{/batches/\{id\}/share}       & Revoke the share link. \\
+GET    & \texttt{/batches}                       & List the caller's batches. \\
+GET    & \texttt{/batches/\{batch\_id\}}          & Poll one batch for status and results. \\
+GET    & \texttt{/batches/\{batch\_id\}/image-urls} & Fetch short-lived presigned URLs for batch's images. \\
+POST   & \texttt{/batches/compare}               & Compare aggregate stats side-by-side for 2--10 batches. \\
+DELETE & \texttt{/batches/\{batch\_id\}}          & Soft-delete one batch. \\
+POST   & \texttt{/batches/delete}                & Soft-delete up to 200 owned batches in bulk. \\
+GET    & \texttt{/batches/\{batch\_id\}/export.csv}  & Export all detections in the batch as CSV. \\
+GET    & \texttt{/batches/\{batch\_id\}/export.json} & Export all detections in the batch as JSON. \\
+GET    & \texttt{/batches/\{batch\_id\}/images/\{image\_id\}/annotated.png} & Get original image with detection boxes burned in. \\
+POST   & \texttt{/batches/\{batch\_id\}/share}    & Create or rotate public read-only share link. \\
+DELETE & \texttt{/batches/\{batch\_id\}/share}    & Revoke the share link. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{analytics}}\\
-GET    & \texttt{/analytics}           & Aggregated detection and quality metrics over a time window. \\
+GET    & \texttt{/analytics}            & Aggregated metrics over a time window (ClickHouse). \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{shared}}\\
-GET    & \texttt{/shared/\{token\}}      & Public, unauthenticated batch report. \\
+GET    & \texttt{/shared/\{token\}}     & Public, unauthenticated read-only batch report. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{catalog}}\\
-GET    & \texttt{/catalog/seed-types}  & Reference list of seed types. \\
-GET    & \texttt{/catalog/suppliers}   & Reference list of suppliers. \\
+GET    & \texttt{/seed-types}           & Reference list of seed types. \\
+GET    & \texttt{/suppliers}            & Reference list of visible suppliers. \\
+POST   & \texttt{/suppliers}            & Create a global (admin) or private supplier. \\
+PATCH  & \texttt{/suppliers/\{supplier\_id\}} & Update a supplier's metadata or active status. \\
+DELETE & \texttt{/suppliers/\{supplier\_id\}} & Soft-delete a supplier. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{datasets}}\\
 POST   & \texttt{/datasets}                 & Create a labelled dataset for offline evaluation. \\
 GET    & \texttt{/datasets}                 & List datasets. \\
-POST   & \texttt{/datasets/\{id\}/items}      & Add ground-truth items to a dataset. \\
+GET    & \texttt{/datasets/\{dataset\_id\}} & Fetch metadata for a specific dataset. \\
+POST   & \texttt{/datasets/\{dataset\_id\}/items} & Add ground-truth items to a dataset. \\
+GET    & \texttt{/datasets/\{dataset\_id\}/items} & List items in a dataset with pagination. \\
 \addlinespace
 \multicolumn{3}{@{}l}{\textbf{experiments}}\\
-POST   & \texttt{/experiments}             & Create an offline-evaluation experiment. \\
-GET    & \texttt{/experiments}             & List experiments. \\
-GET    & \texttt{/experiments/\{id\}}        & Fetch one experiment and its computed results. \\
+POST   & \texttt{/experiments}              & Create and run an offline-evaluation experiment. \\
+GET    & \texttt{/experiments}              & List experiments. \\
+GET    & \texttt{/experiments/\{experiment\_id\}} & Fetch experiment status and summary. \\
 
 \end{longtable}
 \end{singlespace}
