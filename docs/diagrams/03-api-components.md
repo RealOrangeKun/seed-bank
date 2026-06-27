@@ -8,62 +8,62 @@ cross-cuts.
 
 ```mermaid
 flowchart TB
-    Client[[HTTP client]]
+    Client[["HTTP client"]]
 
     subgraph API["api container (FastAPI)"]
         direction TB
 
         subgraph MW["Middleware<br/>core/, api/middleware.py, api/errors.py"]
-            REQID[request_id]
-            LOG[structured logging]
-            CORS[CORS]
-            RL[rate limiter]
-            EXH[problem-details<br/>exception handler]
+            REQID["request_id"]
+            LOG["structured logging"]
+            CORS["CORS"]
+            RL["rate limiter"]
+            EXH["problem-details<br/>exception handler"]
         end
 
         subgraph V1["Routers — src/seedbank/api/v1/"]
-            R_AUTH[auth.py<br/>POST /auth/login<br/>POST /auth/refresh<br/>POST /auth/oauth/{provider}]
-            R_USERS[users.py]
-            R_KEYS[api_keys.py]
-            R_MODELS[models.py]
-            R_TRAFFIC[traffic.py]
-            R_ANALYZE[analyze.py<br/>POST /analyze]
-            R_BATCH[batches.py<br/>GET /batches<br/>GET /batches/{id}]
+            R_AUTH["auth.py<br/>POST /auth/login<br/>POST /auth/refresh<br/>POST /auth/oauth/{provider}"]
+            R_USERS["users.py"]
+            R_KEYS["api_keys.py"]
+            R_MODELS["models.py"]
+            R_TRAFFIC["traffic.py"]
+            R_ANALYZE["analyze.py<br/>POST /analyze"]
+            R_BATCH["batches.py<br/>GET /batches<br/>GET /batches/{id}"]
         end
 
-        DEPS[api/deps.py<br/>current_user, require_role,<br/>db, redis, minio, repos, services]
+        DEPS["api/deps.py<br/>current_user, require_role,<br/>db, redis, minio, repos, services"]
 
         subgraph SVC["Services — src/seedbank/services/"]
-            S_AUTH[AuthService]
-            S_KEY[ApiKeyService]
-            S_REG[ModelRegistryService]
-            S_TR[TrafficRouter]
-            S_AN[AnalysisService]
-            S_BAT[BatchService]
+            S_AUTH["AuthService"]
+            S_KEY["ApiKeyService"]
+            S_REG["ModelRegistryService"]
+            S_TR["TrafficRouter"]
+            S_AN["AnalysisService"]
+            S_BAT["BatchService"]
         end
 
         subgraph REPO["Repositories — src/seedbank/infrastructure/db/repositories/"]
-            R_USER[UserRepository]
-            R_OAUTH[OAuthAccountRepository]
-            R_RT[RefreshTokenRepository]
-            R_AK[ApiKeyRepository]
-            R_MA[ModelArtifactRepository]
-            R_SUP[SupplierRepository]
-            R_SB[ScanBatchRepository]
-            R_SI[ScanImageRepository]
-            R_INF[InferenceRepository]
-            R_SD[SeedDetectionRepository]
+            R_USER["UserRepository"]
+            R_OAUTH["OAuthAccountRepository"]
+            R_RT["RefreshTokenRepository"]
+            R_AK["ApiKeyRepository"]
+            R_MA["ModelArtifactRepository"]
+            R_SUP["SupplierRepository"]
+            R_SB["ScanBatchRepository"]
+            R_SI["ScanImageRepository"]
+            R_INF["InferenceRepository"]
+            R_SD["SeedDetectionRepository"]
         end
 
         subgraph INFRA["Infrastructure adapters"]
-            ML[infrastructure/ml<br/>(see view 04)]
-            STO[storage/MinioStorage]
-            CACHE[cache/Redis]
-            OAUTH[oauth/google.py<br/>oauth/github.py]
-            ANA[analytics/clickhouse]
+            ML["infrastructure/ml<br/>(see view 04)"]
+            STO["storage/MinioStorage"]
+            CACHE["cache/Redis"]
+            OAUTH["oauth/google.py<br/>oauth/github.py"]
+            ANA["analytics/clickhouse"]
         end
 
-        ORM[(SQLAlchemy 2.0 AsyncSession<br/>infrastructure/db/models.py)]
+        ORM[("SQLAlchemy 2.0 AsyncSession<br/>infrastructure/db/models.py")]
     end
 
     Client --> MW

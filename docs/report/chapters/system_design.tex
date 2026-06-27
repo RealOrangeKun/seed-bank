@@ -1,13 +1,557 @@
 \chapter{System Design}
 
-\section{System Architecture / Component Diagram}
+This chapter describes how Seed Bank is put together: the rules that shape the
+backend, the runtime topology, the object model behind the inference pipeline, the
+request and authentication flows, the relational schema, the machine-learning
+platform that decides which model serves a scan, the synthetic-data tool that
+feeds the detector, the client interfaces, and the security posture. The design
+follows the principle that the parts of the system that change for different
+reasons should be kept apart, so a new inference engine, a new database table, or
+a new screen can be added without disturbing the rest \cite{cleanarchitecture2017}.
+
+\section{System Architecture}
+
+\subsection{Five architectural pillars}
+
+The backend is built on five rules that are enforced by code review rather than by
+a linter, because they constrain how the layers relate to each other rather than
+how any single line is written.
+
+The first rule is that the system is asynchronous from end to end. FastAPI runs on
+an asyncio event loop, the database is reached through async SQLAlchemy 2 over
+\texttt{asyncpg}, and every external client (Redis, MinIO, ClickHouse, outbound
+HTTP) is async \cite{fastapi}. Nothing in the request path blocks the loop; the one
+genuinely CPU-bound operation, a PyTorch forward pass, is pushed onto a worker
+thread with \texttt{asyncio.to\_thread} so the loop stays responsive.
+
+The second rule is strict layering: \texttt{routers} call \texttt{services}, which
+call \texttt{repositories}, which talk to the ORM. Routers parse the request, call
+one service, wrap the result in an envelope, and return; they never import
+SQLAlchemy. Services hold the business logic and never import FastAPI. Repositories
+hold exactly one query or one persistence intent each and never embed business
+rules. Each layer can be tested against the one below it without dragging in the
+web framework or a live database.
+
+The third rule is that Pydantic validates everything at the boundary. Every request
+and response is a typed schema, and the ORM model never leaks past the service
+layer, so the shape of an HTTP payload is decoupled from the shape of a database
+row. The fourth rule is a single \texttt{Settings} object, built with
+pydantic-settings, as the only source of configuration. Values come from
+environment variables, a \texttt{.env} file in development, or one file per field
+under \texttt{/run/secrets} in production; no code reads \texttt{os.environ}
+directly. The fifth rule is model traceability: the chain
+\texttt{seed\_detection} $\rightarrow$ \texttt{inference} $\rightarrow$
+\texttt{model\_artifact} is a hard foreign-key relationship, so any individual seed
+result can be traced back to the exact model version that produced it.
+
+\subsection{Context view}
+
+At the outermost zoom level the platform is a single boundary that three kinds of
+actor talk to over HTTPS and JSON. End users (farmers) upload seed images and poll
+for results. AI developers register and promote models and run offline
+experiments. Administrators manage users, suppliers, and traffic splits. All three
+hit the same HTTP surface; what differs is the role each one carries and the
+operations that role is allowed to perform. Outside the boundary sit two OAuth
+identity providers (Google and GitHub), an optional hosted Roboflow inference
+backend, and an optional Sentry endpoint for error tracking. Model training
+happens outside the system entirely: only the trained weights and their metrics
+are imported, through \texttt{scripts/register\_model.py} or \texttt{POST /models}.
+\autoref{fig:context} shows this view.
+
+\figslot{01-system-context.pdf}{System context: the actors and external systems that interact with the Seed Bank boundary.}{fig:context}
+
+\subsection{Container view}
+
+One level deeper, the platform is a set of containers declared in a single
+\texttt{compose.yaml}, each one a process with a healthcheck and explicit CPU and
+memory limits \cite{merkel2014docker}. The \texttt{api} container serves every
+router under \texttt{/api/v1}. Two Celery worker containers consume disjoint sets
+of queues: \texttt{worker-inference} runs the detect-then-classify pipeline and
+offline evaluation, while \texttt{worker-cpu} handles data-warehouse writes,
+experiment bookkeeping, and housekeeping. The split exists so the heavy ML
+dependencies (\texttt{torch}, \texttt{torchvision}, around 1.6\,GB) load only into
+the inference worker and never weigh down a routine warehouse write. Four stateful
+services back the application: PostgreSQL for the OLTP database, Redis for cache,
+Celery broker, and rate-limit store, MinIO for object storage (images, weights,
+datasets, experiment reports), and ClickHouse for the analytics warehouse. MLflow
+tracks experiments. Every host port is bound to \texttt{127.0.0.1}, so nothing is
+exposed to the local network by default. \autoref{fig:containers} shows the stack.
+
+\figslot{02-containers.pdf}{Container view of the Compose stack: application processes, stateful services, and ML tooling.}{fig:containers}
+
+\subsection{Component view}
+
+Inside the \texttt{api} container the layering becomes visible as concrete classes.
+A request enters through middleware (request-id assignment, structured logging,
+CORS, the rate limiter, and the problem-details exception handler), reaches a
+versioned router under \texttt{api/v1/}, and is wired to its service through
+\texttt{api/deps.py}, which resolves the current user, checks the required role,
+and supplies the database session and repositories. Each router maps to one
+service: \texttt{auth.py} to \texttt{AuthService}, \texttt{analyze.py} to
+\texttt{AnalysisService}, \texttt{batches.py} to \texttt{BatchService},
+\texttt{models.py} and \texttt{traffic.py} to \texttt{ModelRegistryService} and
+\texttt{TrafficRouter}, and so on. Services reach the database only through
+repositories such as \texttt{UserRepository}, \texttt{ScanBatchRepository}, and
+\texttt{SeedDetectionRepository}, and reach the outside world through
+infrastructure adapters for storage, cache, OAuth, ML, and analytics. The ORM, a
+single SQLAlchemy 2 \texttt{AsyncSession}, sits at the bottom \cite{sqlalchemyguide}.
+\autoref{fig:api-components} shows the layering, and Table~\ref{tab:ch4-errmap}
+shows how each domain exception that a service may raise is translated into an HTTP
+status code.
+
+\figslot{03-api-components.pdf}{API component layering inside the \texttt{api} container: middleware, routers, services, repositories, and adapters.}{fig:api-components}
+
+\begin{singlespace}
+\begin{table}[H]
+\centering
+\caption{Mapping from domain exception to HTTP status and problem-details code.}
+\label{tab:ch4-errmap}
+\begin{tabular}{lll}
+\toprule
+Domain exception & HTTP status & \texttt{code} field \\
+\midrule
+\texttt{ValidationError} & 422 & \texttt{validation\_error} \\
+\texttt{AuthError} & 401 & \texttt{auth\_error} \\
+\texttt{ForbiddenError} & 403 & \texttt{forbidden} \\
+\texttt{NotFoundError} & 404 & \texttt{not\_found} \\
+\texttt{ConflictError} & 409 & \texttt{conflict} \\
+\texttt{RateLimitError} & 429 & \texttt{rate\_limited} \\
+\texttt{ExternalServiceError} & 502 / 503 & \texttt{external\_service\_error} \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{singlespace}
+
+The worker container has its own component structure. The Celery app factory routes
+the \texttt{seedbank.analyze\_image} task to the \texttt{inference} queue with
+\texttt{acks\_late} and a prefetch of one, so a worker only acknowledges a task
+after it succeeds or finally fails, and processes one image at a time. The task is
+a synchronous entry point that calls \texttt{asyncio.run} on the real async work.
+Each task opens a fresh \texttt{AsyncEngine} and session through
+\texttt{worker\_session\_scope} and disposes it at the end. This is not an
+optimisation oversight: \texttt{asyncpg}'s connection pool binds to the event loop
+it was created on, and every \texttt{asyncio.run} creates a new loop, so reusing
+the API's process-wide engine would fail with a future attached to a different
+loop. Within one task the worker runs a fixed sequence: compare-and-set the batch
+from pending to running, fetch the image bytes from MinIO, resolve the detection
+model through the traffic router, detect, persist the inference and its detections,
+commit, resolve a classifier, crop and classify each detection, update the quality
+column, commit again, then finalise the batch. \autoref{fig:worker-components}
+shows these components.
+
+\figslot{04-worker-components.pdf}{Inference worker components: the Celery task, its per-task session scope, and the detect-then-classify steps.}{fig:worker-components}
 
 \section{Class Diagrams}
 
+The object model behind the ML pipeline is designed so that the rest of the system
+never imports PyTorch. The seam that makes this possible is a duck-typed
+\texttt{Protocol}, \texttt{InferenceBackend}, with two methods:
+\texttt{detect(image, DetectionConfig)} returns a list of \texttt{Detection}, and
+\texttt{classify(crop, ClassificationConfig)} returns a \texttt{Classification}.
+Both return framework-free data-transfer objects. A \texttt{Detection} carries a
+\texttt{BoundingBox}, a confidence as a \texttt{Decimal}, and a class name; a
+\texttt{Classification} carries a label and a confidence. Because these DTOs hold
+no tensors, torch never leaks up through the service and router layers, which is
+why the API image can be built without it.
+
+Three classes satisfy the protocol. \texttt{TorchLocalBackend}, the default, loads
+first-party \texttt{.pth} weights from MinIO and runs a local PyTorch forward pass.
+\texttt{YoloBackend} wraps the Ultralytics package for the YOLO family
+\cite{yolov8}, and \texttt{RoboflowBackend} calls a hosted Roboflow endpoint over
+HTTP. Adding a fourth backend means writing one class that matches the protocol and
+registering it in the pipeline factory; no caller changes. This is the strategy
+pattern applied to the inference engine \cite{designpatterns1994}.
+
+Model architectures are kept separate from the engines that run them. A builder is a
+factory function registered under a \texttt{builder\_key} that constructs the bare
+\texttt{nn.Module}; weights are loaded into it afterwards. The
+\texttt{ModelBuilder} registry maps a key to its builder, so a new architecture is
+one new file with a decorator and changes neither the backends nor the router.
+Builders are append-only by convention: when the math of an architecture changes,
+the team copies it to a new \texttt{-vN} key rather than mutating a builder that a
+production model already references, because mutating it would silently change what
+a deployed model computes.
+
+The expensive part, the loaded weights, lives in \texttt{ModelManager}, one
+instance per worker process. It holds a process-wide LRU cache of loaded modules
+(default four, with separate caches for torch and YOLO). When a model is requested
+it builds the module through the registry, fetches the weights from MinIO, loads the
+state dict, moves it to GPU or CPU, and switches it to evaluation mode. Concurrent
+loads of the same \texttt{model\_id} are serialised through a per-id
+\texttt{asyncio.Lock} so two tasks never duplicate one GPU load, the least-recently
+used model is evicted to bound memory, and a model is hot-reloaded when its
+\texttt{model\_artifacts.updated\_at} advances.
+
+These pieces are coordinated by two services. \texttt{TrafficRouter} answers the
+question of which model should run for a given segment, and \texttt{AnalysisService}
+drives the request: it persists the batch and its images through
+\texttt{ScanBatchRepository} and \texttt{ScanImageRepository}, which expose intents
+like \texttt{cas\_status} for the concurrency-safe state transitions. The same
+service-then-repository layering described for the API holds throughout: a service
+never issues raw SQL, and a repository never decides policy. \autoref{fig:class}
+shows the key classes and their relationships.
+
+\figslot{13-class.pdf}{Key classes in the ML pipeline: the \texttt{InferenceBackend} protocol, its three backends, the builder registry, the model manager, and the services that use them.}{fig:class}
+
 \section{Sequence Diagrams}
 
-\section{Database Entity-Relationship Diagram (ERD)}
+\subsection{The analyze flow}
 
-\section{User Interface Wireframes / Mockups}
+The analyze flow is the path the rest of the platform exists to serve. A client
+sends a multipart \texttt{POST /analyze} carrying one or more image files and
+optional metadata (seed type, supplier, country, GPS, and, for developers, a model
+override). The ordering inside \texttt{AnalysisService} is load-bearing. First it
+validates every file: the count must be at most sixteen, each must pass size and
+MIME checks, and each must decode as a real image through Pillow. Then it writes
+the image bytes to MinIO \emph{before} the database commit, so any committed row
+always references an object that actually exists. Next it creates the
+\texttt{scan\_batch} in the \texttt{pending} state along with one
+\texttt{scan\_image} per file, writes an audit-log entry, and commits. Only after
+the commit does it dispatch one Celery task per image onto the inference queue, so a
+worker can never pick up a task for a batch that is not yet visible in the database.
+The endpoint returns \texttt{202 Accepted} with a \texttt{Location} header pointing
+at the new batch.
+
+Each worker task then runs the per-image pipeline. It compare-and-sets the batch
+from \texttt{pending} to \texttt{running}, which only the first task to arrive wins,
+so several workers processing a multi-image batch cannot corrupt the state. It
+fetches the image from MinIO, resolves the detection model, runs detection in a
+thread, and persists one \texttt{inference} row and N \texttt{seed\_detections} rows
+with normalized bounding boxes. After committing the detection results it resolves a
+classifier, groups the detections by seed type, crops each detected seed from the
+source image, classifies it as good or bad, and bulk-updates the quality column. If
+no classifier is registered for a detected type, those detections are simply left
+unclassified rather than treated as an error. Finally, when every image in the batch
+has a detection inference, it compare-and-sets the batch to \texttt{succeeded},
+\texttt{partial}, or \texttt{failed}. The client meanwhile polls
+\texttt{GET /batches/\{id\}} roughly every two seconds until the batch reaches a
+terminal status, at which point a single eager-loaded query returns the batch with
+its images, inferences, and detections. \autoref{fig:analyze-seq} shows the
+submission, worker, and polling phases.
+
+\figslot{06-analyze-sequence.pdf}{Analyze request sequence: submission and dispatch, per-image worker consumption, and client polling.}{fig:analyze-seq}
+
+Crash safety follows from this ordering. A transient MinIO or Redis fault raises
+\texttt{ExternalServiceError}, which Celery auto-retries up to twice; validation and
+not-found errors are never retried. Because detection rows are committed before
+classification runs, a failure during classification degrades the batch to
+\texttt{partial} and keeps the detection data, rather than throwing away good
+results. If no model can be routed at all, the batch fails with a human-readable
+message that the clients display, so a user with an unprovisioned deployment sees a
+clear explanation rather than a blank failure.
+
+\subsection{Authentication flows}
+
+Three authentication flows live behind \texttt{/api/v1/auth/}. In local login the
+service looks up the user by email, verifies the password against the bcrypt hash,
+and on success inserts a refresh-token row (storing only a SHA-256 hash of the
+token) and signs a short-lived access JWT carrying the role and scopes
+\cite{rfc7519jwt}. When the access token later expires the client calls
+\texttt{POST /auth/refresh}. The service looks up the refresh token by its hash; if
+the token is revoked or expired it rejects the request, and if it is valid it
+revokes the old row, records the new token as its replacement in a rotation chain,
+and issues a fresh pair. Because each refresh rotates the token and links old to
+new, presenting a previously used refresh token is detectable as replay and
+invalidates the chain.
+
+The OAuth flow uses the standard authorization-code exchange
+\cite{rfc6749oauth}. The API redirects the browser to the provider's authorize URL
+with a \texttt{state} value carried across the redirect by the session middleware,
+receives the callback, exchanges the code for tokens, fetches the user's email and
+subject, and either finds the linked account or creates a user and links it. It
+then issues the same token pair as local login. A third path covers headless
+clients: an API key presented as a bearer credential is recognised by its prefix,
+short-circuits JWT verification, is hashed and looked up, and yields an
+authenticated identity with the role and scopes attached to the key.
+\autoref{fig:auth-seq} shows the login-and-rotation, OAuth, and API-key sequences.
+
+\figslot[0.85]{08-auth-sequence.pdf}{Authentication sequences: local login with refresh-token rotation, OAuth code flow, and per-request API-key authentication.}{fig:auth-seq}
+
+\section{Database Entity-Relationship Diagram}
+
+The OLTP store is a PostgreSQL schema of eighteen tables, managed with Alembic
+\cite{postgresinprod}. Every primary key is a UUIDv7 generated in application code,
+which keeps keys time-ordered and therefore index-friendly while staying globally
+unique. The tables fall into four groups.
+
+The identity and authentication group has five tables: \texttt{users} (email,
+bcrypt hash, role, verification and active flags), \texttt{refresh\_tokens} (token
+hash, expiry, revocation, and the \texttt{replaced\_by\_id} that forms the rotation
+chain), \texttt{oauth\_accounts} (provider and subject, encrypted provider tokens),
+\texttt{api\_keys} (key hash, prefix, scopes, expiry), and an append-only
+\texttt{audit\_log} indexed by actor and time. The reference group has two tables,
+\texttt{seed\_types} and \texttt{suppliers}, that supply catalog data.
+
+The inference graph is the heart of the schema and the four tables that carry the
+traceability chain. A \texttt{scan\_batches} row is created per
+\texttt{POST /analyze} and holds the state machine
+(\texttt{pending} $\rightarrow$ \texttt{running} $\rightarrow$
+\texttt{succeeded} / \texttt{partial} / \texttt{failed}), timing, and optional geo
+metadata. Each batch groups several \texttt{scan\_images}, each of which records its
+MinIO storage key, content hash, and pixel dimensions. An \texttt{inferences} row
+is one model run over one image and records the backend, the \texttt{model\_id}, the
+latency, and any error. Each detected seed becomes a \texttt{seed\_detections} row
+with its normalized bounding box, confidence, and quality, linked back to its
+inference. The data fans out as one image to N detections to N quality labels.
+
+The ML-platform group has seven tables: \texttt{model\_artifacts} (registered
+weights plus metadata and lifecycle status), \texttt{model\_metrics} (per-model
+performance records), \texttt{traffic\_splits} (weighted A/B routing with a temporal
+validity window), \texttt{datasets} and \texttt{dataset\_items} (offline-evaluation
+ground truth), and \texttt{experiments} and \texttt{experiment\_results}
+(offline-evaluation runs and their computed metrics). \autoref{fig:erd} shows the
+full schema, and Table~\ref{tab:ch4-invariants} lists the invariants the design
+relies on.
+
+\figslot[0.85]{05-db-erd.pdf}{Database entity-relationship diagram: identity, reference, the inference traceability graph, and the ML-platform tables.}{fig:erd}
+
+\begin{singlespace}
+\begin{table}[H]
+\centering
+\caption{Schema invariants enforced by the database design.}
+\label{tab:ch4-invariants}
+\begin{tabular}{p{0.34\textwidth}p{0.58\textwidth}}
+\toprule
+Invariant & What it guarantees \\
+\midrule
+Traceability chain (FK) & Every \texttt{seed\_detections} row points to one \texttt{inferences} row, which points to exactly one \texttt{model\_artifacts} row. \\
+\texttt{uq\_inferences\_image\_model} & One inference row per \texttt{(image\_id, model\_id)}; a re-run with the same model updates rather than duplicates. \\
+\texttt{uq\_scan\_images\_batch\_storage\_key} & Re-uploading the same bytes in the same batch fails fast, because the storage key embeds the SHA-256. \\
+Normalized bounding boxes & Box columns are \texttt{NUMERIC(7,6)} in the range $[0,1]$; pixel coordinates are derived at render time, never stored. \\
+Decimal confidences & \texttt{confidence} is \texttt{NUMERIC(5,4)}, so arithmetic over the audit trail does not lose precision to float drift. \\
+Append-only audit log & \texttt{audit\_log} is never updated or soft-deleted; the temporal validity window on \texttt{traffic\_splits} makes promotions inserts, not destructive updates. \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{singlespace}
+
+Storing bounding boxes normalized to $[0,1]$ as the source of truth has a direct
+runtime consequence: crops are derived, never stored. The worker multiplies a
+normalized box by the source image's pixel dimensions at classify time to cut each
+crop, so the same detection survives image resizing and the database never holds an
+image. Confidences and box coordinates are also emitted to clients as decimal
+strings rather than floats, and parsed to numbers only at render time, for the same
+precision reason.
+
+\section{ML Platform Design}
+
+The ML platform turns a trained \texttt{.pth} file into production traffic and lets
+developers experiment against production without disturbing it. It is organised
+around three ideas: a registry with a lifecycle, a router that selects a model per
+request, and a manager that loads and caches weights.
+
+\subsection{Registry and lifecycle}
+
+Weights are uploaded to MinIO and recorded in \texttt{model\_artifacts}, either
+through \texttt{scripts/register\_model.py} or \texttt{POST /models}. Each artifact
+carries its kind (detection or classification), its backend, the MinIO key, a
+\texttt{builder\_key}, a free-form \texttt{config} JSON of per-model knobs
+(confidence and IoU thresholds, maximum detections, image size, classification
+threshold), an optional seed type, and a lifecycle status. The status moves through
+\texttt{registered} $\rightarrow$ \texttt{staging} $\rightarrow$ \texttt{production}
+$\rightarrow$ \texttt{archived} by an explicit API action, and a model can also be
+archived directly from \texttt{registered} or \texttt{staging} when a promotion is
+abandoned. Only \texttt{staging} and \texttt{production} models are eligible to
+serve requests, which is the same condition a developer override must satisfy. This
+registry plays the role that MLflow plays for tracking, but for serving: MLflow
+records the offline experiment runs, while the registry governs what actually runs
+in production \cite{mlflow2018}.
+
+\subsection{Traffic router}
+
+Given a segment \texttt{(kind, seed\_type\_id)}, the router decides which model
+runs. It first reads the active \texttt{traffic\_splits} rows for the segment, cached
+in Redis for sixty seconds \cite{redisinaction}. If splits exist it routes by a
+sticky bucket, \texttt{hash(user\_id) \% 100}, against the cumulative weights, so the
+same user always lands on the same model. That stickiness is what makes an A/B test
+stable: a user does not flip between models on consecutive scans, yet traffic is
+spread uniformly across the user base. If no splits are configured the router falls
+back to the production model for that seed type, and then to the global,
+seed-type-agnostic production model. This fallback makes per-type promotion
+optional: a deployment can promote one global model and every scan routes to it,
+including the mobile point-and-shoot flow, which sends no seed type at all. If
+nothing is routable the router raises \texttt{ModelNotReadyError}, which becomes the
+clear failure message the clients show.
+
+A developer or administrator can override the router with an explicit
+\texttt{model\_id} at analyze time. The override must name a \texttt{staging} or
+\texttt{production} model of the requested kind, and an end user attempting it is
+rejected with \texttt{ForbiddenError}. This override is the platform's escape hatch
+for trying one model on one image without touching production traffic, and the
+inference row still records the overridden \texttt{model\_id}, so the result remains
+traceable. \autoref{fig:ml-platform} shows the lifecycle, the router's decision
+tree, and the override path.
+
+\figslot{09-ml-platform.pdf}{Model lifecycle, weighted traffic splits, and the per-request developer override.}{fig:ml-platform}
+
+\subsection{Model manager}
+
+The router decides which model; the manager loads it. Each worker process holds one
+\texttt{ModelManager} with a process-wide LRU cache, a per-id load lock, and a
+hot-reload check against \texttt{updated\_at}, as described in the class-diagram
+section. The two wired architectures show why the builder and backend seams matter.
+Detection uses a Faster R-CNN with a ResNet-50 backbone and a Feature Pyramid
+Network and a three-class head over background, coffee, and maize
+\cite{fasterrcnn2015,resnet2015,lin2017fpn}; the backend filters by the configured
+confidence threshold, normalizes the pixel boxes, and caps the count.
+Classification uses a ResNet-18 backbone with a Convolutional Block Attention Module
+inserted after the last residual stage, then hybrid average-and-max pooling into a
+single-logit head \cite{cbam2018}. There is one classifier per crop type, which is
+why detections are grouped by seed type before classification. Because a detector
+and a classifier are recorded as separate inference rows over the same image, each
+can be versioned, swapped, and A/B-tested independently.
+
+\section{MultiSeedGen Design}
+
+Training a seed detector needs many photographs of cluttered, overlapping seeds
+with a correct bounding box on every seed, which are slow to capture and tedious to
+annotate by hand. MultiSeedGen is the companion tool that manufactures this data: it
+takes photographs of single seeds and composites them into annotated multi-seed
+scenes whose labels are exact by construction, an instance of cut-and-paste
+synthesis \cite{dwibedi2017cutpaste}. The whole pipeline is driven by one flat
+Pydantic configuration object, and its output is byte-identical for a fixed
+configuration and seed, which lets a generated dataset be reproduced exactly.
+
+The pipeline runs in stages, shown in \autoref{fig:msg-pipeline}. It begins with a
+segmentation cascade that cuts each seed out of its source photo: a classical
+colour-and-brightness method (border colour, then Otsu thresholding, then GrabCut)
+is tried first, and a learned matting model is the fallback, either U2-Net through
+rembg \cite{qin2020u2net} or Segment Anything \cite{kirillov2023sam}. A confidence
+gate decides whether the cut-out is clean enough, and every result is stored in a
+content-hashed disk cache so a seed is segmented once and reused across runs. The
+clean cut-outs form a seed pool.
+
+Scene composition then paints seeds onto a canvas. It samples a number of seeds per
+scene, places each one while rejecting any placement whose box overlaps an existing
+box beyond a configured IoU limit and that fails a visibility check, applies
+label-safe geometric and photometric augmentation (scale, rotation, shear, and HSV
+jitter chosen so they do not move a label box), composites onto a background that is
+solid, gradient, noise, texture, or a real inpainted photo, and adds soft
+directional shadows. Because the tool knows exactly where it placed each seed, label
+derivation is occlusion-aware: it produces axis-aligned bounding boxes and polygons
+that account for seeds partly hidden behind others, and records provenance for each
+box back to its source seed. The composed scene then passes through camera-matched
+degradation (blur, noise, JPEG compression, and gamma or vignette) so the synthetic
+images resemble real phone photos, a form of domain randomization that helps a model
+trained on them transfer to real input \cite{tobin2017domainrand,shorten2019augmentation}.
+
+Export writes the dataset in the formats a detector trainer expects: YOLO boxes,
+YOLO-seg polygons, COCO annotations \cite{lin2014coco}, and a \texttt{data.yaml} plus
+a run manifest. The final stage is a leakage-safe split: a source seed reserved for
+validation never appears in any training image, enforced per class and
+deterministically, so the validation score is not inflated by the same seed
+appearing on both sides of the split. The resulting dataset is what trains the Seed
+Bank detection model.
+
+\figslot{14-multiseedgen-pipeline.pdf}{MultiSeedGen synthetic-data pipeline: segmentation cascade, scene composition, occlusion-aware labels, degradation, export, and leakage-safe split.}{fig:msg-pipeline}
+
+\section{User Interface Design (Wireframes and Mockups)}
+
+Seed Bank ships two clients that share a contract and a visual language. The web app
+is a React 18 single-page app served by Vite, and the mobile app is built with Expo
+and React Native \cite{reactindepth,reactnativeexpo}. Both speak the same
+\texttt{/api/v1} paths, the same \texttt{\{data\}} response envelopes, and the same
+bearer authentication with a single transparent refresh on a 401. Both wear an
+agricultural-green theme, a deep leaf-green primary with warm amber accents over a
+warm off-white field in light mode and a soil-night palette in dark mode, defined as
+HSL CSS variables so light and dark swap without a rebuild. Both are bilingual:
+English and Arabic, with Arabic flipping the entire layout to right-to-left.
+
+\subsection{Web app}
+
+The web app opens on a sign-in screen with a field-pattern backdrop and theme and
+language toggles available before authentication, shown in \autoref{fig:web-login}.
+After sign-in the dashboard (\autoref{fig:web-dashboard}) presents a strip of
+key figures (scans, images, success rate, and a fourteen-day sparkline), quick
+actions, and recent scans. The core journey runs through the analyze page
+(\autoref{fig:web-analyze}), where a user drags in or picks photos, optionally adds
+metadata, and submits, which starts a batch and navigates to its detail. The batch
+detail page (\autoref{fig:web-batch-detail}) polls until the batch is terminal, then
+shows an insights panel (a quality donut, a confidence histogram, and headline
+stats), a per-seed-type breakdown, and per-image cards with an interactive
+bounding-box overlay that can filter by quality, threshold by confidence, and toggle
+labels. From here a user can export the results as CSV or JSON, or create a public
+read-only share link.
+
+\figslot{web-login.png}{Web sign-in, with theme and language toggles available before authentication.}{fig:web-login}
+
+\figslot{web-dashboard.png}{Web dashboard, showing the key-figure strip, quick actions, and recent scans.}{fig:web-dashboard}
+
+\figslot{web-analyze.png}{Web analyze page, where photos and optional metadata are submitted to start a batch.}{fig:web-analyze}
+
+\figslot{web-batch-detail.png}{Web batch detail with the interactive bounding-box overlay and the insights panel.}{fig:web-batch-detail}
+
+Right-to-left support is achieved by converting directional Tailwind utilities to
+logical properties in the shared primitives and pages, with direction-aware chevrons
+and a drawer that opens from the correct edge. Numbers stay in Latin digits in
+Arabic for cross-script consistency, and dates are formatted with the active locale.
+The entire end-user surface is translated; the role-gated admin and ML pages are
+deliberately left in English, since farmers never reach them.
+
+\subsection{Mobile app}
+
+The mobile app is built for farmers in the field, and its headline screen is the
+camera (\autoref{fig:mobile-camera}): a live preview with a centre framing guide,
+a shutter that captures multiple shots into a review strip, and a ``Check seeds''
+button that uploads the captured photos as one batch. The result screen
+(\autoref{fig:mobile-result}) then polls the batch until it is terminal and shows
+the good-rate, the seed counts, and the confidence. The same capture-and-submit
+design extends to a production line: up to sixteen frames of seeds passing under a
+fixed camera accumulate in the review strip and are submitted as one batch, then
+graded in parallel by the inference workers, so an operator gets a report on the
+whole pass within seconds without any belt-specific code.
+
+\figslot[0.45]{mobile-camera.png}{Mobile camera capture, with a live preview, framing guide, and multi-shot review strip.}{fig:mobile-camera}
+
+\figslot[0.45]{mobile-result.png}{Mobile result screen, polling the batch and showing good-rate, counts, and confidence.}{fig:mobile-result}
+
+\subsection{MultiSeedGen interface}
+
+MultiSeedGen has its own web interface, shown in \autoref{fig:msg-ui}: a React
+single-page app served by a thin FastAPI wrapper that drives the same command-line
+pipeline as a subprocess and streams its log over a websocket. The interface is
+organised into four tabs, for running a generation, tuning the segmentation, browsing
+generated datasets, and editing the configuration. The configuration form is built
+from the same Pydantic model that defines the CLI, so the form fields, their choices,
+and their defaults can never drift from what the pipeline actually accepts.
+
+\figslot{msg-ui.png}{MultiSeedGen web UI, with tabs for running, segmentation tuning, dataset browsing, and configuration.}{fig:msg-ui}
 
 \section{Security Design Considerations}
+
+Security is built into the layers rather than bolted on at the edge, and the design
+choices below cover authentication, authorization, transport, and error handling.
+
+Local authentication stores passwords only as bcrypt hashes; a plaintext password is
+never written anywhere. Sessions use two JSON Web Tokens, a short-lived access token
+(fifteen minutes) and a long-lived refresh token (days), and the refresh token
+rotates on every use \cite{rfc7519jwt}. Only the SHA-256 hash of a refresh token is
+stored, each rotation links the old token to its replacement, and presenting a
+previously used token is treated as replay and invalidates the whole chain. Social
+login is offered through Google and GitHub over the OAuth authorization-code flow,
+with the \texttt{state} parameter carried across the redirect to guard against
+cross-site request forgery on the callback \cite{rfc6749oauth}. API keys give
+headless clients a credential that is hashed at rest, carries a recognisable prefix,
+and is shown in plaintext exactly once at creation; like refresh tokens, the stored
+form is a hash, so a database leak does not expose a usable key.
+
+Authorization is role-based across three roles. An \texttt{end\_user} can analyze
+and see only their own history; an \texttt{ai\_developer} adds model, dataset, and
+experiment access and the per-request model override; and an \texttt{admin} adds
+traffic splits and user management. Roles are checked at the API through a
+\texttt{require\_role} dependency and again in the clients' routing, and the model
+override is the most heavily tested authorization boundary in the system because it
+is the one place a non-admin role gains a privileged capability. Each route also
+carries its own rate limit, backed by Redis through slowapi, with tighter caps on
+login, registration, refresh, and analyze than on the general default.
+
+Every sensitive action is written to the append-only audit log, which records the
+actor, the action, the target, and the time, and is never updated or deleted.
+Secrets are read from environment variables in development but from one file per
+field under \texttt{/run/secrets} in production, and a pre-commit secret scanner
+keeps credentials out of version control. Errors are returned as RFC 9457
+problem-details JSON with a correlating request id and never as HTML pages, so an
+error surface leaks no stack traces \cite{rfc9457problem}. The deployment binds every
+host port to the loopback interface, restricts cross-origin requests to a configured
+allow-list, and enforces a trusted-hosts list, so the attack surface exposed by
+default is small.

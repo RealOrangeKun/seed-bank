@@ -1,13 +1,421 @@
 \chapter{Implementation}
 
+The previous chapter described what the system should do and how its pieces fit
+together. This chapter is about how those pieces were actually built: the
+development environment that lets one developer run the whole platform on a
+laptop, the implementation choices that turned the design into working code, and
+a selection of screenshots and generated artefacts that show the result. Where a
+number is recorded in the project's own configuration or documentation it is
+quoted directly; where no measurement exists, the mechanism is described instead
+of inventing a figure.
+
 \section{Implementation Environment and Setup}
+
+Seed Bank runs from a single Docker Compose file \cite{merkel2014docker}. The
+goal was that a fresh checkout reaches a working stack in a handful of commands,
+without anyone installing Postgres, Redis, MinIO, ClickHouse, or a Python
+toolchain on the host. Compose profiles keep the default footprint small: the
+plain \texttt{make up} brings up only what the application needs to serve
+requests (the API, the two Celery workers, Postgres, Redis, MinIO, ClickHouse,
+and MLflow), and the heavier extras sit behind named profiles. The \texttt{dev}
+profile adds Adminer and \texttt{ch-ui} for inspecting the two databases in a
+browser; the \texttt{obs} profile adds Prometheus and Grafana; the
+\texttt{frontend} profile adds the built React app served by nginx. A developer
+who only wants the datastores runs \texttt{make up-infra}, which skips every
+image build and is up in about ten seconds. The full lean stack fits in roughly
+3.5~GB of RAM at idle. \autoref{fig:deployment} shows the deployment topology and
+how the containers connect over the internal bridge network.
+
+\figslot{10-deployment.pdf}{Deployment topology: the lean Compose stack, the
+profile-gated extras, and the production overlay.}{fig:deployment}
+
+The host ports are bound to \texttt{127.0.0.1} so nothing is exposed to the LAN
+by default. A shared environment anchor feeds the same datastore DSNs and
+credentials to the API and both workers, so there is one place to change a
+connection string. When two stacks collide on the same dev machine, a gitignored
+\texttt{compose.override.yaml} shifts the ports without touching the checked-in
+file. Each service declares a healthcheck and a CPU/memory cap, and
+\texttt{depends\_on} with \texttt{condition: service\_healthy} gives a correct
+boot order so the API waits for its dependencies before it starts accepting
+traffic.
+
+\subsection{Container images}
+
+One multi-stage \texttt{Dockerfile} builds every first-party image. Four builder
+stages resolve dependencies with \texttt{uv} and feed five runnable runtimes,
+and each runtime carries only what its job needs. The \texttt{runtime-cpu} target
+backs both the API and the \texttt{worker-cpu} container; it has the web,
+database, and storage dependencies but no \texttt{torch} at all. The
+\texttt{runtime-inference-cpu} target adds slim CPU \texttt{torch},
+\texttt{torchvision}, and a headless OpenCV (about 1.6~GB) so the
+\texttt{torch\_local} backend can run; this is what the
+\texttt{worker-inference} container uses in development.
+\texttt{runtime-inference-cpu-full} layers Ultralytics (YOLO) and the Roboflow
+inference SDK on top for the optional backends \cite{yolov8}, and
+\texttt{runtime-gpu} swaps in a CUDA~12.4 base with GPU \texttt{torch} and a
+device reservation. Keeping \texttt{torch} out of the API image is a deliberate
+size and start-up decision: a routine analytics dual-write never pays a
+\textasciitilde1.6~GB import, because the process that does that work has no
+\texttt{torch} installed.
+
+\subsection{Bringing the stack up and registering a model}
+
+The Makefile is the single entry point for running and inspecting the system.
+A first run on a clean checkout is \texttt{make env} (creates \texttt{.env} from
+the example), \texttt{make up}, \texttt{make migrate} (Alembic to head), and
+\texttt{make seed}. The seed step runs the ClickHouse schema first, then loads
+the catalog of seed types and suppliers, registers the bundled models, and
+creates demo users. Until at least one detection model and one classification
+model are registered and promoted to \texttt{production}, the platform cannot
+infer; that is by design, and the failure it produces is a clear message rather
+than a blank error. Model weights are not stored in git. MinIO is the source of
+truth, and a model is added either through \texttt{scripts/register\_model.py} or
+\texttt{POST /models}, then promoted through its lifecycle. The
+\texttt{/readyz} probe reports each backing component's status independently, so
+a developer can tell at a glance whether the stack is healthy or, say, only
+ClickHouse is still warming up.
+
+The production overlay is a single \texttt{compose.prod.yaml} layered on the dev
+file. It sets deltas, not new service definitions: file-based secrets read from
+\texttt{/run/secrets} instead of environment variables, dropped external ports
+(only the API and Grafana stay reachable), restart policies, log rotation, and
+the GPU inference worker on by default. \texttt{make up-prod} runs a
+\texttt{secrets-check} first that fails the bring-up if any expected secret file
+is missing or has permissions other than \texttt{0400}.
 
 \section{Key Implementation Details}
 
-\subsection{Two-Stage Deep Learning Pipeline}
+\subsection{Two-Stage Detection and Classification Pipeline}
+
+Checking a photo of seeds is two separate machine-learning problems, and the
+implementation treats them as two models run in sequence. The first stage is
+detection: an object detector scans the whole image and returns a bounding box,
+a confidence, and a class for every seed it finds, so one photo becomes $N$
+located seeds. The detector in use is a Faster R-CNN \cite{fasterrcnn2015} built
+from torchvision's \texttt{fasterrcnn\_resnet50\_fpn}, a ResNet-50
+\cite{resnet2015} backbone with a Feature Pyramid Network \cite{lin2017fpn} and a
+three-class head, \texttt{[background, coffee, maize]}. The backend takes the
+model's raw \texttt{boxes}, \texttt{scores}, and \texttt{labels}, filters them by
+the per-model \texttt{confidence\_threshold}, normalizes the pixel boxes to the
+$[0,1]$ range, and caps the result at \texttt{max\_detections}. The class id is
+mapped back to a crop name through \texttt{\{0: background, 1: coffee, 2:
+maize\}}.
+
+The second stage is classification. For each detection, the worker crops that
+bounding box out of the original image and feeds the crop to a binary classifier
+that returns \texttt{good} or \texttt{bad} with a confidence. The classifier is
+an ImageNet-pretrained \cite{deng2009imagenet} ResNet-18 with a CBAM attention
+module \cite{cbam2018} inserted after \texttt{layer4}. Instead of a single global
+pool, it concatenates a global-average and a global-max pool ($512 + 512$) into a
+1024-feature vector that feeds a single-logit \texttt{fc} head. At inference the
+crop is resized to $224\times224$, normalized with the ImageNet statistics, run
+forward, and passed through a sigmoid; the label is \texttt{good} when the score
+is at or above the threshold and \texttt{bad} otherwise, with the confidence
+being the score for \texttt{good} and its complement for \texttt{bad}. There is
+one classifier per crop type, a coffee classifier and a maize classifier, which
+is why detections are grouped by seed type before the classify stage and each
+group is routed to the matching model.
+
+Two implementation decisions in this pipeline are worth naming. First, detection
+and classification are recorded as separate \texttt{inferences} rows over the
+same image. That separation is what lets a detector and a classifier be
+versioned, swapped, and A/B-tested independently instead of being welded into one
+opaque step. Second, the crops are never stored. The normalized bounding box is
+the source of truth, and the worker re-derives each crop by multiplying the box
+by the source image's pixel dimensions at classify time, so there is no second
+copy of the image data to keep consistent.
+
+\subsection{Inference Backends and the Model Manager}
+
+The engine that actually runs a model is a pluggable backend. Every backend
+satisfies one duck-typed \texttt{Protocol} with two methods,
+\texttt{detect(image, DetectionConfig)} and \texttt{classify(crop,
+ClassificationConfig)}, and both return framework-free data-transfer objects
+(\texttt{BoundingBox}, \texttt{Detection}, \texttt{Classification}) so that
+\texttt{torch} types never leak up into the service or API layers. Three backends
+are registered. The default, \texttt{torch\_local}, builds the module from the
+architecture registry, loads its state dict from MinIO weights with
+\texttt{weights\_only=True} and \texttt{strict=False}, and runs the forward pass
+in a worker thread via \texttt{asyncio.to\_thread} so the event loop stays
+responsive; it uses CUDA when a GPU is present. The \texttt{yolo} backend loads
+\texttt{.pt} weights into an Ultralytics model \cite{yolov8}, and the
+\texttt{roboflow} backend calls a hosted inference service over the network with
+no local weights. Adding a backend is writing a class that matches the protocol
+and registering it in the factory. The heavy imports for these engines live
+inside the method bodies, not at module top level, which is the concrete reason
+the API image can ship without \texttt{torch}.
+
+Loading weights is expensive, so each worker process owns one
+\texttt{ModelManager} that holds a process-wide LRU cache of loaded modules,
+with separate caches for the torch and YOLO engines and a default ceiling of
+four models. Loading a model means building the module from the registry,
+fetching the weights from MinIO, loading the state dict, moving it to CUDA or
+CPU, and calling \texttt{eval()}. Concurrent loads of the same \texttt{model\_id}
+are serialized through a per-id \texttt{asyncio.Lock}, so two tasks that need the
+same model at once never duplicate a GPU load; the cache evicts least-recently-
+used entries to bound GPU memory. The manager also hot-reloads a model when its
+\texttt{model\_artifacts.updated\_at} timestamp advances, which lets an operator
+push new weights without restarting a worker. Pipelines themselves are cheap and
+created per request; only the weights are cached.
+
+\subsection{Concurrency-Safe Batch State Machine}
+
+A single \texttt{POST /analyze} can carry up to sixteen images, and each image
+becomes its own Celery task on the \texttt{inference} queue. Several workers can
+therefore be touching the same \texttt{scan\_batch} row at the same time, which
+is exactly the situation where naive status updates corrupt state. The batch
+state machine avoids that with compare-and-set transitions: the move from
+\texttt{pending} to \texttt{running} succeeds for only the first task that
+arrives (which also stamps \texttt{started\_at}), and the move from
+\texttt{running} to a terminal status succeeds for only the task that observes
+every image as detected. Exactly one task owns each transition, so no amount of
+concurrency can leave the batch in a half-written state.
+\autoref{fig:batch-state} shows the full state machine and its transitions.
+
+\figslot[0.7]{07-batch-state-machine.pdf}{The scan-batch state machine. Each
+transition is a compare-and-set update so concurrent workers cannot corrupt the
+batch status.}{fig:batch-state}
+
+The terminal states encode a deliberate failure policy. A clean run where every
+image is detected and classified ends \texttt{succeeded}. If no routable model
+exists, the batch ends \texttt{failed} with a human-readable
+\texttt{error\_message} that tells the user an administrator must register and
+promote a model. The case worth calling out is a classify failure that happens
+after detection has already been persisted: rather than discard good detection
+results, the batch degrades to \texttt{partial}. The detection data is kept and
+shown, and only the quality labels are missing. Transient errors from MinIO or
+Redis are handled separately; they raise an \texttt{ExternalServiceError} that
+Celery auto-retries up to twice before the batch is failed.
+
+\subsection{A/B Traffic Routing}
+
+Which model serves a given request is decided by the traffic router, keyed on a
+segment of \texttt{(kind, seed\_type\_id)}. The router first reads the active
+rows from \texttt{traffic\_splits} for that segment, cached in Redis
+\cite{redisinaction} for sixty seconds to keep the hot path off Postgres. If
+splits exist, the request is assigned by a sticky bucket: \texttt{hash(user\_id)
+\% 100} is compared against the cumulative weights, so the same user always lands
+on the same model and the split stays stable for them across requests while
+traffic spreads uniformly over the user base. If no split is configured, the
+router falls back to the \texttt{production} model for that seed type, then to the
+global seed-type-agnostic production model. That fallback chain is what makes
+per-type promotion optional: a deployment can promote a single global model and
+every scan routes to it, including the mobile point-and-shoot flow, which sends
+no seed type at all. If nothing is routable, the router raises
+\texttt{ModelNotReadyError}, which becomes the clear failure described above
+rather than a blank error. A developer or admin can also override the model with
+an explicit \texttt{model\_id} at analyze time, provided it is in
+\texttt{staging} or \texttt{production} and matches the requested kind.
+
+\subsection{Authentication: Token Rotation and Replay Detection}
+
+Authentication issues a short-lived JWT \cite{rfc7519jwt} access token alongside
+a long-lived refresh token. The refresh token rotates on every use: presenting a
+valid refresh token returns a new one and invalidates the old. The safety
+property is replay detection. If a refresh token that has already been rotated
+out is presented again, the whole token chain is invalidated, so a leaked token
+that an attacker tries to reuse takes the legitimate session down with it instead
+of granting silent access. Clients store both tokens and transparently refresh
+once on a \texttt{401} before retrying the original request, so rotation is
+invisible in normal use. The same security surface includes OAuth2
+\cite{rfc6749oauth} social login through Google and GitHub, hashed-at-rest API
+keys shown in plaintext exactly once at creation, per-route rate limiting backed
+by Redis, and an append-only audit log of sensitive actions.
+
+\subsection{Data Model Precision and Identifiers}
+
+The OLTP schema is eighteen tables on Postgres \cite{postgresinprod}, reached
+only through repository classes so that the rest of the code never touches the
+ORM directly \cite{sqlalchemyguide}. Two implementation details matter for data
+quality. First, every primary key is a UUIDv7. These are time-ordered, so they
+sort and index like a sequential key without the contention of a shared counter
+and without leaking a monotonic row count. Second, the inference graph uses exact
+numeric types instead of floats: \texttt{confidence} is \texttt{NUMERIC(5,4)} and
+the normalized bounding-box columns are \texttt{NUMERIC(7,6)}. The worker rounds
+its values and passes \texttt{Decimal} objects, so SQLAlchemy never coerces a
+binary float into a column of a different scale and the stored coordinates are
+exactly what the model produced. User-visible aggregates use a soft delete: a
+batch the user removes from their history is marked deleted rather than physically
+dropped, which keeps the traceability chain intact.
 
 \subsection{App-Level Data Warehouse Dual-Writes}
 
+Analytics queries run against a ClickHouse \cite{clickhouseolap} star schema
+rather than the transactional Postgres, to keep heavy aggregation off the
+serving database. The schema is populated by an app-level dual-write, not change
+data capture. After a batch, inference, or detection is committed in Postgres,
+the application dispatches a Celery \cite{celeryinplay} task that writes the
+corresponding rows to the warehouse's dimension and fact tables. The fact tables
+use \texttt{ReplacingMergeTree} and are partitioned by month, so a repeated write
+of the same key is idempotent at merge time and a re-dispatched task does not
+double-count. The dual-write is best-effort and runs after the Postgres commit,
+which means the OLTP transaction is never held hostage to ClickHouse
+availability: if the warehouse is down, the source-of-truth write still
+succeeds, the dispatch is recorded as failed in
+\texttt{seedbank\_dwh\_dispatch\_total}, and the data can be recovered later by a
+backfill from Postgres. The analytics router and the web Analytics page read only
+from this warehouse. Postgres is configured with \texttt{wal\_level=logical} and
+replication slots so a true CDC pipeline can replace the dual-write later without
+a schema change, but today the app-level path is what runs.
+
+\subsection{Observability}
+
+The backend emits four signals, all wired in one place so labels and formats stay
+consistent. Logging uses \texttt{structlog}: pretty colourised console output in
+development and one JSON object per line everywhere else, for a log aggregator to
+ingest. Every line is enriched with context variables bound per request, so
+\texttt{request\_id} and \texttt{path} attach automatically to every log emitted
+while a request is in flight. The rule the code follows is to log through
+\texttt{structlog.get\_logger} and never the stdlib logger, because the
+context variables only attach on the former.
+
+Metrics are Prometheus counters, histograms, and gauges owned by a dedicated
+\texttt{CollectorRegistry} rather than the global default, which avoids duplicate
+time-series when test fixtures rebuild the app. The discipline that keeps the
+metrics from overwhelming Prometheus is cardinality control: the \texttt{path}
+label is always the Starlette route template, \texttt{/api/v1/batches/\{id\}},
+resolved by re-walking the router after the handler runs, never the raw URL, so
+per-UUID requests do not explode into millions of series. Status codes are
+bucketed into \texttt{2xx}/\texttt{3xx}/\texttt{4xx}/\texttt{5xx} classes rather
+than kept per code, the inflight gauge is labelled by method only, and
+\texttt{/metrics} is excluded from its own histograms. Prometheus applies a
+second guard, a relabel rule that drops any series whose \texttt{path} still
+looks like a UUID, as a fail-safe if templating ever regresses.
+
+Tracing is OpenTelemetry \cite{opentelemetry2022} with an OTLP exporter and
+auto-instrumentation across every IO boundary the service crosses: FastAPI
+requests, SQLAlchemy and asyncpg, Redis, outbound httpx, and Celery tasks, so a
+single trace can follow a request from the API, through the queue, into a
+worker's database calls. It is opt-in and idempotent, a complete no-op unless
+\texttt{OTEL\_EXPORTER\_OTLP\_ENDPOINT} is set, so the dev stack never dials a
+dead collector; Celery re-initialises it per forked worker because forking after
+init breaks the gRPC channel. Errors go to Sentry, also a no-op unless
+\texttt{SENTRY\_DSN} is set, with \texttt{send\_default\_pii} off so no personal
+data is shipped.
+
 \subsection{Bilingual RTL Engine}
 
-\section{Sample Screenshots / Output Samples}
+Both clients ship in English and Arabic with full right-to-left support, built on
+a dependency-free, fully-typed i18n layer rather than a third-party framework.
+The English dictionary is the source of truth: \texttt{keyof typeof en} becomes
+the \texttt{TranslationKey} type, and the Arabic dictionary is typed
+\texttt{Record<TranslationKey, string>}, so a missing or extra Arabic key is a
+compile-time error and the UI can never half-fall-back to English. The hook
+exposes \texttt{t} for interpolated lookups and \texttt{tn} for pluralization,
+which selects the correct CLDR plural form (English one/other; Arabic uses the
+full zero/one/two/few/many/other set). On the web \cite{reactindepth}, RTL is
+achieved by writing the shared UI primitives in logical Tailwind properties
+(\texttt{ms-}, \texttt{me-}, \texttt{ps-}, \texttt{pe-}, \texttt{start-},
+\texttt{end-}) so the same component mirrors itself when the document direction
+flips, with direction-aware chevrons and drawers that open from the correct edge.
+On mobile \cite{reactnativeexpo}, React Native only mirrors the layout on the
+next launch, so switching to or from Arabic calls \texttt{I18nManager.forceRTL}
+and then triggers an \texttt{expo-updates} reload in production builds; plural
+categories are computed by hand because Hermes ships only a partial
+\texttt{Intl}. Numbers stay in Latin digits in Arabic for cross-script
+consistency, and dates are formatted with the active locale. The entire end-user
+surface is translated; the developer- and admin-only ML pages stay English on
+purpose, since farmers never reach them.
+
+\subsection{MultiSeedGen Synthetic-Data Pipeline}
+
+Training a detector needs labelled multi-seed images, which are far harder to
+collect than the single-seed photos that exist in the source datasets.
+MultiSeedGen closes that gap by cutting individual seeds out of source photos,
+compositing many of them onto realistic backgrounds, and exporting a labelled
+detection dataset. The whole tool is built around one guarantee: for a fixed
+\texttt{(config, seed)} the output is byte-identical regardless of how many
+worker processes run it. That determinism is the backbone of the pipeline and
+shapes every design choice below.
+
+Segmentation, cutting one seed cleanly out of its source, runs as a cascade. The
+default \texttt{auto} method tries a border-colour distance threshold, then Otsu,
+then OpenCV GrabCut, escalating only when the cheaper method scores poorly, with
+\texttt{rembg} (a U\textsuperscript{2}-Net ONNX model \cite{qin2020u2net}) and an
+optional Segment Anything backend \cite{kirillov2023sam} as fallbacks for hard,
+feathered edges. A confidence skip-gate drops any cut-out whose mask scores below
+a threshold (default \texttt{0.55} for \texttt{auto}), so a bad segmentation is
+discarded rather than baked into the labels. Every cut-out is cached on disk under
+a content hash plus a segmentation-version and a frozen parameter signature, so
+the first pass over a source library is the only expensive one and later runs are
+near-instant; the resolved device is folded into the cache key because GPU and
+CPU masks can differ very slightly.
+
+Scene composition draws on a per-(split, scene-index) seed sequence so a scene's
+pixels never depend on worker count or scheduling. Seeds are placed with an IoU
+limit that rejects overlapping boxes, and the exported box or polygon is
+recomputed from each seed's warped alpha so it stays exact even under per-seed
+shear or perspective; scene-wide warps that would move a label are avoided on
+purpose \cite{dwibedi2017cutpaste}. Augmentation is label-safe, applied to the
+cut-out before placement, and the composite is finished with camera-matched
+degradation, sensor noise, JPEG compression, mild blur, and gamma shift, so the
+result looks photographed rather than pasted \cite{shorten2019augmentation,
+buslaev2020albumentations, tobin2017domainrand}. Datasets export to YOLO,
+YOLO-seg \cite{redmon2016yolo}, and COCO \cite{lin2014coco} with a re-runnable
+manifest, and the validation split uses a per-class seed holdout: a source seed
+reserved for validation never appears in any training image, which closes the
+train-validation leakage that synthetic data otherwise invites. The whole tool
+ships as a CLI and a FastAPI web UI; the segmentation tuner, scene preview, and QA
+montage from that UI appear later in this chapter.
+
+\section{Sample Screenshots and Output Samples}
+
+This section shows the running system and the artefacts it produces. The figures
+are grouped by surface: the annotated analyze output, the web client, the mobile
+client, and the MultiSeedGen tool.
+
+The end product of the two-stage pipeline is an annotated image:
+\autoref{fig:sample-output} shows the detector's boxes drawn back over a photo,
+each labelled with the classifier's \texttt{good} or \texttt{bad} verdict. This
+is the same overlay the clients render interactively, where a user can filter by
+quality, raise the confidence threshold, and toggle labels.
+
+\figslot{sample-detection-output.png}{Annotated analyze output: detection boxes
+with per-seed \texttt{good}/\texttt{bad} quality labels from the classifier.}{fig:sample-output}
+
+The web client carries the developer and analyst surface.
+\autoref{fig:web-analytics} is the Analytics page, which reads windowed trends,
+confidence distributions, and quality-by-seed-type breakdowns from the ClickHouse
+warehouse. \autoref{fig:web-compare} is the Compare view, where two to ten scans
+are shown side by side with the best column highlighted.
+\autoref{fig:web-models} is the role-gated model registry, where a developer sees
+each registered artefact, its lifecycle status, and its performance record.
+\autoref{fig:web-shared} is the public read-only report produced by the share
+action, reachable without authentication and localized with its own language and
+theme toggles.
+
+\figslot{web-analytics.png}{Web Analytics page, served from the ClickHouse
+warehouse.}{fig:web-analytics}
+
+\figslot{web-compare.png}{Compare view: several scans side by side with the best
+column highlighted.}{fig:web-compare}
+
+\figslot{web-models.png}{Model registry, the developer-facing view of registered
+artefacts and their lifecycle status.}{fig:web-models}
+
+\figslot{web-shared-report.png}{Public shared report, an unauthenticated
+read-only batch summary.}{fig:web-shared}
+
+The mobile client is aimed at farmers in the field.
+\autoref{fig:mobile-history} shows the scan history on the phone, the same
+inference graph that the web client reads, rendered for a small screen.
+
+\figslot[0.45]{mobile-history.png}{Mobile scan history.}{fig:mobile-history}
+
+Finally, the MultiSeedGen tool. \autoref{fig:msg-sample} is a generated
+multi-seed scene with its boxes drawn back from the exported labels, the kind of
+image the pipeline produces by the thousand. \autoref{fig:msg-montage} is the QA
+montage the tool writes after a run, a quick visual check that the cut-outs and
+placements look right before a dataset is used for training.
+\autoref{fig:msg-seg-tuner} is the segmentation tuner from the web UI, which
+shows kept and skipped cut-outs in a confidence-coded gallery so a user can see
+exactly which seeds a method dropped and why before committing to a full run.
+
+\figslot{msg-sample-scene.png}{A generated multi-seed scene with bounding boxes
+drawn back from the exported labels.}{fig:msg-sample}
+
+\figslot{msg-output-montage.png}{MultiSeedGen QA montage, written after a run for
+a fast visual check of cut-out and placement quality.}{fig:msg-montage}
+
+\figslot{msg-seg-tuner.png}{MultiSeedGen segmentation tuner: kept and skipped
+cut-outs in a confidence-coded gallery.}{fig:msg-seg-tuner}

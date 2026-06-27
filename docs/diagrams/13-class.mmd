@@ -1,0 +1,56 @@
+classDiagram
+    class AnalysisService {
+        +start_batch(files, opts) ScanBatch
+        +get_batch(id) ScanBatch
+    }
+    class TrafficRouter {
+        +resolve(kind, seed_type, user) ModelArtifact
+        -sticky_bucket(user_id) int
+    }
+    class ModelManager {
+        -lru: OrderedDict
+        -locks: dict
+        +get(model_id) LoadedModel
+        -evict()
+    }
+    class InferenceBackend {
+        <<Protocol>>
+        +detect(image, cfg) Detection[]
+        +classify(crop, cfg) Classification
+    }
+    class TorchLocalBackend
+    class YoloBackend
+    class RoboflowBackend
+    class ModelBuilder {
+        <<registry>>
+        +build(builder_key) Module
+    }
+    class Detection {
+        +box: BoundingBox
+        +confidence: Decimal
+        +class_name: str
+    }
+    class Classification {
+        +label: str
+        +confidence: Decimal
+    }
+    class BoundingBox {
+        +x: float
+        +y: float
+        +w: float
+        +h: float
+    }
+    class ScanBatchRepository {
+        +cas_status(id, frm, to) CasResult
+    }
+
+    InferenceBackend <|.. TorchLocalBackend
+    InferenceBackend <|.. YoloBackend
+    InferenceBackend <|.. RoboflowBackend
+    TorchLocalBackend --> ModelManager : loads via
+    ModelManager --> ModelBuilder : builds module
+    AnalysisService --> TrafficRouter : selects model
+    AnalysisService --> ScanBatchRepository : persists state
+    TorchLocalBackend ..> Detection : returns
+    TorchLocalBackend ..> Classification : returns
+    Detection --> BoundingBox

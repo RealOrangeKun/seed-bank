@@ -14,36 +14,96 @@
 \cfoot{\thepage}
 \renewcommand{\headrulewidth}{0pt} % No header line
 
-% Font & Language Support (XeLaTeX) - Must be loaded before biblatex
+% XeLaTeX font engine (required by polyglossia below).
 \usepackage{fontspec}
+
+% IMPORTANT load-order note: polyglossia (loaded last, for Arabic) pulls in the
+% bidi package, and bidi requires graphicx/float/longtable/caption/hyperref to be
+% loaded BEFORE it. So every bidi-sensitive package is loaded here, ahead of
+% polyglossia, and polyglossia is the final package in the preamble.
+
+% Figures and tables (bidi-sensitive: must precede polyglossia/bidi)
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+
+% Clickable links (bidi-sensitive: must precede polyglossia/bidi)
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=cyan,
+    pdftitle={Seed Bank Graduation Project Documentation},
+    pdfpagemode=FullScreen,
+}
+
+% Captions (after hyperref/float, still before polyglossia/bidi)
+\usepackage[font=small,labelfont=bf]{caption}
+\captionsetup{skip=4pt}
+\graphicspath{{figures/}}
+% Tighten vertical space around in-text [H] floats to keep the figure-heavy
+% chapters compact (keeps the body within the page budget).
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+
+% Typography: give the line breaker last-resort stretch so long unbreakable
+% monospace runs (e.g. the routers->services->repositories->ORM chains and long
+% file paths) don't overrun the right margin.
+\setlength{\emergencystretch}{3em}
+% Let long snake_case identifiers break at underscores so they wrap inside narrow
+% table cells instead of overrunning. Adds only optional breakpoints.
+\AtBeginDocument{%
+  \let\sbOrigUnderscore\textunderscore
+  \renewcommand{\textunderscore}{\sbOrigUnderscore\allowbreak}%
+}
+
+% Language support (XeLaTeX). polyglossia loads bidi for Arabic and must come
+% LAST, after every bidi-sensitive package above.
 \usepackage{polyglossia}
 \setmainlanguage{english}
 \setotherlanguage{arabic}
 
-% Font configurations - standard free fonts included in TeX Live / Linux
+% Fonts. TeX Gyre Termes (standard in TeX Live); Arabic is vendored in fonts/ so
+% the build does not depend on a specific TeX Live install path and works in any
+% XeLaTeX (full image, slim image, or a native install).
 \setmainfont{TeX Gyre Termes}
 \newfontfamily\arabicfont[
-  Path=/usr/local/texlive/2026/texmf-dist/fonts/truetype/public/amiri/,
+  Path=fonts/,
   Extension=.ttf,
   Script=Arabic,
   BoldFont=Amiri-Bold,
   ItalicFont=Amiri-Italic,
   BoldItalicFont=Amiri-BoldItalic
 ]{Amiri-Regular}
+% polyglossia wants an Arabic monospace family whenever \ttfamily is used (e.g. in
+% figure-placeholder boxes). We never set Arabic in monospace, so point it at Amiri
+% to satisfy the check.
+\newfontfamily\arabicfonttt[Path=fonts/, Extension=.ttf, Script=Arabic]{Amiri-Regular}
 
-% References: IEEE style (using BibLaTeX with IEEE style)
+% References: IEEE style (BibLaTeX + biber). biblatex must load AFTER polyglossia,
+% so it is the last package in the preamble. Needs the texlive-biblatex-ieee package.
 \usepackage[style=ieee, backend=biber]{biblatex}
 \addbibresource{references.bib}
 
-% Clickable links
-\usepackage{hyperref}
-\hypersetup{
-    colorlinks=true,
-    linkcolor=blue,
-    filecolor=magenta,      
-    urlcolor=cyan,
-    pdftitle={Seed Bank Graduation Project Documentation},
-    pdfpagemode=FullScreen,
+% \figslot[width]{file}{caption}{label}
+% Renders figures/<file> if it exists, otherwise a labelled placeholder box, so
+% the document compiles whether or not the final image has been dropped in yet.
+% Drop the real image into docs/report/figures/ with the exact <file> name and
+% rebuild -- the placeholder is replaced automatically. See figures/README.md.
+\newcommand{\figslot}[4][0.68]{%
+  \begin{figure}[htbp]
+    \centering
+    \IfFileExists{figures/#2}{%
+      \includegraphics[width=#1\textwidth]{figures/#2}%
+    }{%
+      \fbox{\parbox[c][0.13\textheight][c]{#1\textwidth}{\centering\ttfamily
+        [\,FIGURE PLACEHOLDER\,]\\[6pt] figures/#2 \\[10pt]
+        \normalfont\itshape #3}}%
+    }
+    \caption{#3}
+    \label{#4}
+  \end{figure}%
 }
 
 \begin{document}
@@ -57,7 +117,7 @@
         
         \large\textbf{Cairo University}\\
         Faculty of Computers and Artificial Intelligence\\
-        Artificial Intelligence Department
+        Artificial Intelligence Department\\
         Information Systems Department
         
         \vspace{2cm}
@@ -119,23 +179,39 @@
 % List of Abbreviations
 \chapter*{List of Abbreviations}
 \addcontentsline{toc}{chapter}{List of Abbreviations}
+\begin{singlespace}
 \begin{table}[h]
     \centering
     \begin{tabular}{ll}
         \textbf{API} & Application Programming Interface \\
+        \textbf{CAS} & Compare-And-Set \\
         \textbf{CBAM} & Convolutional Block Attention Module \\
         \textbf{CDC} & Change Data Capture \\
+        \textbf{CNN} & Convolutional Neural Network \\
+        \textbf{COCO} & Common Objects in Context (dataset format) \\
+        \textbf{CPU} & Central Processing Unit \\
+        \textbf{CUDA} & Compute Unified Device Architecture \\
         \textbf{DWH} & Data Warehouse \\
         \textbf{ERD} & Entity-Relationship Diagram \\
         \textbf{FCAI} & Faculty of Computers and Artificial Intelligence \\
+        \textbf{FPN} & Feature Pyramid Network \\
+        \textbf{GPU} & Graphics Processing Unit \\
+        \textbf{IoU} & Intersection over Union \\
+        \textbf{JWT} & JSON Web Token \\
+        \textbf{LRU} & Least Recently Used \\
         \textbf{ML} & Machine Learning \\
+        \textbf{OAuth} & Open Authorization \\
         \textbf{OLAP} & Online Analytical Processing \\
         \textbf{OLTP} & Online Transaction Processing \\
         \textbf{OTel} & OpenTelemetry \\
         \textbf{RBAC} & Role-Based Access Control \\
+        \textbf{REST} & Representational State Transfer \\
         \textbf{RTL} & Right-To-Left \\
+        \textbf{SPA} & Single-Page Application \\
+        \textbf{YOLO} & You Only Look Once \\
     \end{tabular}
 \end{table}
+\end{singlespace}
 \newpage
 
 % Abstract
@@ -143,15 +219,50 @@
 \addcontentsline{toc}{chapter}{Abstract}
 \begin{spacing}{1.15}
 \section*{English Abstract}
-% Insert English abstract here (150-250 words)
+Seed quality is a major factor in germination and final yield, yet it is still
+judged by hand: a grader pours out a sample, spreads it on a tray, and sorts the
+seeds into good and bad piles. That process is slow and subjective: it covers
+only a small fraction of a large lot, and two graders rarely agree on the
+borderline seeds. Seed Bank is a platform that automates this judgement. A user photographs a batch of
+seeds; an object detector locates every seed, a per-crop classifier grades each
+one as good or bad, and the system reports the seed count, the good-rate, and a
+breakdown by crop. The two crops supported today are coffee and maize. The
+backend is an asynchronous service with a layered architecture, a model registry,
+weighted A/B traffic splits, offline model evaluation, and a foreign-key chain
+that traces every seed label back to the exact model version that produced it.
+One backend serves three clients: a web app, a bilingual mobile app with a
+realtime camera, and a documented HTTP API. Training the detector exposed a data
+problem, because public seed datasets are almost all single-seed images while a
+detector needs annotated multi-seed images that are expensive to label by hand.
+The companion tool MultiSeedGen closes this gap by compositing single-seed crops
+into annotated multi-seed scenes, with reproducible and leakage-safe output. The
+result is a working, traceable platform together with the data generator that
+makes its detector trainable.
 
 \vspace{1.5cm}
 
 \section*{Arabic Abstract}
-% Insert Arabic abstract here (150-250 words)
-\begin{Arabic}
-% اكتب الملخص باللغة العربية هنا
-\end{Arabic}
+% otherlanguage* switches direction/font locally WITHOUT writing \selectlanguage
+% into the .toc/.lof/.lot. The plain Arabic environment leaks those switches and
+% flips the table of contents to RTL.
+\begin{otherlanguage*}{arabic}
+تُعدّ جودة البذور عاملاً مهمّاً في نسبة الإنبات وفي المحصول النهائي، ومع ذلك ما
+زال تقييمها يجري يدويّاً: يسكب المُصنِّف عيّنة من البذور وينشرها على صينية ويفرزها
+إلى سليمة وتالفة. هذه العملية بطيئة، ولا تشمل سوى جزء ضئيل من الدُّفعة الكبيرة،
+وتختلف نتائجها من شخص إلى آخر. نظام «Seed Bank» منصّة تُؤتمت هذا الحكم؛ إذ يلتقط
+المستخدم صورةً لدُفعة من البذور، فيحدّد نموذجٌ للكشف عن الأجسام موضع كلّ بذرة، ثمّ
+يصنّف نموذجٌ خاصّ بكلّ محصول كلَّ بذرة إلى سليمة أو تالفة، ويعرض النظام عدد البذور
+ونسبة السليم وتوزيعاً بحسب نوع المحصول. والمحصولان المدعومان حاليّاً هما البُنّ
+والذُّرة. بُني النظام الخلفيّ بمعماريّة طبقيّة غير متزامنة، مع سجلّ للنماذج، وتقسيم
+مروريّ لاختبارات A/B، وتقييم للنماذج دون اتصال، وسلسلة مفاتيح خارجيّة تتيح تتبّع
+كلّ نتيجة إلى إصدار النموذج الذي أنتجها. وتخدم هذه الواجهة الخلفيّة ثلاثة تطبيقات:
+تطبيق ويب، وتطبيق جوّال ثنائيّ اللغة بكاميرا فوريّة، وواجهة برمجيّة موثّقة. وقد
+كشف تدريبُ نموذج الكشف عن مشكلة في البيانات، لأنّ معظم مجموعات البيانات المتاحة
+تضمّ بذرةً واحدة في الصورة، بينما يحتاج الكاشف إلى صور متعدّدة البذور مُوسَمة
+يصعب إعدادها يدويّاً. تسدّ الأداة المرافقة «MultiSeedGen» هذه الفجوة بتركيب
+قُصاصات البذور المفردة في مشاهد متعدّدة البذور مُوسَمة تلقائيّاً، بنتائج قابلة
+لإعادة الإنتاج وخالية من تسرّب بيانات التحقّق.
+\end{otherlanguage*}
 \end{spacing}
 \newpage
 

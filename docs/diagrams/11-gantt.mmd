@@ -1,0 +1,32 @@
+gantt
+    title Seed Bank — Project Timeline (Academic Year 2025/2026)
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b %y
+
+    section Research
+    Domain study and dataset survey        :r1, 2025-10-01, 35d
+    Single vs. multi-seed gap analysis     :r2, after r1, 20d
+
+    section Data tooling
+    MultiSeedGen segmentation pipeline     :d1, 2025-11-05, 30d
+    Synthetic scene composition and export :d2, after d1, 30d
+    Detector dataset generation            :d3, after d2, 20d
+
+    section Backend
+    Architecture and data model            :b1, 2025-11-15, 30d
+    Auth, RBAC and security                :b2, after b1, 25d
+    ML registry and inference pipeline     :b3, after b2, 35d
+    Workers and analyze orchestration      :b4, after b3, 25d
+    Data warehouse and analytics           :b5, after b4, 20d
+
+    section Clients
+    Web frontend                           :c1, 2026-02-01, 45d
+    Mobile app                             :c2, 2026-03-15, 35d
+    Bilingual EN/AR and RTL                :c3, 2026-04-01, 25d
+
+    section Quality
+    Observability stack                    :q1, 2026-04-15, 20d
+    Testing and CI                         :q2, 2026-04-20, 35d
+
+    section Delivery
+    Documentation and report               :w1, 2026-05-20, 35d
