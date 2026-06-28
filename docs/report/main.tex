@@ -184,41 +184,21 @@
     \centering
     \begin{tabular}{ll}
         \textbf{API} & Application Programming Interface \\
-        \textbf{CAS} & Compare-And-Set \\
         \textbf{CBAM} & Convolutional Block Attention Module \\
-        \textbf{CDC} & Change Data Capture \\
-        \textbf{CLI} & Command Line Interface \\
         \textbf{CNN} & Convolutional Neural Network \\
         \textbf{COCO} & Common Objects in Context (dataset format) \\
         \textbf{CPU} & Central Processing Unit \\
-        \textbf{CSS} & Cascading Style Sheets \\
         \textbf{CSV} & Comma-Separated Values \\
-        \textbf{CUDA} & Compute Unified Device Architecture \\
-        \textbf{DWH} & Data Warehouse \\
-        \textbf{ERD} & Entity-Relationship Diagram \\
         \textbf{FCAI} & Faculty of Computers and Artificial Intelligence \\
-        \textbf{FPN} & Feature Pyramid Network \\
+        \textbf{GMP} & Global Max Pooling \\
         \textbf{GPU} & Graphics Processing Unit \\
-        \textbf{HTML} & HyperText Markup Language \\
-        \textbf{IoU} & Intersection over Union \\
         \textbf{JSON} & JavaScript Object Notation \\
-        \textbf{JWT} & JSON Web Token \\
-        \textbf{LRU} & Least Recently Used \\
-        \textbf{MIME} & Multipurpose Internet Mail Extensions \\
+        \textbf{mAP} & mean Average Precision \\
         \textbf{ML} & Machine Learning \\
-        \textbf{OAuth} & Open Authorization \\
-        \textbf{OLAP} & Online Analytical Processing \\
-        \textbf{OLTP} & Online Transaction Processing \\
-        \textbf{ORM} & Object-Relational Mapping \\
-        \textbf{OTel} & OpenTelemetry \\
-        \textbf{OTLP} & OpenTelemetry Protocol \\
-        \textbf{RBAC} & Role-Based Access Control \\
         \textbf{R-CNN} & Region-based Convolutional Neural Network \\
         \textbf{REST} & Representational State Transfer \\
         \textbf{RTL} & Right-To-Left \\
-        \textbf{SPA} & Single-Page Application \\
         \textbf{UI} & User Interface \\
-        \textbf{YAML} & YAML Ain't Markup Language \\
         \textbf{YOLO} & You Only Look Once \\
     \end{tabular}
 \end{table}
@@ -230,25 +210,23 @@
 \addcontentsline{toc}{chapter}{Abstract}
 \begin{spacing}{1.15}
 \section*{English Abstract}
-Seed quality is a major factor in germination and final yield, yet it is still
-judged by hand: a grader pours out a sample, spreads it on a tray, and sorts the
-seeds into good and bad piles. That process is slow and subjective: it covers
-only a small fraction of a large lot, and two graders rarely agree on the
-borderline seeds. Seed Bank is a platform that automates this judgement. A user photographs a batch of
-seeds; an object detector locates every seed, a per-crop classifier grades each
-one as good or bad, and the system reports the seed count, the good-rate, and a
-breakdown by crop. The two crops supported today are coffee and maize. The
-backend is an asynchronous service with a layered architecture, a model registry,
-weighted A/B traffic splits, offline model evaluation, and a foreign-key chain
-that traces every seed label back to the exact model version that produced it.
-One backend serves three clients: a web app, a bilingual mobile app with a
-realtime camera, and a documented HTTP API. Training the detector exposed a data
-problem, because public seed datasets are almost all single-seed images while a
-detector needs annotated multi-seed images that are expensive to label by hand.
-The companion tool MultiSeedGen closes this gap by compositing single-seed crops
-into annotated multi-seed scenes, with reproducible and leakage-safe output. The
-result is a working, traceable platform together with the data generator that
-makes its detector trainable.
+Seed quality decides how well a crop germinates and how much it finally yields,
+yet it is still judged by hand. An inspector pours out a sample, spreads it on a
+tray, and sorts the seeds into good and bad piles one at a time. That work is slow,
+it tires the eye, and two people often disagree on the same seed, so it can only
+ever check a tiny part of a large batch. Seed Bank is a prototype that does this
+job automatically. A user takes a photo of a batch of seeds; the system finds
+every seed in the picture, decides whether each one is good or bad, and reports how
+many seeds there are, what share of them are good, and a breakdown by crop. It
+currently handles two crops, coffee and maize. Teaching a computer to find the
+seeds needs many example photos in which every seed is already marked, and those
+are expensive to prepare by hand. A companion tool, MultiSeedGen, solves this by
+building such training pictures automatically, so the system can learn without
+anyone marking thousands of photos. On unseen test images the prototype finds
+nearly every seed and grades each one correctly about 97\% of the time, and it does
+so on an ordinary computer. This shows that fast, consistent, automatic seed
+grading is within reach of the small laboratories and farmers who cannot afford
+industrial sorting machines.
 
 \vspace{1.5cm}
 
@@ -257,22 +235,21 @@ makes its detector trainable.
 % into the .toc/.lof/.lot. The plain Arabic environment leaks those switches and
 % flips the table of contents to RTL.
 \begin{otherlanguage*}{arabic}
-تُعدّ جودة البذور عاملاً مهمّاً في نسبة الإنبات وفي المحصول النهائي، ومع ذلك ما
-زال تقييمها يجري يدويّاً: يسكب المُصنِّف عيّنة من البذور وينشرها على صينية ويفرزها
-إلى سليمة وتالفة. هذه العملية بطيئة، ولا تشمل سوى جزء ضئيل من الدُّفعة الكبيرة،
-وتختلف نتائجها من شخص إلى آخر. نظام «Seed Bank» منصّة تُؤتمت هذا الحكم؛ إذ يلتقط
-المستخدم صورةً لدُفعة من البذور، فيحدّد نموذجٌ للكشف عن الأجسام موضع كلّ بذرة، ثمّ
-يصنّف نموذجٌ خاصّ بكلّ محصول كلَّ بذرة إلى سليمة أو تالفة، ويعرض النظام عدد البذور
-ونسبة السليم وتوزيعاً بحسب نوع المحصول. والمحصولان المدعومان حاليّاً هما البُنّ
-والذُّرة. بُني النظام الخلفيّ بمعماريّة طبقيّة غير متزامنة، مع سجلّ للنماذج، وتقسيم
-مروريّ لاختبارات A/B، وتقييم للنماذج دون اتصال، وسلسلة مفاتيح خارجيّة تتيح تتبّع
-كلّ نتيجة إلى إصدار النموذج الذي أنتجها. وتخدم هذه الواجهة الخلفيّة ثلاثة تطبيقات:
-تطبيق ويب، وتطبيق جوّال ثنائيّ اللغة بكاميرا فوريّة، وواجهة برمجيّة موثّقة. وقد
-كشف تدريبُ نموذج الكشف عن مشكلة في البيانات، لأنّ معظم مجموعات البيانات المتاحة
-تضمّ بذرةً واحدة في الصورة، بينما يحتاج الكاشف إلى صور متعدّدة البذور مُوسَمة
-يصعب إعدادها يدويّاً. تسدّ الأداة المرافقة «MultiSeedGen» هذه الفجوة بتركيب
-قُصاصات البذور المفردة في مشاهد متعدّدة البذور مُوسَمة تلقائيّاً، بنتائج قابلة
-لإعادة الإنتاج وخالية من تسرّب بيانات التحقّق.
+تُحدّد جودة البذور إلى حدٍّ كبير نسبة الإنبات والمحصول النهائي، ومع ذلك ما زال
+تقييمها يجري يدويّاً. يسكب المُصنِّف عيّنةً من البذور، وينشرها على صينية، ويفرزها
+بذرةً بذرة إلى سليمة وتالفة. هذا العمل بطيء ويُجهد العين، وكثيراً ما يختلف شخصان
+على البذرة نفسها، ولذلك لا يمكنه فحص سوى جزء ضئيل من الدُّفعة الكبيرة. «Seed Bank»
+نموذج أوّليّ يؤدّي هذه المهمّة تلقائيّاً؛ إذ يلتقط المستخدم صورةً لدُفعة من البذور،
+فيعثر النظام على كلّ بذرة في الصورة، ويقرّر ما إذا كانت سليمة أو تالفة، ثمّ يعرض
+عدد البذور ونسبة السليم منها وتوزيعاً بحسب نوع المحصول. ويتعامل النظام حاليّاً مع
+محصولين، هما البُنّ والذُّرة. ويحتاج تعليمُ الحاسوب العثورَ على البذور إلى عدد كبير
+من الصور التي وُسِمت فيها كلّ بذرة مسبقاً، وهي صور مكلفة الإعداد يدويّاً. تسدّ
+الأداة المرافقة «MultiSeedGen» هذه الحاجة ببناء صور التدريب هذه تلقائيّاً، فيتعلّم
+النظام دون أن يَسِم أحدٌ آلاف الصور. وعلى صور اختبار لم يَرَها النظام من قبل، يعثر
+النموذج الأوّليّ على كلّ البذور تقريباً، ويصنّف كلّ بذرة تصنيفاً صحيحاً نحو 97٪ من
+الحالات، ويفعل ذلك على حاسوب عاديّ. وهذا يبيّن أنّ تقييم جودة البذور تقييماً سريعاً
+ومتّسقاً وتلقائيّاً صار في متناول المختبرات الصغيرة والمزارعين الذين لا يقدرون على
+شراء آلات الفرز الصناعية.
 \end{otherlanguage*}
 \end{spacing}
 \newpage
@@ -294,11 +271,5 @@ makes its detector trainable.
 % REFERENCES
 % ==============================================================================
 \printbibliography[heading=bibintoc, title={References}]
-
-% ==============================================================================
-% APPENDICES
-% ==============================================================================
-\appendix
-\include{chapters/appendices}
 
 \end{document}

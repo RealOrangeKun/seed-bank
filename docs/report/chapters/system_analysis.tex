@@ -1,57 +1,45 @@
 \chapter{System Analysis}
 
-This chapter turns the product idea described in the introduction into a precise
-statement of what the system must do and the constraints it must satisfy. It
-identifies who uses Seed Bank and what each of them wants from it, then
-enumerates the functional and non-functional requirements that the design and
-implementation are held against. The requirements here are not aspirational:
-each one corresponds to a capability that exists in the running system, so this
-chapter doubles as a map between the stakeholders' goals and the endpoints,
-tables, and workers that satisfy them.
+This chapter turns the product idea from the introduction into a clear statement
+of what Seed Bank has to do and the limits it works within. It starts with the
+people who use the system and what each of them wants, then lists the functional
+and non-functional requirements that the design is measured against. The
+requirements map onto capabilities that exist in the running system, so the
+chapter also acts as a bridge between what the stakeholders need and what the
+backend, the workers, and the user interface actually provide.
 
 \section{Stakeholder Analysis}
 
-Seed Bank serves two audiences that have almost nothing in common, from a single
-backend. On one side are the people checking seed quality in a field or a
-warehouse; on the other are the people who run the machine-learning platform
-behind the product. The platform's value comes from keeping both groups on the
-same data: the model that grades a farmer's photo is the same artifact a
-developer registered, promoted, and measured. Identifying each stakeholder and
-their goals early kept the requirements honest, because a feature that helps one
-group must not break the guarantees the other depends on.
+Seed Bank serves two groups that have little in common. On one side are the
+people checking seed quality in a field or a warehouse. On the other are the
+people who build and look after the machine-learning model behind the product.
+Both groups depend on the same data, because the model that grades a farmer's
+photo is the same one a developer trained, registered, and evaluated. Naming each
+stakeholder and their goals early kept the requirements grounded, since a feature
+that helps one group should not break what the other relies on.
 
-The \textbf{farmer (end user)} is the primary stakeholder. Their job is to find
-out whether a batch of seeds is good before planting or buying it. They sign in
-from the web app or the mobile app, photograph a batch, and expect an instant
-good/bad report with a seed count and a good-rate, followed by a history they can
-revisit and, when needed, a read-only link they can share with someone who has no
-account. Farmers work in Arabic or English, often on a phone, so the interface
-language and direction matter as much as the inference result.
+The farmer, or end user, is the main stakeholder. Their goal is to find out
+whether a batch of seeds is good before planting or buying it. They sign in from
+the web app or the mobile app, photograph a batch, and expect a quick good/bad
+report with a seed count and a good-rate, plus a history they can return to.
+Farmers often work on a phone and in Arabic, so the interface language and text
+direction matter as much as the result itself.
 
-The \textbf{AI developer} is the stakeholder who makes the product accurate over
-time. They register model weights into the registry, promote a model through its
-lifecycle from draft to production, and run offline evaluation experiments
-against labelled datasets to decide whether a new model is actually better than
-the one in production. They also curate the datasets those experiments run
-against. Because they need to test a specific model on a real photo, they can
-override the routed model at analyze time, which an ordinary user cannot do.
+The AI developer keeps the product accurate over time. They train the detection
+and classification models, register the resulting weights, and run offline
+evaluations against labelled datasets to decide whether a new model is actually
+better than the one in use. Because they need to test a specific model on a real
+photo, they can pick which model runs at analysis time, which an ordinary user
+cannot do.
 
-The \textbf{administrator} owns the operational levers. They configure weighted
-traffic splits to run A/B tests between model versions, manage users and their
-roles, and read the audit log. Administrators inherit everything the AI developer
-can do and add the controls that change behaviour for everyone, so the system
-gates their actions tightly and records them.
+The administrator looks after the operational side. They choose which model
+serves traffic, manage users and their roles, and review the record of sensitive
+actions. An administrator can do everything an AI developer can, plus the
+settings that change behaviour for everyone, so those actions are gated tightly
+and logged.
 
-Two secondary stakeholders shape requirements without driving the day-to-day
-flow. \textbf{Suppliers} are referenced when a scan is recorded, so that quality
-results can later be grouped by where a batch came from; the system keeps a
-catalog of global suppliers plus private ones a developer or admin can add.
-Finally, the \textbf{faculty and evaluators} of the graduation project are
-stakeholders in the engineering itself: they judge whether the system meets a
-production-grade bar, which is why the non-functional requirements in
-Section~\ref{sec:ch3-nfr} are stated as measurable targets rather than
-adjectives. Table~\ref{tab:ch3-stakeholders} summarises the goals and the main
-system capabilities each stakeholder relies on.
+Table~\ref{tab:ch3-stakeholders} summarises each stakeholder, their main goal,
+and the capabilities they lean on.
 
 \begin{singlespace}
 \begin{table}[htbp]
@@ -62,11 +50,9 @@ system capabilities each stakeholder relies on.
 \toprule
 \textbf{Stakeholder} & \textbf{Primary goal} & \textbf{Depends on} \\
 \midrule
-Farmer / end user & Check seed quality of a batch in the field and review past results & Web/mobile capture, \texttt{POST /analyze}, batch polling, share links, EN/AR UI \\
-AI developer & Improve and validate models offline; pick the right model & Model registry, datasets, experiments, per-request model override \\
-Administrator & Control which model serves traffic and manage access & Traffic splits, user/role management, audit log \\
-Supplier (secondary) & Be attributable in quality results & Supplier catalog, \texttt{supplier\_id} on scans \\
-Faculty / evaluators (secondary) & Assess engineering quality against a production bar & Layered architecture, tests, observability \\
+Farmer / end user & Check the quality of a seed batch in the field and review past results & Web/mobile capture, batch analysis, history, English/Arabic UI \\
+AI developer & Train and validate models, then choose the right one & Model registry, datasets, offline evaluation, per-request model choice \\
+Administrator & Control which model serves traffic and manage access & Model selection, user/role management, action log \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -74,62 +60,47 @@ Faculty / evaluators (secondary) & Assess engineering quality against a producti
 
 \section{Functional Requirements}
 
-The functional requirements describe what the system does, grouped by the area of
-the product they belong to. Each requirement maps to a concrete part of the API
-surface and the data model, so they can be traced into the design and verified
-against the running service.
+The functional requirements describe what the system does, grouped by the part of
+the product they belong to. Each one corresponds to a capability in the running
+service, so they can be traced into the design and checked against it.
 
-\subsection{Authentication and access}
+\subsection{Accounts and access}
 
-A user can register with an email and password, receive a verification email, and
-confirm their address before the account is usable. Login issues a short-lived
-access token and a long-lived refresh token; the refresh endpoint rotates the
-refresh token on every use and detects replay of an old token by invalidating the
-whole chain. Users may also sign in through Google or GitHub using OAuth2
-\cite{rfc6749oauth}. For programmatic access, a user can create, list, and revoke
-personal API keys, which are hashed at rest and shown in plaintext exactly once at
-creation. A guarded one-shot endpoint bootstraps the first administrator.
+A user can register with an email and password, confirm their address, and sign
+in. They can also sign in through Google or GitHub. Once signed in, a user can
+manage their own account and, for programmatic access, create and revoke personal
+API keys. Access is split across three roles (end user, AI developer,
+administrator), and each requirement below records the role allowed to perform it.
 
-\subsection{Analysis and batches}
+\subsection{Analysis and history}
 
-The core action is submitting images for analysis. A user uploads up to sixteen
-images in a single multipart \texttt{POST /analyze} request, optionally pinning a
-seed type, supplier, model, and geo metadata; this starts one scan batch. Clients
-then poll \texttt{GET /batches/\{id\}} until the batch reaches a terminal status.
-Around a batch, the system lets a user list their batches, open one for detail,
-delete a batch, bulk-delete several, export results as CSV or JSON, download an
-annotated PNG with the detection boxes drawn on the image, and create or revoke a
-public read-only share link served at \texttt{GET /shared/\{token\}}.
+The core action is submitting images for analysis. A user uploads a batch of
+images, optionally noting the seed type and supplier, and the system returns a
+good/bad verdict per seed along with a count and a good-rate for the batch. A
+faster mode trades some detail for a quicker turnaround on large batches. A user
+can also analyse a single image on its own. Around a batch, a user can list their
+batches, open one to see the aggregated scans, detections, statistics, and
+annotated images, export the results, download an image with the detection boxes
+drawn on it, and delete batches they no longer need.
 
-\subsection{Analytics and comparison}
+\subsection{Model work}
 
-Beyond a single batch, a user can view aggregated detection and quality metrics
-over a time window through the analytics endpoint, and compare batches against one
-another to see how quality differs across scans. The analytics path reads from a
-separate analytical store so these queries do not load the transactional database.
-
-\subsection{Model platform}
-
-AI developers and administrators operate the machine-learning platform through the
-API. They register model artifacts with their weights and metadata, list and fetch
-them, promote a model through its lifecycle, and read per-model performance
-records. Administrators define weighted traffic splits that route inference between
-model versions for A/B tests. Developers manage labelled datasets and their items,
-and create offline-evaluation experiments that run a model over a dataset and
-compute classification metrics. Switching the production model or starting an A/B
-test is a registry-and-traffic operation, not a code change.
+AI developers and administrators look after the model. They register trained
+model weights along with their metadata, list and fetch them, and read how each
+model performed. They manage labelled datasets and run offline evaluations that
+score a model over a dataset. An AI developer can also choose which model runs for
+a given analysis, so a candidate model can be tried on a real photo before it
+takes over.
 
 \subsection{Administration}
 
-Administrators manage the user base: listing users and changing their roles among
-the three defined roles. Sensitive actions across the system are written to an
-append-only audit log that an administrator can read.
+Administrators choose which model serves normal traffic, manage the user base by
+listing users and changing their roles, and read the log of sensitive actions.
 
 \medskip
 
-Table~\ref{tab:ch3-fr} assigns an identifier to each functional requirement and
-records the role allowed to invoke it, following the role-based access control
-described in Section~\ref{sec:ch3-nfr}.
+Table~\ref{tab:ch3-fr} gives each functional requirement an identifier and the
+role permitted to perform it.
 
 \begin{singlespace}
 \begin{longtable}{@{}p{1.3cm}p{8.2cm}p{3.0cm}@{}}
@@ -147,196 +118,150 @@ described in Section~\ref{sec:ch3-nfr}.
 \endfoot
 \bottomrule
 \endlastfoot
-FR-1 & Register with email/password and verify the email address & Public \\
-FR-2 & Log in and obtain an access + refresh token pair & Public \\
-FR-3 & Refresh the access token with refresh-token rotation and replay detection & Authenticated \\
-FR-4 & Sign in with Google or GitHub via OAuth2 & Public \\
-FR-5 & Create, list, and revoke personal API keys (hashed at rest) & Authenticated \\
-FR-6 & Submit up to 16 images in one \texttt{POST /analyze} multipart request, starting a batch & End user \\
-FR-7 & Poll \texttt{GET /batches/\{id\}} for batch status and results & End user (own) \\
-FR-8 & List own batches; open a batch for detail & End user (own) \\
-FR-9 & Delete a batch; bulk-delete several batches & End user (own) \\
-FR-10 & Export a batch as CSV or JSON & End user (own) \\
-FR-11 & Download an annotated PNG of a scanned image & End user (own) \\
-FR-12 & Create / revoke a public read-only share link for a batch & End user (own) \\
-FR-13 & View a shared batch report without authentication & Public (with token) \\
-FR-14 & View aggregated detection and quality analytics over a time window & End user (own) \\
-FR-15 & Compare two or more batches & End user (own) \\
-FR-16 & List reference seed types and suppliers; create/edit private suppliers & Authenticated \\
-FR-17 & Register a model artifact; list/get models & AI developer \\
-FR-18 & Promote a model through its lifecycle; read per-model performance & AI developer \\
-FR-19 & Override the routed model at analyze time & AI developer \\
-FR-20 & Manage weighted traffic splits between model versions & Administrator \\
-FR-21 & Create and manage labelled datasets and their items & AI developer \\
-FR-22 & Create / list / get offline-evaluation experiments & AI developer \\
-FR-23 & List users and change a user's role & Administrator \\
-FR-24 & Read the append-only audit log & Administrator \\
+FR-1 & Register with email/password and confirm the address & Public \\
+FR-2 & Log in and stay signed in across sessions & Public \\
+FR-3 & Sign in with Google or GitHub & Public \\
+FR-4 & Create and revoke personal API keys & Authenticated \\
+FR-5 & Submit a batch of images for analysis & End user \\
+FR-6 & Use the faster analysis mode for large batches & End user \\
+FR-7 & Analyse a single image on its own & End user \\
+FR-8 & List own batches and open one for detail & End user (own) \\
+FR-9 & View batch detail: scans, detections, statistics, and images & End user (own) \\
+FR-10 & Export a batch's results & End user (own) \\
+FR-11 & Download an annotated image with detection boxes & End user (own) \\
+FR-12 & Delete a batch & End user (own) \\
+FR-13 & Check service health and read runtime configuration & Public \\
+FR-14 & Register a model's weights and metadata; list and fetch models & AI developer \\
+FR-15 & Read per-model performance & AI developer \\
+FR-16 & Manage labelled datasets and run offline evaluations & AI developer \\
+FR-17 & Choose which model runs for a given analysis & AI developer \\
+FR-18 & Choose which model serves normal traffic & Administrator \\
+FR-19 & List users and change a user's role & Administrator \\
+FR-20 & Read the log of sensitive actions & Administrator \\
 \end{longtable}
 \end{singlespace}
 
 \section{Non-Functional Requirements}
 \label{sec:ch3-nfr}
 
-Non-functional requirements describe how the system must behave while doing the
-work above. They are the constraints a reviewer would reject the system for
-missing, so wherever the design fixes a measurable target the requirement states
-the number rather than an adjective.
+Non-functional requirements describe how the system should behave while doing the
+work above. They cover the qualities a user or reviewer would notice if they were
+missing.
 
-\textbf{Performance.} Analysis runs asynchronously from end to end. The
-\texttt{POST /analyze} request validates and stores the images, commits the batch
-in the \texttt{pending} state, and returns immediately; the detect-then-classify
-work happens in Celery workers \cite{celeryinplay}, and clients learn the outcome
-by polling \texttt{GET /batches/\{id\}} roughly every two seconds. A multi-image
-batch is processed with one task per image, so the images in a batch are inferred
-in parallel rather than one after another. Nothing in the request path blocks the
-event loop, because the backend is async throughout \cite{fastapi}.
+Performance. Analysis does not block the request. When a user submits a batch,
+the system accepts the images, starts the work in the background, and lets the
+client check back for the result. The images in a batch are processed
+independently rather than one after another, so a multi-image batch finishes
+faster than the sum of its parts. The faster analysis mode exists for cases where
+turnaround matters more than the extra detail.
 
-\textbf{Scalability.} The unit of scale is the inference worker. Because each
-image is an independent Celery task on the \texttt{inference} queue, throughput
-grows by adding worker processes or containers; no part of the design assumes a
-single worker. Heavy analytical queries are kept off the transactional store by
-serving them from a separate ClickHouse warehouse \cite{clickhouseolap}, and
-cached or queued state lives in Redis \cite{redisinaction}.
+Usability. The end-user surface is simple enough to use on a phone in the field.
+A user photographs a batch, waits a moment, and reads a clear good/bad result.
+History, exports, and annotated images are reachable in a few taps.
 
-\textbf{Security.} Access tokens are short-lived JSON Web Tokens
-\cite{rfc7519jwt} with a fifteen-minute time-to-live; refresh tokens live for
-seven days, rotate on every use, and trigger replay detection that invalidates the
-chain when an old token is reused. Authorization is role-based across the three
-roles, enforced on both the API and the clients. Sensitive routes are rate-limited
-per route via a Redis-backed limiter, API keys are hashed at rest, and every
-sensitive action is written to an append-only audit log. Social login uses OAuth2
-\cite{rfc6749oauth}. Errors are returned as RFC 9457 problem details
-\cite{rfc9457problem} carrying a request identifier, so a client always receives a
-structured, traceable failure rather than an opaque 500.
+Internationalisation and RTL. The end-user interface works in both English and
+Arabic, including right-to-left layout. The layout flips correctly so dialogs,
+tables, and navigation read naturally in either language. The developer and admin
+pages are English-only, since farmers never reach them.
 
-\textbf{Reliability.} The batch state machine
-(\texttt{pending} $\rightarrow$ \texttt{running} $\rightarrow$
-\texttt{succeeded} / \texttt{partial} / \texttt{failed}) is driven by
-compare-and-set updates, so several workers handling the images of one batch
-cannot corrupt its state: exactly one task owns each transition. When detection
-has already produced results but classification later crashes, the batch degrades
-to \texttt{partial} and keeps the detections instead of discarding them, and a
-batch with no routable model fails with a human-readable message rather than a
-blank error.
+Security. Sign-in keeps users in their own data, and the three roles decide what
+each user can do, enforced on the server rather than just hidden in the
+interface. API keys are stored hashed rather than in plain text, and sensitive
+actions are written to a log that can be reviewed but not edited after the fact.
 
-\textbf{Observability.} The backend emits the four signals of logs, metrics,
-traces, and errors, all configured centrally so labels and formats stay
-consistent. Logs are structured (one JSON object per line outside development) and
-carry a per-request \texttt{request\_id} and \texttt{path}; Prometheus metrics
-cover HTTP traffic and domain counters such as inference totals and latency, with
-the route template used as the \texttt{path} label to keep cardinality bounded;
-traces are exported over OpenTelemetry \cite{opentelemetry2022} across the API,
-database, Redis, outbound HTTP, and Celery; and unhandled exceptions are captured
-by Sentry. Liveness and readiness probes (\texttt{GET /healthz} and
-\texttt{GET /readyz}) let an orchestrator gate traffic, with the readiness probe
-actively checking Postgres, Redis, MinIO, and ClickHouse.
+Reliability. A batch moves through a clear set of states as it is processed.
+Several workers can handle the images of one batch at the same time without
+corrupting its state. If detection succeeds but classification later fails, the
+batch keeps the detections it already has instead of throwing them away, and a
+batch that cannot be matched to a model fails with a readable message.
 
-\textbf{Usability and internationalisation.} The end-user surface is fully
-bilingual in English and Arabic, including right-to-left layout. The Arabic
-dictionary is type-checked against the English one so a missing translation is a
-compile error rather than a silent fallback, and the layout flips using logical
-CSS properties so dialogs, tables, and navigation render correctly in both
-directions. The admin and ML pages are intentionally English-only, since they are
-role-gated to developers and administrators and never reached by farmers.
+Maintainability. The backend is layered so that each part has one job: request
+handling, business logic, and data access stay separate. Inference runs in a
+separate worker service rather than inside the web process, so the two can be
+changed and scaled on their own. Swapping the model that serves traffic is a
+registry-and-selection step, not a code change, which keeps the system easy to
+update as new crops and models are added.
 
-\textbf{Maintainability.} The backend follows a layered clean architecture
-\cite{cleanarchitecture2017} in which routers call services, services call
-repositories, and only repositories touch the ORM \cite{sqlalchemyguide}. Pydantic
-schemas validate every boundary and stop the ORM leaking past the service layer,
-and all configuration comes from one central settings object rather than scattered
-environment reads. This layering is itself a requirement, because the frontend and
-backend overhaul recorded in ADR-0001 treats violating it as a defect to fix, not
-a shortcut to accept. Table~\ref{tab:ch3-nfr} lists the non-functional
-requirements with their measurable targets.
+Table~\ref{tab:ch3-nfr} lists the non-functional requirements.
 
 \begin{singlespace}
-\begin{longtable}{@{}p{1.5cm}p{2.6cm}p{7.4cm}@{}}
-\caption{Non-functional requirements and their targets.}
+\begin{longtable}{@{}p{1.5cm}p{2.8cm}p{7.2cm}@{}}
+\caption{Non-functional requirements.}
 \label{tab:ch3-nfr} \\
 \toprule
-\textbf{ID} & \textbf{Attribute} & \textbf{Requirement / target} \\
+\textbf{ID} & \textbf{Attribute} & \textbf{Requirement} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{ID} & \textbf{Attribute} & \textbf{Requirement / target} \\
+\textbf{ID} & \textbf{Attribute} & \textbf{Requirement} \\
 \midrule
 \endhead
 \bottomrule
 \endfoot
 \bottomrule
 \endlastfoot
-NFR-1 & Performance & Analysis is async end-to-end; \texttt{POST /analyze} returns before inference runs; clients poll at a $\sim$2\,s interval. \\
-NFR-2 & Performance & Each image in a batch is a separate task, so images are inferred in parallel; up to 16 images per request. \\
-NFR-3 & Scalability & Throughput scales horizontally by adding inference workers; analytics served from a separate ClickHouse store. \\
-NFR-4 & Security & JWT access TTL 15\,min; refresh TTL 7\,days with rotation and replay detection. \\
-NFR-5 & Security & RBAC across 3 roles; per-route rate limiting; API keys hashed at rest; append-only audit log. \\
-NFR-6 & Security & Errors returned as RFC 9457 problem details with a \texttt{request\_id}. \\
-NFR-7 & Reliability & Compare-and-set batch state machine; classify failure degrades to \texttt{partial}, never loses detections. \\
-NFR-8 & Observability & Logs, metrics, traces, and errors centralised; \texttt{/healthz} and \texttt{/readyz} probes. \\
-NFR-9 & Usability / i18n & Full EN/AR localisation with RTL across the entire end-user surface. \\
-NFR-10 & Maintainability & Layered architecture (routers $\rightarrow$ services $\rightarrow$ repositories $\rightarrow$ ORM); Pydantic at boundaries. \\
+NFR-1 & Performance & Analysis runs in the background; the images in a batch are processed in parallel. \\
+NFR-2 & Performance & A faster analysis mode is available for large batches. \\
+NFR-3 & Usability & The result is readable at a glance on a phone in the field. \\
+NFR-4 & Internationalisation & Full English/Arabic interface with right-to-left layout. \\
+NFR-5 & Security & Three roles enforced on the server; API keys stored hashed; sensitive actions logged. \\
+NFR-6 & Reliability & Clear batch state flow; concurrent workers cannot corrupt a batch; partial results are kept on classification failure. \\
+NFR-7 & Maintainability & Layered backend; inference in a separate worker; model swap is a selection step, not a code change. \\
 \end{longtable}
 \end{singlespace}
 
-\section{Use Case Diagrams and Actor Descriptions}
+\section{Use Case Diagram and Actor Descriptions}
 
-The use cases follow directly from the roles. There are three authenticated
-actors, each inheriting the capabilities of the one below it, plus an
-unauthenticated actor for the public flows. \autoref{fig:usecase} shows the actors
-and the main use cases.
+The use cases group into three areas, following the same split used in the
+first-semester design: system utilities, history and statistics, and seed
+analysis. \autoref{fig:usecase} shows the actors and the main use cases.
 
-The \textbf{end user (farmer)} is the base actor. Their use cases are signing up
-and verifying their email, logging in, submitting a batch of images for analysis,
-polling that batch until it finishes, browsing their own history, exporting or
-downloading an annotated result, viewing analytics, comparing batches, and
-creating a share link. Every one of these acts only on data the user owns.
+System utilities cover the supporting calls that keep the service usable: a health
+check that reports whether the service is up, and a configuration call that lets a
+client read the current runtime settings.
 
-The \textbf{AI developer} extends the end user. On top of every end-user case,
-the developer manages datasets, registers and promotes models, reads model
-performance, runs offline experiments, and overrides the routed model when
-submitting an analysis so they can test a specific model on a real image.
+History and statistics centre on viewing a batch in detail. Opening a batch pulls
+together its scan history, the individual seed detections, the aggregated
+statistics for the batch, and the annotated images into one view, so a user can
+see both the summary and the per-seed evidence behind it.
 
-The \textbf{administrator} extends the AI developer. Beyond the developer's cases,
-the administrator manages weighted traffic splits, manages users and their roles,
-and reads the audit log. These are the cases that change behaviour for other
-actors, which is why they sit at the top of the inheritance chain.
+Seed analysis is the core of the system. A user analyses a batch of images in the
+standard mode, or uses the faster mode when a large batch needs a quicker
+turnaround. Both modes also work on a single image, which is useful for checking
+one sample or for tracing a result down to a single photo.
 
-The \textbf{public (unauthenticated) actor} has exactly one use case: opening a
-shared batch report through its token at \texttt{GET /shared/\{token\}}. This is
-the only path into the system that requires no account, and it is read-only.
+Three actors drive these use cases. The end user, a farmer or a person checking
+seed quality, runs analyses and reviews their own history. The AI developer does
+everything the end user can, and also trains models, registers them, runs offline
+evaluations, and chooses which model runs for a given analysis so a candidate can
+be tried on a real photo. The administrator does everything the developer can,
+and also chooses which model serves normal traffic, manages users and their
+roles, and reads the log of sensitive actions. These last actions change
+behaviour for everyone else, so they sit with the most-privileged actor.
 
 \figslot{12-usecase.pdf}{Use-case diagram (actors and main use cases).}{fig:usecase}
 
 \section{Feasibility Study}
 
-\textbf{Technical feasibility.} The whole stack runs from a single Docker Compose
-file \cite{merkel2014docker} on a laptop: the FastAPI backend, Celery workers,
-Postgres, Redis, MinIO, ClickHouse, and MLflow come up together with seeded demo
-data. A GPU is optional; the default inference runtime uses a CPU build of
-PyTorch, and the GPU runtime is a swap-in target rather than a hard dependency.
-Every major component is a mature open-source project with a large user base
-(FastAPI, Celery, PostgreSQL \cite{postgresinprod}, Redis, ClickHouse, MLflow
-\cite{mlflow2018}, React \cite{reactindepth}), so there is no bet on an unproven
-technology and the integration patterns are well documented. The two-tier ML
-design, where switching the production model is a registry-and-traffic operation
-rather than a code change, keeps the system maintainable as new crop types and
-models are added.
+Technical feasibility. The whole stack runs on commodity hardware. The backend,
+the inference worker, the database, the object store, and the supporting services
+come up together on a single developer machine, with demo data seeded in. A GPU
+is optional: routine development, the demo, and offline evaluation all run on CPU,
+and a GPU mainly helps when training new models. Every major component is a mature
+open-source project with good documentation, so the build does not rest on any
+unproven technology.
 
-\textbf{Economic feasibility.} The cost case rests on open-source software and
-commodity hardware. There are no licensing fees for any component of the stack,
-and the development and demo environment runs on a single developer machine. A GPU
-is needed only for training new models or for heavy inference at scale; routine
-development, the offline-evaluation experiments, and a demo all run on CPU. The
-object store, warehouse, and tracking server are self-hosted from the same Compose
-file, so there is no recurring spend on managed cloud services to run or evaluate
-the system.
+Economic feasibility. The cost case rests on open-source software and ordinary
+hardware. There are no licensing fees for any part of the stack, and the
+development and demo setup runs on one machine. A GPU is needed only for training
+or for heavy inference at scale; everything else runs on CPU. The object store and
+the model-tracking service are self-hosted alongside the rest, so there is no
+recurring spend on managed cloud services to run or evaluate the system.
 
-\textbf{Operational feasibility.} The product meets each audience where it already
-is. Farmers reach it through a web app and a mobile app that captures photos with
-the device camera, both in Arabic or English with right-to-left layout, so the
-interface does not assume English literacy or a desktop. Developers and
-administrators reach the same backend through a documented REST API
-\cite{fielding2000rest} and the role-gated web pages. Because both clients are
-generated against and validated by the same typed API contract, the operational
-surface stays consistent across web, mobile, and direct API use, which keeps the
-system practical to run and to hand over.
+Operational feasibility. The product meets each group where they already are.
+Farmers reach it through a web app and a mobile app that uses the device camera,
+both in English or Arabic with right-to-left layout, so the interface does not
+assume English literacy or a desktop. Developers and administrators reach the same
+backend through a documented API and the role-gated web pages. Both clients talk
+to one shared API, so the system behaves the same across web, mobile, and direct
+API use, which keeps it practical to run and to hand over.

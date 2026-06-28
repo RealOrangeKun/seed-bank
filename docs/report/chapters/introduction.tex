@@ -2,42 +2,53 @@
 
 \section{Background and Motivation}
 
-Seed quality decides a large part of what a farmer harvests. A lot of seed that
-looks fine to the eye can still carry a high fraction of broken, immature,
-discoloured, or diseased grains, and that fraction sets the germination rate and
-the final yield. Before a lot is planted, traded, or priced, someone has to judge
-how good it is. In most of the supply chain that judgement is still made by a
-human grader who pours out a sample, spreads it on a tray, and sorts the seeds by
-hand into good and bad piles, counting as they go.
+Seed quality decides a large part of what a farmer harvests. A sample that looks
+fine to the eye can still carry a high fraction of broken, immature, discoloured,
+or diseased grains, and that fraction sets the germination rate and the final
+yield. Before a lot is planted, traded, or priced, someone has to judge how good
+it is. In most of the supply chain that judgement is still made by a human grader
+who pours out a sample, spreads it on a tray, and sorts the seeds by hand into
+good and bad piles, counting as they go.
 
-Manual inspection has two problems that are hard to fix by training people
-better. It is slow: a careful grader works through a few hundred seeds before
-fatigue sets in, which is a tiny sample of a multi-tonne lot. It is also
-subjective. Two graders looking at the same tray will disagree on the borderline
-seeds, and the same grader will drift over a long shift. The result is a quality
-number that is neither repeatable nor auditable, which is a weak basis for a price
-or a planting decision.
+Manual inspection has two problems that are hard to fix by training people better.
+It is slow: a careful grader works through a few hundred seeds before fatigue sets
+in, which is a tiny sample of a multi-tonne lot. It is also subjective. Two graders
+looking at the same tray will disagree on the borderline seeds, and the same grader
+will drift over a long shift. The result is a quality number that is neither
+repeatable nor auditable, which is a weak basis for a price or a planting decision.
 
-Computer vision fits this task well. The decision a grader makes, "is this
-individual seed good or bad", is a per-object visual classification, and the wider
-job of finding every seed in a tray is object detection. Both have matured to the
-point where they run on commodity hardware and beat a tired human on consistency.
-Surveys of deep learning in agriculture report strong results across crop and
-produce inspection tasks once enough labelled data is
+There is also a technology gap. Large operations use industrial optical sorting
+machines, but those are expensive and complex enough to be out of reach for smaller
+laboratories, independent researchers, and individual farmers. On the other side of
+the gap there are no digital tools at all, so smaller operations fall back on
+subjective estimation or inconsistent sampling. Nothing affordable sits in the
+middle, and a large part of the agricultural community has no access to precision
+quality control.
+
+Automating the task is harder than it sounds, because seeds are not manufactured
+parts on an assembly line. They are organic and irregular, they vary in texture and
+colour, and in a real sample they touch and overlap. General-purpose detectors
+struggle in those dense clusters: two touching seeds get read as one, and subtle
+surface defects get missed. A grader that works on real trays has to handle that
+clutter rather than assume one clean seed per frame.
+
+Computer vision still fits this task well once the clutter is taken seriously. The
+decision a grader makes, deciding whether one seed is good or bad, is a per-object
+visual classification, and the wider job of finding every seed in a tray is object
+detection. Both have matured to the point where they run on commodity hardware and
+beat a tired human on consistency. Surveys of deep learning in agriculture report
+strong results across crop and produce inspection once enough labelled data is
 available~\cite{kamilaris2018deepag}, and the same convolutional models that
-classify plant disease from leaf photographs transfer cleanly to grading the
-seeds themselves~\cite{mohanty2016plant}. An automated grader does not get tired,
-scores every seed in the photographed sample, and produces the same answer twice
-for the same image.
+classify plant disease from leaf photographs transfer to grading the seeds
+themselves~\cite{mohanty2016plant}. An automated grader does not get tired, scores
+every seed in the photographed sample, and produces the same answer twice for the
+same image.
 
 This project, \textit{Seed Bank}, builds that automated grader as a working
-platform rather than a notebook demo. It supports two crops today, coffee and
-maize, chosen because they are economically important and visually distinct enough
-to exercise the two-crop routing in the pipeline. A user photographs a batch of
-seeds; the system locates each seed, scores its quality, and reports the aggregate
-good-rate, seed count, confidence distribution, and a per-crop breakdown. One
-backend serves both audiences: farmers in the field, through a web and a mobile
-app, and the AI developers who run the models behind the product.
+prototype rather than a notebook demo. It targets two crops, coffee and maize,
+which are visually distinct enough to exercise the two-crop routing in the pipeline.
+A user photographs a batch of seeds; the system locates each seed, scores its
+quality, and reports the aggregate good-rate, seed count, and a per-crop breakdown.
 
 \section{Problem Definition}
 
@@ -45,192 +56,134 @@ Two linked problems sit at the centre of this project. The first is the shape of
 the machine-learning task itself. The second is a data problem that the first one
 exposes, and it is the harder of the two.
 
-\subsection{Grading a tray photo is two ML problems in sequence}
+\subsection{Reading a tray photo takes two steps, not one}
 
-A photo of a tray holds many seeds at once, so grading it cannot be a single
-classification. It splits into two stages that run one after the other.
+A photo of a tray holds many seeds at once, so the computer cannot judge the whole
+picture in a single look. The work splits into two steps that run one after the
+other.
 
-The first stage is \textbf{detection}: given the whole image, find where every
-seed is. An object detector returns a bounding box, a confidence score, and a
-class label for each seed it locates, turning one photo into $N$ located seeds. In
-Seed Bank the detector's class identifies the crop, coffee or maize, because a
-single tray can mix both and the next stage has to know which kind of seed it is
-looking at.
+The first step is to find the seeds: look at the whole photo, mark where each seed
+is, and note which crop it belongs to, coffee or maize, since one tray can hold
+both. This turns a single photo into a set of located seeds.
 
-The second stage is \textbf{classification}: for each detected seed, decide
-whether it is good or bad. The system crops the bounding box out of the original
-image and feeds that crop to a binary classifier that returns
-\texttt{good}/\texttt{bad} plus a confidence. There is one classifier per crop
-type, so a coffee crop goes to the coffee classifier and a maize crop to the maize
-classifier. The data fans out along the way: one image becomes $N$ detections,
-which become $N$ quality labels, and the aggregate report is computed from that
-graph.
+The second step is to grade them: take each seed the first step found, look at it on
+its own, and decide whether it is good or bad. Coffee seeds are graded by the part
+of the system trained on coffee and maize seeds by the part trained on maize,
+because the two crops look nothing alike. One photo therefore becomes many seeds,
+and many seeds become many good-or-bad verdicts that add up to the final report.
 
-The two stages are genuinely different models with different training needs, and
-keeping them separate is what lets a detector and a classifier be versioned and
-swapped on their own. It also means the two stages need different training data,
-which is where the second problem appears.
+The two steps are kept separate on purpose. Finding seeds and grading seeds are
+different jobs that learn from different examples, so keeping them apart lets either
+one be improved or replaced without disturbing the other. It also means they need
+different training data, which is where the second problem appears.
 
 \subsection{The dataset gap}
 
-The two stages do not have the same data appetite, and that asymmetry is the
-problem this project had to solve before any of the platform work mattered.
+The two steps do not need the same kind of data, and that mismatch is the problem
+this project had to solve before anything else could work.
 
-The classifiers are easy to feed. A binary good/bad classifier trains on
-\textbf{single-seed} crops, one seed centred in each image with a single label.
-Public seed datasets are full of exactly this kind of image, because a single seed
-on a plain background is cheap to photograph and trivial to label. Coffee and
-maize both have usable single-seed corpora.
+The grading step is easy to train. It learns from pictures of one seed at a time,
+each labelled good or bad, and pictures like that are everywhere: a single seed on a
+plain background is cheap to photograph and quick to label. Coffee and maize both
+have plenty of them.
 
-The detector is the problem. An object detector needs \textbf{multi-seed} images,
-many seeds scattered in one frame, each one annotated with a bounding box. That
-data barely exists in public. Almost every published seed dataset is single-seed,
-which is useless for training a detector because there is nothing to locate, no
-second object, no clutter, no overlap. Building a real multi-seed detection set by
-hand means photographing trays of scattered seeds and drawing a box around every
-grain in every image, hundreds of boxes per photo, thousands of photos. That
-labelling effort is the bottleneck, and it is expensive and slow enough that it
-stops most teams before they start.
+The finding step is the hard one. To learn where seeds are, it needs photos of many
+seeds together, with every seed in the photo already marked. That kind of data
+barely exists. Almost every public seed dataset shows one seed at a time, which
+teaches nothing about finding seeds in a crowd, where they touch and overlap. Making
+such a set by hand means photographing trays of scattered seeds and marking every
+grain in every photo, hundreds of marks per photo across thousands of photos. That
+marking effort is the bottleneck, and it is slow and costly enough to stop most
+teams before they start.
 
-So the situation is lopsided. The data needed to train the quality classifiers is
-abundant, and the data needed to train the detector is scarce and costly to
-produce. Closing that gap is what motivated the second half of this project,
-\textit{MultiSeedGen}: a tool that takes the single-seed crops we already have and
-synthesises annotated multi-seed images from them, so the detector can be trained
-without hand-labelling thousands of trays.
+So the situation is lopsided. The data needed to train the grading step is
+plentiful, while the data needed to train the finding step is scarce and expensive
+to produce. Closing that gap is what motivated the second half of this project,
+\textit{MultiSeedGen}: a tool that takes the single-seed pictures we already have
+and builds marked many-seed photos from them, so the finding step can be trained
+without hand-marking thousands of trays.
 
 \section{Project Objectives and Proposed Solution}
 
 The objectives follow directly from the two problems above:
 
 \begin{itemize}
-  \item Build an end-to-end platform that takes a photo of a seed batch and
-        returns a grading report, running the detect-then-classify pipeline for
-        coffee and maize.
-  \item Make every result traceable: any seed label must be linkable back to the
-        exact model version and weights that produced it.
-  \item Serve the same backend to three clients, a web app, a mobile app, and a
-        programmatic API, so the product reaches both farmers and developers.
-  \item Give the ML side real tooling: a model registry with a promotion
-        lifecycle, weighted A/B traffic splits, and offline evaluation of any
-        model against labelled datasets.
-  \item Close the detection-data gap by generating annotated multi-seed training
-        images from single-seed crops.
+  \item Build a complete grader that takes a photo of a seed batch and returns a
+        grading report for coffee and maize.
+  \item Keep a record of which trained model produced each result, so any verdict
+        can be traced back later.
+  \item Deliver the grader as a web app that a farmer can actually use.
+  \item Provide basic model management and a way to score a model against a labelled
+        dataset before it is used.
+  \item Close the data gap by generating the marked many-seed training photos the
+        finding step needs.
 \end{itemize}
 
 The solution has two parts that match the two groups of objectives.
 
-\textbf{Seed Bank} is the platform. Its backend is a FastAPI service that
-orchestrates the two-stage pipeline: a request uploads images, a detector finds
-the seeds, each seed is cropped and classified, and the results are persisted with
-a hard foreign-key chain from \texttt{seed\_detection} to \texttt{inference} to
-\texttt{model\_artifact}, which is what makes a result traceable. Around that
-pipeline sits a model registry that moves weights through a
-\texttt{registered} $\rightarrow$ \texttt{staging} $\rightarrow$ \texttt{production} $\rightarrow$ \texttt{archived}
-lifecycle, a traffic router that splits inference traffic across models for A/B
-tests with a sticky per-user bucket, and an experiment runner that scores models
-offline against ground-truth datasets. Three clients consume one API: a React web
-app, an Expo / React Native mobile app with a realtime camera, and the documented
-HTTP API itself.
+Seed Bank is the platform and prototype. A user uploads photos through a web page;
+behind it the system finds the seeds, grades each one, stores the results together
+with a note of which trained model produced them, and sends back the report. A small
+amount of model management sits around this, enough to keep track of model versions
+and to check a model against a labelled dataset before it is put to use.
 
-\textbf{MultiSeedGen} is the data generator. It cuts individual seeds out of
-source photos, then composites many of them onto realistic backgrounds with
-domain-matched lighting and camera degradation, and exports detection and
-segmentation datasets in YOLO, YOLO-seg, and COCO formats with full provenance.
-The cut-and-paste idea, pasting real object crops onto varied backgrounds to
-synthesise detection training data, is a known and effective way to produce
-labelled examples cheaply~\cite{dwibedi2017cutpaste}, and the deliberate
-randomisation of lighting, scale, rotation, and noise follows the
-domain-randomisation principle of forcing a model to generalise by training it on
-a wide spread of synthetic variation~\cite{tobin2017domainrand}. Because every
-seed is placed by the tool, its bounding box and mask are known exactly, so the
-annotations come for free and the output is byte-reproducible for a fixed
-configuration and random seed.
+MultiSeedGen is the data generator. It cuts individual seeds out of source photos,
+drops many of them onto realistic backgrounds with varied lighting and a touch of
+camera-like noise, and saves the result as a ready-to-train dataset with every seed
+already marked. Pasting real cut-outs onto varied backgrounds is a known and
+effective way to produce labelled training images cheaply~\cite{dwibedi2017cutpaste},
+and varying the lighting, scale, rotation, and noise follows the domain-randomisation
+idea of pushing a model to generalise by showing it a wide spread of synthetic
+variation~\cite{tobin2017domainrand}. Because the tool places every seed itself, it
+knows exactly where each one is, so the labels come for free.
 
 \section{Project Scope and Limitations}
 
-\paragraph{In scope.} The platform grades two crops, coffee and maize, and is
-built so a third crop is added by registering a new detector class and a matching
-classifier rather than by rewriting the pipeline. It serves three clients (web,
-mobile, API), supports weighted A/B traffic splits with sticky per-user
-assignment, runs offline evaluation of any registered model against labelled
-datasets, and ships an observability stack covering structured logs, Prometheus
-metrics, OpenTelemetry traces, and Sentry error reporting. MultiSeedGen covers the
-full single-seed-to-multi-seed generation path with several segmentation backends
-and reproducible output.
+\paragraph{In scope.} The grader covers two crops, coffee and maize, and is built so
+a third crop is added by registering a new detector class and a matching classifier
+rather than by rewriting the pipeline. It is delivered as a working prototype with a
+web interface, and it supports offline evaluation of a trained model against a
+labelled dataset. MultiSeedGen covers the full path from single-seed crops to
+annotated multi-seed images.
 
-\paragraph{Out of scope and current limits.} The system is a working platform with
-a known unfinished tail, recorded honestly so the reader is not misled:
-
-\begin{itemize}
-  \item \textbf{Upload.} Image upload to \texttt{POST /analyze} is multipart-only.
-        Presigned direct-to-storage upload and batch cancellation were specified
-        but never built.
-  \item \textbf{Analytics ingestion.} The ClickHouse warehouse is populated by an
-        application-level dual-write rather than true change-data-capture, even
-        though Postgres is configured with \texttt{wal\_level=logical} so CDC can
-        be added later.
-  \item \textbf{Observability is opt-in.} OpenTelemetry tracing and Sentry are
-        no-ops unless their endpoints are configured, so the default dev stack does
-        not run them.
-  \item \textbf{Some endpoints lack routes.} A few features have a service and a
-        schema but no wired route yet (password change, experiment-results fetch,
-        presigned upload).
-  \item \textbf{The synthetic-to-real domain gap.} A detector trained only on
-        MultiSeedGen output learns the statistics of synthetic scenes, which never
-        match real trays perfectly. Narrowing that gap with augmentation and
-        realistic degradation is the tool's central design concern, but it cannot
-        be assumed closed.
-\end{itemize}
+\paragraph{Limitations.} Seed Bank is a prototype rather than a commercial product;
+the goal was to show the pipeline works end to end, not to ship a hardened
+deployment. Capture assumes a top-down photo from a single camera, so the system has
+not been validated against angled shots or varied capture rigs. The largest open
+risk is the synthetic-to-real domain gap: a detector trained only on MultiSeedGen
+output learns the statistics of synthetic scenes, which never match real trays
+perfectly. Narrowing that gap with augmentation and realistic degradation is the
+tool's central design concern, but it cannot be assumed closed.
 
 \section{Development Methodology}
 
-The platform was not written in one pass. It was delivered iteratively, in phases,
-each one a usable slice of the system: scaffolding the FastAPI app, laying the
-18-table async schema, wiring the infrastructure clients and health probes,
-building auth, then the ML platform, then the inference path, experiments, the
-data warehouse, and observability. That phasing is recorded in the project's
-revamp-status document, and it meant each layer was exercised before the next was
-stacked on it.
+The work followed an iterative, phased approach. Rather than building everything at
+once, each phase delivered a usable slice and was exercised before the next was
+stacked on it: first the problem framing and the synthetic-data generator, then the
+grading pipeline, then the web prototype around it. The detector could not be trained
+until synthetic detection data existed, so MultiSeedGen came early and the platform
+work followed it.
 
-The backend follows clean-architecture principles~\cite{cleanarchitecture2017},
-enforced as five rules rather than left as good intentions:
-
-\begin{itemize}
-  \item \textbf{Async end-to-end.} FastAPI, async SQLAlchemy, and async clients
-        throughout, so nothing blocks the event loop.
-  \item \textbf{Layered.} Every request flows
-        \texttt{routers} $\rightarrow$ \texttt{services} $\rightarrow$ \texttt{repositories} $\rightarrow$ ORM.
-        Routers stay thin, business logic lives in services, and only repositories
-        touch the ORM.
-  \item \textbf{Pydantic at the boundaries.} Every request and response is a
-        validated schema; the ORM never leaks past the service layer.
-  \item \textbf{One central \texttt{Settings}.} All configuration comes from a
-        single settings object fed by environment variables or file secrets; code
-        never reads the environment directly.
-  \item \textbf{Model traceability.} The
-        \texttt{seed\_detection} $\rightarrow$ \texttt{inference} $\rightarrow$ \texttt{model\_artifact}
-        chain is enforced with foreign keys, not convention.
-\end{itemize}
-
-Work was managed with a git-based workflow. A pre-commit hook runs the formatter
-and linter (ruff), the strict type checker (mypy), and a secret scanner (gitleaks)
-before anything is committed, and the same checks are intended to run as CI gates.
-The test suite is a pytest pyramid with unit, integration, and end-to-end tiers,
-the integration tier using real Postgres and Redis through testcontainers. The
-honest state of that suite, including the parts that are not yet hermetic, is
-reported in the testing chapter.
+The machine-learning side ran as a tighter experiment loop. The first step was
+curating and cleaning the datasets, since raw public corpora carry mislabelled and
+duplicated images that would otherwise leak between splits. From there the team
+trained a sequence of model variants and measured each one on validation data and on
+a held-out test set before deciding what to change next. The classifier went through
+four versions: V1 was the baseline backbone, V2 added a CBAM attention
+module~\cite{cbam2018}, V3 added hybrid pooling, and V4 changed a stride in the
+backbone to keep more spatial detail. Each change was kept only if it improved the
+held-out numbers, and the full set of results is reported in the evaluation in
+Chapter 6.
 
 \section{Tools and Technologies Used (Software and Hardware)}
 
-The stack is deliberately conventional where it can be, so that each choice is a
-well-understood tool with a known failure mode rather than a novelty. The backend
-is built on FastAPI with async SQLAlchemy~\cite{fastapi,sqlalchemyguide}; model
-experiments are tracked with MLflow~\cite{mlflow2018}; the web client is
-React~\cite{reactindepth} and the mobile client is Expo / React
-Native~\cite{reactnativeexpo}; and the whole system runs from a single Docker
-Compose file~\cite{merkel2014docker}. Table~\ref{tab:ch1-tools} groups the full
-set by area.
+The stack is conventional where it can be, so that each choice is a well-understood
+tool with a known failure mode. The backend is built on Python and
+FastAPI~\cite{fastapi}; the models are built and trained with PyTorch and
+torchvision, with Ultralytics YOLO and OpenCV alongside; model experiments are
+tracked with MLflow~\cite{mlflow2018}; data is stored in PostgreSQL; the web client
+is React~\cite{reactindepth}; and the whole system runs under
+Docker~\cite{merkel2014docker}. Table~\ref{tab:ch1-tools} groups the set by area.
 
 \begin{singlespace}
 \begin{longtable}{p{0.22\textwidth} p{0.70\textwidth}}
@@ -247,51 +200,29 @@ set by area.
   \bottomrule
   \endfoot
   Backend &
-    Python 3.12, FastAPI, async SQLAlchemy~2 with asyncpg, Pydantic v2 and
-    pydantic-settings, Alembic migrations. \\
-  Async \& ML &
-    Celery with a Redis broker, PyTorch and torchvision, Ultralytics YOLO,
-    Roboflow inference SDK, Pillow and OpenCV (headless), MLflow. \\
-  Datastores &
-    PostgreSQL 16 (OLTP), Redis 7 (cache, broker, rate-limit store), MinIO (object
-    store), ClickHouse (analytics warehouse). \\
-  Observability &
-    structlog, Prometheus, Grafana, OpenTelemetry, Sentry. \\
-  Web &
-    React 18, TypeScript, Vite, Tailwind CSS, TanStack Query. \\
-  Mobile &
-    Expo SDK 52, React Native 0.76, expo-camera, React Navigation. \\
-  Infrastructure &
-    Docker and Docker Compose, a multi-stage Dockerfile, the \texttt{uv} dependency
-    manager, and Make as the developer entrypoint. \\
+    Python, FastAPI. \\
+  ML &
+    PyTorch, torchvision, Ultralytics YOLO, OpenCV. \\
+  Data &
+    PostgreSQL. \\
+  Frontend &
+    React. \\
+  Tooling &
+    Docker. \\
 \end{longtable}
 \end{singlespace}
 
-The split into many small runtime images is intentional. The API and the
-lightweight worker carry no PyTorch at all, because torch and torchvision pull in
-roughly 1.6\,GB and only the inference worker ever runs a model. That keeps the API
-container small and the import cost of a routine background job low.
-
-On the hardware side, development was done on a workstation with an NVIDIA RTX 3060
-GPU. The GPU was used for two things: training the detector and classifier models,
-and accelerating the rembg (U\textsuperscript{2}-Net) segmentation step in
-MultiSeedGen when cutting seeds out of source photos. The Seed Bank platform itself
-runs CPU-only in the development stack; the production Compose overlay swaps the
-inference worker to a CUDA 12.4 GPU runtime with a device reservation, so the same
-code path runs on a GPU in production without change.
+On the hardware side, the models were trained on a workstation with an NVIDIA RTX
+3060 GPU.
 
 \section{Project Timeline / Gantt Chart}
 
 The work was scheduled across the 2025/2026 academic year and ran in the phased
-order described in the methodology section above. The early part of the year went
-to problem framing and to MultiSeedGen, because the platform's detector could not
-be trained until synthetic detection data existed. The middle of the year built
-the backend phase by phase, from the application scaffold and database schema
-through auth, the ML platform, and the inference path. The later phases added
-experiments, the analytics warehouse, and observability, in parallel with the web
-and mobile clients and the bilingual localization work. The final stretch was
-reserved for hardening, the production Compose overlay, and this report.
-Figure~\ref{fig:gantt} shows the schedule.
+order described in the methodology section. The early part of the year went to
+problem framing and to MultiSeedGen, because the detector could not be trained until
+synthetic detection data existed. The middle of the year built the grading pipeline
+and ran the model experiments, and the final stretch went to the web prototype and
+this report. Figure~\ref{fig:gantt} shows the schedule.
 
 \figslot{11-gantt.pdf}{Project timeline (Gantt chart).}{fig:gantt}
 
@@ -300,30 +231,26 @@ Figure~\ref{fig:gantt} shows the schedule.
 The rest of this report is organised as follows.
 
 \textbf{Chapter 2, Related Work}, reviews the background this project builds on:
-object detectors such as Faster R-CNN and YOLO and the feature-pyramid and
-attention ideas behind them, image classifiers from the ResNet family, the
-synthetic-data and augmentation literature that justifies MultiSeedGen, and prior
-applications of computer vision in agriculture.
+object detectors such as Faster R-CNN and YOLO and the feature-pyramid and attention
+ideas behind them, image classifiers from the ResNet family, the synthetic-data and
+augmentation literature that justifies MultiSeedGen, and prior applications of
+computer vision in agriculture.
 
 \textbf{Chapter 3, System Analysis}, sets out the requirements. It defines the user
-roles, the functional and non-functional requirements, and the use cases the
-platform has to support, and frames them against the two problems from this
-chapter.
+roles, the functional and non-functional requirements, and the use cases the grader
+has to support, and frames them against the two problems from this chapter.
 
-\textbf{Chapter 4, System Design}, describes the architecture: the layered backend,
-the data model and its traceability chain, the two-stage inference pipeline with
-its model registry and traffic router, the data warehouse, and the three clients.
+\textbf{Chapter 4, System Design}, describes the architecture: the grading pipeline,
+the data model and how a result is tied to a model version, and the web client.
 
 \textbf{Chapter 5, Implementation}, covers how the design was actually built, the
-model builders and inference backends, the Celery orchestration of the
-detect-then-classify flow, MultiSeedGen's generation pipeline, and the deployment
-setup.
+model builders and inference path, the orchestration of the detect-then-classify
+flow, and MultiSeedGen's generation pipeline.
 
-\textbf{Chapter 6, Testing and Evaluation}, reports the test pyramid and quality
-gates, the model evaluation results, and an honest account of the suite's current
-gaps.
+\textbf{Chapter 6, Experimental Results and Evaluation}, reports the experiments:
+the datasets and how they were prepared, the detection and classification metrics
+across the model variants, and the latency of the end-to-end pipeline.
 
 \textbf{Chapter 7, Conclusion and Future Work}, summarises what was delivered
-against the objectives and lays out the unfinished tail and the next steps,
-including true change-data-capture, the missing endpoints, and narrowing the
-synthetic-to-real domain gap.
+against the objectives and lays out the next steps, with narrowing the
+synthetic-to-real domain gap as the main one.
