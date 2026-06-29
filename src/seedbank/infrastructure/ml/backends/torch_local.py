@@ -35,13 +35,62 @@ log = get_logger(__name__)
 
 _CLASS_NAMES = {0: "background", 1: "coffee", 2: "maize"}
 
+# Substrings that mark a specialist class as a *healthy* seed. Everything else
+# (cercospora, fungus, broken, weeveled, …) is treated as a defect → "bad".
+_HEALTHY_MARKERS = ("GOOD", "HEALTHY", "INTACT")
+
+
+def _is_healthy_class(name: str) -> bool:
+    upper = name.upper()
+    if "BAD" in upper:
+        return False
+    return any(marker in upper for marker in _HEALTHY_MARKERS)
+
+
+def _multilabel_classification(
+    logits: torch.Tensor, cfg: ClassificationConfig
+) -> Classification:
+    """Collapse an EfficientNet-B2 specialist's per-class sigmoids into the
+    platform's good/bad quality label while preserving the raw defect set.
+
+    A crop is ``bad`` if any defect class crosses the threshold; if only healthy
+    classes (or nothing) fire, it's ``good``. Confidence is the probability of
+    the dominant class driving that decision.
+    """
+    import torch
+
+    classes = cfg.classes or ()
+    probs = torch.sigmoid(logits).detach().cpu().numpy().ravel().tolist()
+    # Defensive: trust the shorter of (classes, probs) so a config/head mismatch
+    # degrades gracefully instead of indexing past the end.
+    n = min(len(classes), len(probs))
+    fired = [
+        (classes[i], probs[i])
+        for i in range(n)
+        if probs[i] >= cfg.threshold
+    ]
+    defects = tuple(name for name, _ in fired if not _is_healthy_class(name))
+
+    if defects:
+        # Bad: confidence = strongest defect signal.
+        top = max((p for name, p in fired if not _is_healthy_class(name)), default=0.0)
+        return Classification(
+            label="bad", confidence=float(top), raw_score=float(top), defects=defects
+        )
+
+    # No defect crossed the threshold → good. Confidence = strongest healthy
+    # signal, else 1 - strongest (uncertain) signal so it stays in [0, 1].
+    healthy = [p for name, p in fired if _is_healthy_class(name)]
+    conf = max(healthy) if healthy else 1.0 - (max(probs[:n]) if n else 0.0)
+    return Classification(label="good", confidence=float(conf), raw_score=float(conf))
+
 
 class TorchLocalBackend:
     """Implements the ``InferenceBackend`` Protocol using local torch."""
 
     name = "torch_local"
 
-    def __init__(self, manager: "object | None" = None) -> None:
+    def __init__(self, manager: object | None = None) -> None:
         # The manager is injected lazily to avoid a circular import; we keep
         # it as a generic object since the protocol is duck-typed.
         self._manager = manager
@@ -63,8 +112,8 @@ class TorchLocalBackend:
 
     @staticmethod
     def _detect_sync(
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         image: bytes,
         cfg: DetectionConfig,
     ) -> list[Detection]:
@@ -85,6 +134,10 @@ class TorchLocalBackend:
         scores = out["scores"].detach().cpu().numpy()
         labels = out["labels"].detach().cpu().numpy()
 
+        # Prefer the per-model class map (superclass detector); fall back to the
+        # legacy coffee/maize naming for the v1 combined detector.
+        class_map = cfg.class_map or _CLASS_NAMES
+
         detections: list[Detection] = []
         for box, score, label in zip(boxes, scores, labels, strict=True):
             if score < cfg.confidence_threshold:
@@ -101,7 +154,7 @@ class TorchLocalBackend:
                         h=min(1.0, bh),
                     ),
                     class_id=int(label),
-                    class_name=_CLASS_NAMES.get(int(label)),
+                    class_name=class_map.get(int(label)),
                     confidence=float(score),
                 )
             )
@@ -125,8 +178,8 @@ class TorchLocalBackend:
 
     @staticmethod
     def _classify_sync(
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         crop: bytes,
         cfg: ClassificationConfig,
     ) -> Classification:
@@ -135,6 +188,11 @@ class TorchLocalBackend:
         from torchvision import transforms
 
         img = Image.open(io.BytesIO(crop)).convert("RGB")
+        # Optional U2NET background removal before the specialist sees the crop.
+        if cfg.segment:
+            from seedbank.infrastructure.ml.segmentation import segment_crop
+
+            img = segment_crop(img)
         tfm = transforms.Compose(
             [
                 transforms.Resize((cfg.image_size, cfg.image_size)),
@@ -149,6 +207,11 @@ class TorchLocalBackend:
         module.eval()
         with torch.no_grad():
             logits = module(tensor)
+
+        if cfg.classes:
+            return _multilabel_classification(logits, cfg)
+
+        # Legacy single-logit good/bad head.
         score = float(torch.sigmoid(logits).squeeze().item())
         label = "good" if score >= cfg.threshold else "bad"
         confidence = score if label == "good" else 1.0 - score

@@ -48,6 +48,10 @@ tests
 # Models — uploaded to MinIO at bootstrap, never baked in
 models
 
+# Standalone desktop app + its archive — huge, never in the build context
+seed-bank-app
+seed-bank-app.rar
+
 # Claude harness — local working aid, not shipped
 .claude
 CLAUDE.md

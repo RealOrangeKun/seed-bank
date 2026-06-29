@@ -364,6 +364,14 @@ async def _resolve_classify_model(
 
 def _detection_config(model: ModelArtifact) -> DetectionConfig:
     cfg = model.config or {}
+    # class_map is stored as {"1": "soybean", ...} (JSON keys are strings);
+    # coerce the keys back to ints for the backend.
+    raw_map = cfg.get("class_map")
+    class_map = (
+        {int(k): str(v) for k, v in raw_map.items()}
+        if isinstance(raw_map, dict)
+        else None
+    )
     return DetectionConfig(
         model_id=model.id,
         artifact_uri=model.artifact_uri,
@@ -372,17 +380,22 @@ def _detection_config(model: ModelArtifact) -> DetectionConfig:
         iou_threshold=float(cfg.get("iou_threshold", 0.5)),
         max_detections=int(cfg.get("max_detections", 300)),
         image_size=cfg.get("image_size"),
+        class_map=class_map,
     )
 
 
 def _classification_config(model: ModelArtifact) -> ClassificationConfig:
     cfg = model.config or {}
+    raw_classes = cfg.get("classes")
+    classes = tuple(str(c) for c in raw_classes) if isinstance(raw_classes, list) else None
     return ClassificationConfig(
         model_id=model.id,
         artifact_uri=model.artifact_uri,
         builder_key=str(cfg.get("builder_key", "default")),
         threshold=float(cfg.get("threshold", 0.5)),
         image_size=int(cfg.get("image_size", 224)),
+        classes=classes,
+        segment=bool(cfg.get("segment", False)),
     )
 
 

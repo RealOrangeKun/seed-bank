@@ -41,8 +41,8 @@ class _CacheEntry:
 
     def __init__(
         self,
-        module: "nn.Module",
-        device: "torch.device",
+        module: nn.Module,
+        device: torch.device,
         loaded_at: datetime,
         updated_at: datetime | None,
     ) -> None:
@@ -111,7 +111,7 @@ class ModelManager:
         bucket = bucket or self._bucket
         try:
             return await self._storage.get_object(bucket, key)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(
                 f"manager: fetch {bucket}/{key}: {exc}"
             ) from exc
@@ -124,7 +124,7 @@ class ModelManager:
         builder_key: str,
         artifact_uri: str,
         updated_at: datetime | None = None,
-    ) -> tuple["nn.Module", "torch.device"]:
+    ) -> tuple[nn.Module, torch.device]:
         """Return the cached ``(module, device)`` for ``model_id``, loading
         from MinIO + builder if missing or stale."""
         async with self._lock_for(model_id):
@@ -161,7 +161,7 @@ class ModelManager:
     @staticmethod
     def _build_and_load_sync(
         builder_key: str, weights: bytes
-    ) -> tuple["nn.Module", "torch.device"]:
+    ) -> tuple[nn.Module, torch.device]:
         import torch
 
         builder = get_builder(builder_key)
@@ -169,8 +169,16 @@ class ModelManager:
         # Load state dict from in-memory bytes; weights_only=True is the safe
         # default in modern torch and rejects pickled python objects.
         state = torch.load(io.BytesIO(weights), map_location="cpu", weights_only=True)
-        if isinstance(state, dict) and "state_dict" in state:
-            state = state["state_dict"]
+        # Training checkpoints wrap the parameters under a top-level key alongside
+        # optimizer/scheduler/history: ResNet/Faster-RCNN exports use
+        # ``state_dict``; the EfficientNet-B2 specialists use ``model``. A bare
+        # state dict (the Faster-RCNN detector) is loaded as-is.
+        if isinstance(state, dict):
+            for wrapper_key in ("state_dict", "model"):
+                inner = state.get(wrapper_key)
+                if isinstance(inner, dict):
+                    state = inner
+                    break
         module.load_state_dict(state, strict=False)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         module = module.to(device)

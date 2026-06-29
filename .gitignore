@@ -60,6 +60,12 @@ uploads/
 # Reference only; never re-add (also excluded from build context in .dockerignore).
 legacy/
 
+# Standalone desktop inference app + its shipped archive — source of the new
+# model weights, but far too large (1.2 GB .rar, ~1.2 GB weights) to ever track.
+# The weights are imported into MinIO via scripts/register_model.py, not git.
+seed-bank-app/
+seed-bank-app.rar
+
 # Frontend
 node_modules/
 compose.override.yaml
