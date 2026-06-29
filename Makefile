@@ -139,7 +139,7 @@ wait: ## Wait until api becomes healthy.
 	done; echo "api did not become ready"; $(COMPOSE) ps; exit 1
 
 # ── Migrations / seed ────────────────────────────────────────────────────────
-.PHONY: migrate migrate-down migrate-clickhouse seed
+.PHONY: migrate migrate-down migrate-clickhouse seed register-models
 migrate: ## Apply Alembic migrations against the dev DB.
 	$(COMPOSE) exec api alembic upgrade head
 
@@ -149,8 +149,16 @@ migrate-down: ## Roll back one Alembic revision.
 migrate-clickhouse: ## Apply ClickHouse star-schema DDL (idempotent).
 	$(COMPOSE) exec api python -m scripts.init_clickhouse
 
-seed: migrate-clickhouse ## Seed catalog, register models, create demo users.
+seed: migrate-clickhouse ## Seed catalog (20 superclasses), create demo users.
 	$(COMPOSE) exec api python -m scripts.seed_dev
+
+# Uploads the seed-bank-app weights into MinIO and registers the two-stage
+# detector + 10 EfficientNet-B2 specialists + YOLOv11M, then promotes them.
+# Run after `make seed`. WEIGHTS_DIR can point at an unpacked seed-bank-app.
+WEIGHTS_DIR ?= /weights
+register-models: ## Register the new two-stage + YOLO models (run after `seed`).
+	$(COMPOSE) exec api python -m scripts.register_seed_bank_app_models \
+		--weights-dir "$(WEIGHTS_DIR)" --promote
 
 # ── Quality gates ────────────────────────────────────────────────────────────
 .PHONY: fmt lint typecheck check test test-unit test-integration test-e2e cov
