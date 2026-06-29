@@ -21,7 +21,7 @@ import torch
 from torch import nn
 
 
-class ChannelAttention(nn.Module):
+class ChannelAttention(nn.Module):  # type: ignore[misc]
     def __init__(self, channels: int, reduction: int = 16) -> None:
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
@@ -40,7 +40,7 @@ class ChannelAttention(nn.Module):
         return self.sigmoid(avg_out + max_out)
 
 
-class SpatialAttention(nn.Module):
+class SpatialAttention(nn.Module):  # type: ignore[misc]
     def __init__(self, kernel_size: int = 7) -> None:
         super().__init__()
         self.conv = nn.Conv2d(2, 1, kernel_size, padding=kernel_size // 2, bias=False)
@@ -53,7 +53,7 @@ class SpatialAttention(nn.Module):
         return self.sigmoid(self.conv(out))
 
 
-class CBAM(nn.Module):
+class CBAM(nn.Module):  # type: ignore[misc]
     def __init__(self, channels: int, reduction: int = 16, kernel_size: int = 7) -> None:
         super().__init__()
         self.channel_attention = ChannelAttention(channels, reduction)
@@ -66,7 +66,7 @@ class CBAM(nn.Module):
         return x + identity
 
 
-class SeedQualityClassifier(nn.Module):
+class SeedQualityClassifier(nn.Module):  # type: ignore[misc]
     """EfficientNet-B2 backbone → CBAM → GAP||GMP → linear multi-label head."""
 
     def __init__(

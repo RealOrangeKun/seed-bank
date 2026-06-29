@@ -71,10 +71,26 @@ _MAP_CI: dict[str, tuple[str, str | None]] = {k.upper(): v for k, v in _MAP.item
 
 # Seed-type code → compact uppercase form, for the heuristic fallback below.
 _CODES = (
-    "soybean", "nigella", "ajwain", "black_channa", "black_pepper", "garlic",
-    "green_matar", "kabuli_channa", "rice_paddy", "wheat_grain", "white_matar",
-    "black_sesame", "maize", "chia_seeds", "cucumber", "cumin", "fennel",
-    "okra", "pumpkin", "white_sesame",
+    "soybean",
+    "nigella",
+    "ajwain",
+    "black_channa",
+    "black_pepper",
+    "garlic",
+    "green_matar",
+    "kabuli_channa",
+    "rice_paddy",
+    "wheat_grain",
+    "white_matar",
+    "black_sesame",
+    "maize",
+    "chia_seeds",
+    "cucumber",
+    "cumin",
+    "fennel",
+    "okra",
+    "pumpkin",
+    "white_sesame",
 )
 _HEALTHY = ("GOOD", "HEALTHY", "INTACT")
 

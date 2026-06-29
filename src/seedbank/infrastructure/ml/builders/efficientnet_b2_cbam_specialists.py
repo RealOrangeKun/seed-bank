@@ -53,9 +53,7 @@ def _make_builder(num_classes: int) -> Callable[[], nn.Module]:
 
 # Register one builder per specialist at import time (autodiscovery triggers it).
 for _seed, _count in _SPECIALIST_CLASS_COUNTS.items():
-    register_builder(f"efficientnet-b2-cbam-{_seed.replace('_', '-')}-v1")(
-        _make_builder(_count)
-    )
+    register_builder(f"efficientnet-b2-cbam-{_seed.replace('_', '-')}-v1")(_make_builder(_count))
 
 
 __all__ = ["_SPECIALIST_CLASS_COUNTS"]

@@ -401,11 +401,7 @@ def _detection_config(model: ModelArtifact) -> DetectionConfig:
     # class_map is stored as {"1": "soybean", ...} (JSON keys are strings);
     # coerce the keys back to ints for the backend.
     raw_map = cfg.get("class_map")
-    class_map = (
-        {int(k): str(v) for k, v in raw_map.items()}
-        if isinstance(raw_map, dict)
-        else None
-    )
+    class_map = {int(k): str(v) for k, v in raw_map.items()} if isinstance(raw_map, dict) else None
     return DetectionConfig(
         model_id=model.id,
         artifact_uri=model.artifact_uri,

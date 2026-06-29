@@ -15,9 +15,7 @@ from .base import Repository
 class ModelArtifactRepository(Repository[ModelArtifact]):
     model = ModelArtifact
 
-    async def find_detection_by_backend(
-        self, backend: ModelBackend
-    ) -> ModelArtifact | None:
+    async def find_detection_by_backend(self, backend: ModelBackend) -> ModelArtifact | None:
         """A routable detection model for ``backend`` — production preferred,
         else staging, newest first. Backs the fast/accurate ``mode`` selector
         (fast → yolo, accurate → torch_local) without hard-coding model ids."""
@@ -26,9 +24,7 @@ class ModelArtifactRepository(Repository[ModelArtifact]):
             .where(
                 ModelArtifact.kind == ModelKind.DETECTION.value,
                 ModelArtifact.backend == backend.value,
-                ModelArtifact.status.in_(
-                    (ModelStatus.PRODUCTION.value, ModelStatus.STAGING.value)
-                ),
+                ModelArtifact.status.in_((ModelStatus.PRODUCTION.value, ModelStatus.STAGING.value)),
             )
             .order_by(
                 case(

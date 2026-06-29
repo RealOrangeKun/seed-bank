@@ -56,7 +56,7 @@ def get_session(model_name: str = _DEFAULT_MODEL) -> object | None:
     Returns ``None`` (and stays ``None``) if the session can't be built — the
     caller then skips segmentation instead of retrying the failing download.
     """
-    global _SESSION, _SESSION_UNAVAILABLE  # noqa: PLW0603 — guarded singleton
+    global _SESSION, _SESSION_UNAVAILABLE
     if _SESSION is not None:
         return _SESSION
     if _SESSION_UNAVAILABLE:

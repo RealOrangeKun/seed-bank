@@ -15,6 +15,8 @@ worker (the API process never touches ``builders``).
 
 from __future__ import annotations
 
+from typing import Any
+
 from torch import nn
 from torchvision import models
 from torchvision.models.detection import FasterRCNN
@@ -26,7 +28,7 @@ from torchvision.ops.feature_pyramid_network import (
 )
 
 
-class PANetNeck(nn.Module):
+class PANetNeck(nn.Module):  # type: ignore[misc]
     """Bottom-up path-aggregation neck on top of the FPN pyramid."""
 
     def __init__(self, in_channels: int = 256, dropout_p: float = 0.15) -> None:
@@ -53,7 +55,7 @@ class PANetNeck(nn.Module):
         )
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
 
-    def forward(self, feats: dict) -> dict:
+    def forward(self, feats: dict[str, Any]) -> dict[str, Any]:
         # feats: {"0": P2, "1": P3, "2": P4, "3": P5, "pool": P6}
         p2 = feats["0"]
         p3 = feats["1"]
@@ -70,7 +72,7 @@ class PANetNeck(nn.Module):
         return {"0": p2_bu, "1": p3_bu, "2": p4_bu, "3": p5_bu, "pool": p6_bu}
 
 
-class ResNet50FPNBackbone(nn.Module):
+class ResNet50FPNBackbone(nn.Module):  # type: ignore[misc]
     """ResNet50 stem/layers → 5-level FPN → PANet neck."""
 
     def __init__(self, pretrained: bool = False) -> None:
@@ -99,7 +101,7 @@ class ResNet50FPNBackbone(nn.Module):
         )
         self.pan = PANetNeck(in_channels=self.out_channels)
 
-    def forward(self, x):
+    def forward(self, x: Any) -> Any:
         x = self.stem(x)
         c2 = self.layer1(x)
         c3 = self.layer2(c2)
