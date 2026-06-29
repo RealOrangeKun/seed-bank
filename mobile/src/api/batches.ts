@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { apiData } from "./client";
 import type {
   BatchDetailOut,
@@ -7,19 +9,37 @@ import type {
 } from "./types";
 
 /**
- * Upload captured photos for analysis. React Native's `FormData` accepts a
- * `{ uri, name, type }` part for a local file; the runtime streams the file and
- * sets the multipart boundary itself.
+ * Append one photo as a multipart "files" part.
+ *
+ * Native and web need different shapes for the same field:
+ * - React Native's `FormData` accepts a `{ uri, name, type }` object and streams
+ *   the local file itself.
+ * - Browser `FormData` does NOT — that object would serialize to
+ *   "[object Object]" and the server rejects the upload (HTTP 422). On web the
+ *   camera/library `uri` is a `blob:`/`data:` URL we can fetch back into a real
+ *   `Blob` and append as a file.
  */
-export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> {
-  const form = new FormData();
-  photos.forEach((photo, i) => {
+async function appendPhoto(form: FormData, photo: CapturedPhoto, index: number): Promise<void> {
+  const name = `seed-${index + 1}.jpg`;
+  if (Platform.OS === "web") {
+    const res = await fetch(photo.uri);
+    const blob = await res.blob();
+    form.append("files", blob, name);
+  } else {
     form.append("files", {
       uri: photo.uri,
-      name: `seed-${i + 1}.jpg`,
+      name,
       type: "image/jpeg",
     } as unknown as Blob);
-  });
+  }
+}
+
+/** Upload captured photos for analysis. */
+export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> {
+  const form = new FormData();
+  for (let i = 0; i < photos.length; i += 1) {
+    await appendPhoto(form, photos[i], i);
+  }
   return apiData<BatchOut>("/api/v1/analyze", { method: "POST", form });
 }
 
