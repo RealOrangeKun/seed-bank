@@ -17,6 +17,7 @@ import asyncio
 import io
 from typing import TYPE_CHECKING
 
+from seedbank.core.config import get_settings
 from seedbank.core.logging import get_logger
 from seedbank.infrastructure.ml.backends.base import (
     BoundingBox,
@@ -127,6 +128,14 @@ class TorchLocalBackend:
         tensor = torch.from_numpy(arr).permute(2, 0, 1).to(device).contiguous()
 
         module.eval()
+        # torchvision detectors (Faster R-CNN) run their own internal NMS using
+        # ``roi_heads.nms_thresh`` (baked at construction, default 0.5) — the
+        # ``iou_threshold`` in DetectionConfig is otherwise ignored on this path.
+        # Drive it from the registered config so densely packed, overlapping seed
+        # boxes get deduped. Guarded so a non-RCNN torch detector still works.
+        roi_heads = getattr(module, "roi_heads", None)
+        if roi_heads is not None and getattr(roi_heads, "nms_thresh", None) is not None:
+            roi_heads.nms_thresh = float(cfg.iou_threshold)
         with torch.no_grad():
             outputs = module([tensor])
         out = outputs[0]
@@ -176,24 +185,49 @@ class TorchLocalBackend:
             self._classify_sync, module, device, crop, cfg
         )
 
+    async def classify_batch(
+        self, crops: list[bytes], cfg: ClassificationConfig
+    ) -> list[Classification]:
+        """Classify many crops that share one model in a single thread hop.
+
+        The two-stage ("accurate") path produces one crop per detected seed —
+        often hundreds per image. Running them one-at-a-time means hundreds of
+        single-image forward passes (and event-loop thread hops). This batches
+        them through the GPU/CPU in chunks instead, which is the dominant lever
+        for that path's latency. Order is preserved: result[i] ↔ crops[i].
+        """
+        if not crops:
+            return []
+        if self._manager is None:
+            raise RuntimeError("TorchLocalBackend requires a ModelManager.")
+        module, device = await self._manager.load(  # type: ignore[attr-defined]
+            cfg.model_id, cfg.builder_key, cfg.artifact_uri
+        )
+        return await asyncio.to_thread(
+            self._classify_batch_sync, module, device, crops, cfg
+        )
+
     @staticmethod
-    def _classify_sync(
-        module: nn.Module,
-        device: torch.device,
-        crop: bytes,
-        cfg: ClassificationConfig,
-    ) -> Classification:
-        import torch
+    def _preprocess_crop(
+        crop: bytes, cfg: ClassificationConfig, tfm: object
+    ) -> torch.Tensor:
         from PIL import Image
-        from torchvision import transforms
 
         img = Image.open(io.BytesIO(crop)).convert("RGB")
         # Optional U2NET background removal before the specialist sees the crop.
-        if cfg.segment:
+        # Honour both the per-model config and the global ops kill-switch, since
+        # CPU matting per crop is the slow path operators may need to disable.
+        if cfg.segment and get_settings().inference_segmentation_enabled:
             from seedbank.infrastructure.ml.segmentation import segment_crop
 
             img = segment_crop(img)
-        tfm = transforms.Compose(
+        return tfm(img)  # type: ignore[operator, no-any-return]
+
+    @staticmethod
+    def _make_transform(cfg: ClassificationConfig) -> object:
+        from torchvision import transforms
+
+        return transforms.Compose(
             [
                 transforms.Resize((cfg.image_size, cfg.image_size)),
                 transforms.ToTensor(),
@@ -202,20 +236,61 @@ class TorchLocalBackend:
                 ),
             ]
         )
-        tensor = tfm(img).unsqueeze(0).to(device)
+
+    @staticmethod
+    def _collapse_logits(row_logits: torch.Tensor, cfg: ClassificationConfig) -> Classification:
+        import torch
+
+        if cfg.classes:
+            return _multilabel_classification(row_logits, cfg)
+        # Legacy single-logit good/bad head.
+        score = float(torch.sigmoid(row_logits).squeeze().item())
+        label = "good" if score >= cfg.threshold else "bad"
+        confidence = score if label == "good" else 1.0 - score
+        return Classification(label=label, confidence=confidence, raw_score=score)
+
+    @classmethod
+    def _classify_sync(
+        cls,
+        module: nn.Module,
+        device: torch.device,
+        crop: bytes,
+        cfg: ClassificationConfig,
+    ) -> Classification:
+        import torch
+
+        tfm = cls._make_transform(cfg)
+        tensor = cls._preprocess_crop(crop, cfg, tfm).unsqueeze(0).to(device)
 
         module.eval()
         with torch.no_grad():
             logits = module(tensor)
+        return cls._collapse_logits(logits, cfg)
 
-        if cfg.classes:
-            return _multilabel_classification(logits, cfg)
+    @classmethod
+    def _classify_batch_sync(
+        cls,
+        module: nn.Module,
+        device: torch.device,
+        crops: list[bytes],
+        cfg: ClassificationConfig,
+    ) -> list[Classification]:
+        import torch
 
-        # Legacy single-logit good/bad head.
-        score = float(torch.sigmoid(logits).squeeze().item())
-        label = "good" if score >= cfg.threshold else "bad"
-        confidence = score if label == "good" else 1.0 - score
-        return Classification(label=label, confidence=confidence, raw_score=score)
+        tfm = cls._make_transform(cfg)
+        chunk = max(1, get_settings().inference_classify_batch_size)
+        module.eval()
+
+        results: list[Classification] = []
+        for start in range(0, len(crops), chunk):
+            batch = crops[start : start + chunk]
+            tensors = [cls._preprocess_crop(c, cfg, tfm) for c in batch]
+            stacked = torch.stack(tensors).to(device)
+            with torch.no_grad():
+                logits = module(stacked)
+            for i in range(logits.shape[0]):
+                results.append(cls._collapse_logits(logits[i : i + 1], cfg))
+        return results
 
 
 __all__ = ["TorchLocalBackend"]

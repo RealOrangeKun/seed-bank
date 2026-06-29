@@ -159,6 +159,15 @@ class Settings(BaseSettings):
     roboflow_api_key: SecretStr | None = None
     inference_max_image_bytes: int = 10 * 1024 * 1024
     inference_max_image_pixels: int = 4096 * 4096
+    # Stage-2 (two-stage / "accurate") tuning. The torch classifier batches the
+    # per-seed crops through one forward pass instead of one call per crop; this
+    # caps the batch so a tray with hundreds of seeds doesn't blow up memory.
+    inference_classify_batch_size: int = 32
+    # U2NET (rembg) background removal before the specialist sees each crop.
+    # Quality win on cluttered backgrounds but expensive per crop on CPU — the
+    # dominant cost of "accurate" mode without a GPU. Set false to disable
+    # globally regardless of a model's per-artifact ``segment`` config.
+    inference_segmentation_enabled: bool = True
 
     # ── Analyze endpoint ─────────────────────────────────────────────────────
     rate_limit_analyze_per_minute: int = 30

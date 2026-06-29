@@ -193,7 +193,23 @@ class ModelManager:
                 if isinstance(inner, dict):
                     state = inner
                     break
-        module.load_state_dict(state, strict=False)
+        # ``strict=False`` tolerates a head-size mismatch (e.g. a checkpoint
+        # trained with a different class count) but it also *silently* ignores a
+        # total key mismatch — leaving the module on random init and producing
+        # garbage detections/labels. Log what didn't match so a broken artifact
+        # is diagnosable instead of looking like a bad threshold.
+        incompatible = module.load_state_dict(state, strict=False)
+        missing = list(getattr(incompatible, "missing_keys", []) or [])
+        unexpected = list(getattr(incompatible, "unexpected_keys", []) or [])
+        if missing or unexpected:
+            log.warning(
+                "ml.manager.state_dict_mismatch",
+                builder=builder_key,
+                n_missing=len(missing),
+                n_unexpected=len(unexpected),
+                missing_sample=missing[:5],
+                unexpected_sample=unexpected[:5],
+            )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         module = module.to(device)
         module.eval()

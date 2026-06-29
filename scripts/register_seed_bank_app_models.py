@@ -95,6 +95,9 @@ def _build_plans() -> list[_Plan]:
             config={
                 "builder_key": DETECTOR_BUILDER_KEY,
                 "confidence_threshold": 0.5,
+                # Low NMS IoU: seeds are densely packed, so aggressively dedupe
+                # overlapping boxes on the same seed (applied to roi_heads.nms_thresh).
+                "iou_threshold": 0.1,
                 "image_size": 448,
                 "two_stage": True,
                 # JSON object keys must be strings.
@@ -109,7 +112,8 @@ def _build_plans() -> list[_Plan]:
             builder_key="yolo",  # ignored by the ultralytics backend
             weights_rel=_YOLO_WEIGHTS,
             seed_type_code=None,
-            config={"confidence_threshold": 0.8, "iou_threshold": 0.5, "image_size": 640},
+            # Low NMS IoU (0.1) to dedupe overlapping boxes on densely packed seeds.
+            config={"confidence_threshold": 0.8, "iou_threshold": 0.1, "image_size": 640},
         ),
     ]
     for spec in SPECIALISTS:

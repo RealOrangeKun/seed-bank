@@ -718,13 +718,16 @@ async def _run_classify_for_detections(
     valid_labels = {q.value for q in SeedQuality}
 
     try:
-        for det in detections:
-            crop_bytes = _crop_to_jpeg(base_img, det, width, height)
-            outcome = await pipeline.run(
-                crop=crop_bytes,
-                cfg=cfg,
-                backend_name=classify_model.backend,
-            )
+        # Crop every detection up-front, then grade them in one batched call.
+        # The torch backend runs a single (chunked) forward pass over the whole
+        # group instead of one pass per seed — the main cost of "accurate" mode.
+        crops = [_crop_to_jpeg(base_img, det, width, height) for det in detections]
+        outcomes = await pipeline.run_batch(
+            crops=crops,
+            cfg=cfg,
+            backend_name=classify_model.backend,
+        )
+        for det, outcome in zip(detections, outcomes, strict=True):
             label = outcome.classification.label
             if label not in valid_labels:
                 # Defensive: a misconfigured model returning class names
