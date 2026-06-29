@@ -151,9 +151,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH=/opt/venv/bin:$PATH \
     PYTHONPATH=/app/src
+# ultralytics pulls non-headless opencv-python, which needs the GL + X11 runtime
+# libs (libgl1 + libxcb/libxext/libxrender/libsm) on top of the headless set.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      libpq5 libmagic1 libgl1 libglib2.0-0 curl tini \
+      libpq5 libmagic1 libgl1 libglib2.0-0 libxcb1 libxext6 libxrender1 libsm6 curl tini \
  && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --shell /bin/bash --uid 10001 seedbank
 COPY --from=builder-inference-cpu-full /opt/venv /opt/venv
