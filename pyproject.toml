@@ -79,6 +79,10 @@ inference = [
   # 2.0.66 leaves numpy/pillow unpinned and gates onnxruntime behind extras
   # (we depend on onnxruntime explicitly below / onnxruntime-gpu in the GPU image).
   "rembg>=2.0.59,<2.0.67",
+  # rembg → pymatting → numba. Without this floor the resolver picks numba 0.53
+  # (llvmlite 0.36), which only builds on Python <3.10 and breaks the py3.12
+  # worker image. 0.60+ ships py3.12 wheels and supports numpy<2.3.
+  "numba>=0.60,<1.0",
   "onnxruntime>=1.18,<2.0",
 ]
 # Full inference stack — adds the optional YOLO (ultralytics) and Roboflow

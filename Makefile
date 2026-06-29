@@ -157,7 +157,7 @@ seed: migrate-clickhouse ## Seed catalog (20 superclasses), create demo users.
 # Run after `make seed`. WEIGHTS_DIR can point at an unpacked seed-bank-app.
 WEIGHTS_DIR ?= /weights
 register-models: ## Register the new two-stage + YOLO models (run after `seed`).
-	$(COMPOSE) exec api python -m scripts.register_seed_bank_app_models \
+	$(COMPOSE) exec worker-inference python -m scripts.register_seed_bank_app_models \
 		--weights-dir "$(WEIGHTS_DIR)" --promote
 
 # ── Quality gates ────────────────────────────────────────────────────────────

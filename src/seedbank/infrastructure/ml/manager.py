@@ -166,9 +166,23 @@ class ModelManager:
 
         builder = get_builder(builder_key)
         module = builder()
-        # Load state dict from in-memory bytes; weights_only=True is the safe
-        # default in modern torch and rejects pickled python objects.
-        state = torch.load(io.BytesIO(weights), map_location="cpu", weights_only=True)
+        # Load state dict from in-memory bytes. Prefer the safe ``weights_only=True``
+        # path, but training checkpoints (e.g. the EfficientNet-B2 specialists) wrap
+        # the tensors alongside metadata like ``best_macro_f1``/``history`` that may
+        # be numpy scalars, which torch 2.6+ refuses under ``weights_only=True``.
+        # These artifacts come from our own MinIO (trusted), so fall back to a full
+        # unpickle rather than failing the load.
+        buf = io.BytesIO(weights)
+        try:
+            state = torch.load(buf, map_location="cpu", weights_only=True)
+        except Exception as exc:
+            log.warning(
+                "ml.manager.weights_only_fallback",
+                builder=builder_key,
+                error=repr(exc),
+            )
+            buf.seek(0)
+            state = torch.load(buf, map_location="cpu", weights_only=False)
         # Training checkpoints wrap the parameters under a top-level key alongside
         # optimizer/scheduler/history: ResNet/Faster-RCNN exports use
         # ``state_dict``; the EfficientNet-B2 specialists use ``model``. A bare

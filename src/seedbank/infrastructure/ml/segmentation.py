@@ -29,6 +29,11 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 _SESSION: object | None = None
+# Sticky flag: once building the session fails (e.g. the U2NET weights can't be
+# downloaded on an air-gapped host), don't retry on every crop — a 30s download
+# timeout per seed would stall the whole batch. We attempt once, then fall back
+# to the un-segmented crop for the rest of the process's life.
+_SESSION_UNAVAILABLE = False
 _SESSION_LOCK = threading.Lock()
 _DEFAULT_MODEL = "u2net"
 
@@ -45,19 +50,33 @@ def _providers() -> list[str]:
     return [p for p in ordered if p in available] or ["CPUExecutionProvider"]
 
 
-def get_session(model_name: str = _DEFAULT_MODEL) -> object:
-    """Return the process-cached rembg session, building it once."""
-    global _SESSION  # noqa: PLW0603 — process-wide singleton, guarded by a lock
+def get_session(model_name: str = _DEFAULT_MODEL) -> object | None:
+    """Return the process-cached rembg session, building it once.
+
+    Returns ``None`` (and stays ``None``) if the session can't be built — the
+    caller then skips segmentation instead of retrying the failing download.
+    """
+    global _SESSION, _SESSION_UNAVAILABLE  # noqa: PLW0603 — guarded singleton
     if _SESSION is not None:
         return _SESSION
+    if _SESSION_UNAVAILABLE:
+        return None
     with _SESSION_LOCK:
-        if _SESSION is None:
+        if _SESSION is not None:
+            return _SESSION
+        if _SESSION_UNAVAILABLE:
+            return None
+        try:
             from rembg import new_session
 
             providers = _providers()
             _SESSION = new_session(model_name, providers=providers)
             log.info("ml.segmentation.session_ready", model=model_name, providers=providers)
-        return _SESSION
+            return _SESSION
+        except Exception as exc:
+            _SESSION_UNAVAILABLE = True
+            log.warning("ml.segmentation.session_unavailable", error=repr(exc))
+            return None
 
 
 def segment_crop(
@@ -67,15 +86,19 @@ def segment_crop(
 ) -> Image.Image:
     """Remove the background from ``image`` and composite over ``background``.
 
-    Takes and returns an RGB ``PIL.Image``. On any failure the original image is
-    returned unchanged so a flaky matting step degrades quality rather than
-    failing the whole inference.
+    Takes and returns an RGB ``PIL.Image``. If the U2NET session is unavailable
+    or matting fails, the original image is returned unchanged so a flaky
+    segmentation step degrades quality rather than failing the whole inference.
     """
+    session = get_session()
+    if session is None:
+        return image.convert("RGB")
+
     from PIL import Image as PILImage
     from rembg import remove
 
     try:
-        rgba = remove(image.convert("RGBA"), session=get_session())
+        rgba = remove(image.convert("RGBA"), session=session)
         if rgba.mode != "RGBA":
             rgba = rgba.convert("RGBA")
         canvas = PILImage.new("RGBA", rgba.size, (*background, 255))
