@@ -60,6 +60,12 @@ uploads/
 # Reference only; never re-add (also excluded from build context in .dockerignore).
 legacy/
 
+# Standalone desktop inference app + its shipped archive — source of the new
+# model weights, but far too large (1.2 GB .rar, ~1.2 GB weights) to ever track.
+# The weights are imported into MinIO via scripts/register_model.py, not git.
+seed-bank-app/
+seed-bank-app.rar
+
 # Frontend
 node_modules/
 compose.override.yaml
@@ -73,3 +79,23 @@ compose.override.yaml
 .claude/.fuse_hidden*
 .claude/launch.json
 CLAUDE.local.md
+
+# Graduation requirements documents
+docs/*.pdf
+
+# LaTeX / Pandoc compilation outputs and intermediate files
+docs/report/**/*.pdf
+docs/report/**/*.docx
+docs/report/**/*.aux
+docs/report/**/*.log
+docs/report/**/*.toc
+docs/report/**/*.lof
+docs/report/**/*.lot
+docs/report/**/*.out
+docs/report/**/*.fls
+docs/report/**/*.fdb_latexmk
+docs/report/**/*.xdv
+docs/report/**/*.bcf
+docs/report/**/*.run.xml
+docs/report/**/*.bbl
+docs/report/**/*.blg

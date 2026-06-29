@@ -778,7 +778,7 @@ export interface components {
     schemas: {
         /**
          * AnalyticsConfidenceBin
-         * @description A 10%-wide bucket; ``from_pct``/``to_pct`` are 0–100 inclusive bounds.
+         * @description A 10%-wide bucket; ``from_pct``/``to_pct`` are 0-100 inclusive bounds.
          */
         AnalyticsConfidenceBin: {
             /** From Pct */
@@ -1046,7 +1046,7 @@ export interface components {
          * BatchSource
          * @enum {string}
          */
-        BatchSource: "api" | "web" | "sdk";
+        BatchSource: "api" | "web" | "sdk" | "mobile" | "mobile_realtime";
         /**
          * BatchStatus
          * @enum {string}
@@ -1065,6 +1065,16 @@ export interface components {
             seed_type_id?: string | null;
             /** Model Id */
             model_id?: string | null;
+            /**
+             * Mode
+             * @description Pipeline selector: 'fast' = YOLO one-shot detector, 'accurate' = Faster R-CNN two-stage. Unlike model_id this is open to all users. Ignored when model_id is set.
+             */
+            mode?: string | null;
+            /**
+             * Source
+             * @description Client origin, used to split history per app: 'web', 'mobile', or 'mobile_realtime' (live-video frames, hidden from history). Omitted for direct/SDK callers → recorded as 'api'.
+             */
+            source?: string | null;
             /** Gps Lat */
             gps_lat?: number | string | null;
             /** Gps Long */
@@ -1746,6 +1756,7 @@ export interface components {
             id: string;
             /** Seed Type Id */
             seed_type_id?: string | null;
+            seed_type?: components["schemas"]["SeedTypeRef"] | null;
             quality?: components["schemas"]["SeedQuality"] | null;
             /** Confidence */
             confidence: string;
@@ -1791,6 +1802,22 @@ export interface components {
             description?: string | null;
             /** Default Confidence Threshold */
             default_confidence_threshold: string;
+        };
+        /**
+         * SeedTypeRef
+         * @description Minimal seed-type reference embedded in a detection so clients can
+         *     render a human label ("Coffee") instead of a raw ``seed_type_id`` UUID.
+         */
+        SeedTypeRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Display Name */
+            display_name: string;
         };
         /**
          * ShareLinkOut
@@ -2779,6 +2806,8 @@ export interface operations {
             query?: {
                 supplier_id?: string | null;
                 country_code?: string | null;
+                /** @description Scope history to one client origin: 'web' or 'mobile' so each app shows only its own scans. Omitted → all of the user's batches except the hidden realtime live-frame scans. */
+                source?: string | null;
                 page?: number;
                 page_size?: number;
             };

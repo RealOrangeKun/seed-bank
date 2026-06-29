@@ -37,6 +37,11 @@ class BatchSource(StrEnum):
     API = "api"
     WEB = "web"
     SDK = "sdk"
+    MOBILE = "mobile"
+    # Live-video frames streamed by the mobile realtime scanner. Kept out of the
+    # history list (each session emits many one-frame batches) — see
+    # ScanBatchRepository._HISTORY_HIDDEN_SOURCES.
+    MOBILE_REALTIME = "mobile_realtime"
 
 
 class LocationSource(StrEnum):

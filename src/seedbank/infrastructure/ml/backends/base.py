@@ -46,6 +46,9 @@ class Classification:
     label: str  # e.g. "good" | "bad"
     confidence: float
     raw_score: float | None = None  # post-sigmoid logit, useful for calibration
+    # Fine-grained multi-label defects (EfficientNet-B2 specialists), e.g.
+    # ("Fungus_MAIZE", "Broken_MAIZE"). Empty for binary good/bad classifiers.
+    defects: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +62,11 @@ class DetectionConfig:
     iou_threshold: float = 0.5
     max_detections: int = 300
     image_size: int | None = None
+    # Maps a detector class index → seed-type code (e.g. {1: "soybean",
+    # 13: "maize"}). Used by the multi-class superclass detector so each crop
+    # can be routed to its seed-type specialist downstream. ``None`` falls back
+    # to the legacy {0:background,1:coffee,2:maize} naming.
+    class_map: dict[int, str] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -71,6 +79,11 @@ class ClassificationConfig:
     builder_key: str
     threshold: float = 0.5
     image_size: int = 224
+    # Ordered defect/quality class names for a multi-label specialist; index i
+    # corresponds to logit i. ``None`` → legacy single-logit good/bad head.
+    classes: tuple[str, ...] | None = None
+    # Run U2NET (rembg) background removal on the crop before classifying.
+    segment: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
 

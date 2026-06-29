@@ -37,7 +37,11 @@ export function BatchesPage() {
   const navigate = useNavigate();
   const { t, tn } = useI18n();
   const pagination = usePagination(20);
-  const query = useBatches({ page: pagination.page, pageSize: pagination.pageSize });
+  const query = useBatches({
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    source: "web",
+  });
   const bulkDelete = useBulkDeleteBatches();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());

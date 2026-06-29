@@ -111,6 +111,8 @@ class AnalysisService:
         gps_long: Decimal | None,
         country_code: str | None,
         ip: str | None,
+        mode: str | None = None,
+        source: str | None = None,
     ) -> ScanBatch:
         """Validate, persist, and dispatch one analyze request.
 
@@ -131,6 +133,7 @@ class AnalysisService:
             gps_lat=gps_lat,
             gps_long=gps_long,
             country_code=country_code,
+            source=source,
         )
         await self.batches.add(batch)
 
@@ -187,6 +190,7 @@ class AnalysisService:
                     str(image.id),
                     str(model_id_override) if model_id_override else None,
                     str(seed_type_id) if seed_type_id else None,
+                    mode,
                 ],
                 queue=_ANALYZE_TASK_QUEUE,
             )
@@ -275,18 +279,25 @@ class AnalysisService:
         gps_lat: Decimal | None,
         gps_long: Decimal | None,
         country_code: str | None,
+        source: str | None = None,
     ) -> ScanBatch:
         location_source: str | None = None
         # The DB enforces ``(gps_lat IS NULL) = (gps_long IS NULL)``;
         # location_source is a hint about provenance.
         if gps_lat is not None or country_code is not None:
             location_source = LocationSource.MANUAL.value
+        # Client-declared origin (web / mobile / mobile_realtime); defaults to
+        # ``api`` for direct/SDK callers. An unknown value falls back to ``api``
+        # rather than failing the scan.
+        resolved_source = BatchSource.API.value
+        if source is not None and source in BatchSource._value2member_map_:
+            resolved_source = source
         return ScanBatch(
             id=uuid7(),
             user_id=actor.id,
             supplier_id=supplier_id,
             status=BatchStatus.PENDING.value,
-            source=BatchSource.API.value,
+            source=resolved_source,
             gps_lat=gps_lat,
             gps_long=gps_long,
             geo_country_code=country_code,

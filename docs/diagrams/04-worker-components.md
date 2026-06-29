@@ -8,42 +8,42 @@ detect → classify → persist pipeline.
 
 ```mermaid
 flowchart TB
-    BRK[(Redis broker<br/>db1)]
-    RES[(Redis result backend<br/>db2)]
+    BRK[("Redis broker<br/>db1")]
+    RES[("Redis result backend<br/>db2")]
 
     subgraph WK["worker-cpu / worker-inference"]
         direction TB
 
-        APP[workers/celery_app.py<br/>app factory<br/>task_routes inference→inference queue<br/>acks_late, prefetch=1]
+        APP["workers/celery_app.py<br/>app factory<br/>task_routes inference→inference queue<br/>acks_late, prefetch=1"]
 
-        TASK[workers/tasks/analyze.py<br/>@celery_app.task seedbank.analyze_image<br/>sync entry → asyncio.run]
+        TASK["workers/tasks/analyze.py<br/>@celery_app.task seedbank.analyze_image<br/>sync entry → asyncio.run"]
 
-        SS[workers/session.py<br/>worker_session_scope<br/>fresh AsyncEngine per task<br/>engine.dispose at exit]
+        SS["workers/session.py<br/>worker_session_scope<br/>fresh AsyncEngine per task<br/>engine.dispose at exit"]
 
         subgraph IMPL["_async_analyze_image (the real work)"]
             direction TB
-            CAS[CAS pending → running<br/>via ScanBatchRepository.cas_status]
-            FETCH[MinIO.get_object<br/>image bytes]
-            RES_DET[TrafficRouter.select_model<br/>kind=DETECTION<br/>or model_id_override + scope check]
-            DET[DetectPipeline.detect<br/>via ModelManager.load]
-            P_INF[InferenceRepository.add_inference<br/>+ SeedDetectionRepository.add_many]
-            COMMIT1[commit detect rows]
-            RES_CLS[TrafficRouter.select_model<br/>kind=CLASSIFICATION<br/>graceful skip if absent]
-            CROP[PIL crop per detection<br/>using normalized bbox × img.size]
-            CLS[ClassifyPipeline.classify]
-            P_QC[InferenceRepository.add_inference<br/>+ SeedDetectionRepository.update_quality_many]
-            COMMIT2[commit classify rows]
-            FIN[finalize batch:<br/>count distinct images with detect inference;<br/>CAS running → succeeded / partial / failed]
+            CAS["CAS pending → running<br/>via ScanBatchRepository.cas_status"]
+            FETCH["MinIO.get_object<br/>image bytes"]
+            RES_DET["TrafficRouter.select_model<br/>kind=DETECTION<br/>or model_id_override + scope check"]
+            DET["DetectPipeline.detect<br/>via ModelManager.load"]
+            P_INF["InferenceRepository.add_inference<br/>+ SeedDetectionRepository.add_many"]
+            COMMIT1["commit detect rows"]
+            RES_CLS["TrafficRouter.select_model<br/>kind=CLASSIFICATION<br/>graceful skip if absent"]
+            CROP["PIL crop per detection<br/>using normalized bbox × img.size"]
+            CLS["ClassifyPipeline.classify"]
+            P_QC["InferenceRepository.add_inference<br/>+ SeedDetectionRepository.update_quality_many"]
+            COMMIT2["commit classify rows"]
+            FIN["finalize batch:<br/>count distinct images with detect inference;<br/>CAS running → succeeded / partial / failed"]
         end
 
         REPOS["Repositories<br/>(reused from API)"]
-        ORM[(AsyncSession<br/>per task)]
+        ORM[("AsyncSession<br/>per task")]
     end
 
     subgraph EXT["External adapters"]
-        MIN[(MinIO)]
-        ML[infrastructure/ml<br/>backends, manager, pipeline]
-        TR[services/traffic_router]
+        MIN[("MinIO")]
+        ML["infrastructure/ml<br/>backends, manager, pipeline"]
+        TR["services/traffic_router"]
     end
 
     BRK --> APP

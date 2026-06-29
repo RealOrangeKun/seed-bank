@@ -69,6 +69,21 @@ inference = [
   "torchvision>=0.20,<1.0",
   "numpy>=1.26,<3.0",
   "opencv-python-headless>=4.10,<5.0",
+  # Two-stage pipeline: EfficientNet-B2 specialists (timm backbone) + U2NET
+  # background removal (rembg/onnxruntime) on each crop before classification.
+  # onnxruntime is the CPU EP — GPU hosts swap in onnxruntime-gpu so rembg's
+  # CUDAExecutionProvider is picked up (see infrastructure/ml/segmentation.py).
+  "timm>=1.0,<2.0",
+  # Pin below 2.0.67 — later rembg releases require numpy>=2.3 / pillow>=12.1,
+  # which collide with opencv-python-headless's numpy<2.3 cap and our pillow<12.
+  # 2.0.66 leaves numpy/pillow unpinned and gates onnxruntime behind extras
+  # (we depend on onnxruntime explicitly below / onnxruntime-gpu in the GPU image).
+  "rembg>=2.0.59,<2.0.67",
+  # rembg → pymatting → numba. Without this floor the resolver picks numba 0.53
+  # (llvmlite 0.36), which only builds on Python <3.10 and breaks the py3.12
+  # worker image. 0.60+ ships py3.12 wheels and supports numpy<2.3.
+  "numba>=0.60,<1.0",
+  "onnxruntime>=1.18,<2.0",
 ]
 # Full inference stack — adds the optional YOLO (ultralytics) and Roboflow
 # (inference-sdk) backends. Both are lazily imported (manager.py / backends/
@@ -124,7 +139,8 @@ packages = ["src/seedbank"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests", "scripts"]
-extend-exclude = ["legacy", "alembic/versions", ".venv"]
+# Document-build helpers (Word export) are tooling, not application code.
+extend-exclude = ["legacy", "alembic/versions", ".venv", "scripts/make_reference_docx.py", "scripts/_docx_fix_tables.py"]
 
 [tool.ruff.lint]
 select = [
@@ -218,7 +234,7 @@ namespace_packages = true
 explicit_package_bases = true
 mypy_path = "src"
 files = ["src", "tests", "scripts"]
-exclude = ["legacy/", "\\.venv/", "alembic/versions/"]
+exclude = ["legacy/", "\\.venv/", "alembic/versions/", "scripts/make_reference_docx\\.py", "scripts/_docx_fix_tables\\.py"]
 
 # Third-party modules that ship no type stubs / py.typed. The ML stack
 # (torch/torchvision/numpy) lives in the [inference] extra and is intentionally

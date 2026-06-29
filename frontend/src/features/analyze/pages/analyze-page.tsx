@@ -22,9 +22,10 @@ import { hasRole, useAuth } from "@/features/auth/use-auth";
 import { useI18n } from "@/i18n";
 import { applyApiError } from "@/lib/form";
 
-import { useAnalyze } from "../api";
+import { type AnalyzeMode, useAnalyze } from "../api";
 
 interface FormValues {
+  mode: AnalyzeMode;
   supplierId?: string;
   seedTypeId?: string;
   modelId?: string;
@@ -45,6 +46,7 @@ export function AnalyzePage() {
   const schema = useMemo(() => {
     const uuid = z.string().uuid(t("analyze.errUuid")).optional().or(z.literal(""));
     return z.object({
+      mode: z.enum(["fast", "accurate"]),
       supplierId: uuid,
       seedTypeId: uuid,
       modelId: uuid,
@@ -61,6 +63,7 @@ export function AnalyzePage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
+      mode: "accurate",
       supplierId: "",
       seedTypeId: "",
       modelId: "",
@@ -78,6 +81,8 @@ export function AnalyzePage() {
     try {
       const batch = await analyze.mutateAsync({
         files,
+        // An explicit model override (admin) wins; otherwise fast/accurate mode.
+        mode: canOverrideModel && values.modelId ? undefined : values.mode,
         supplierId: values.supplierId || undefined,
         seedTypeId: values.seedTypeId || undefined,
         modelId: canOverrideModel ? values.modelId || undefined : undefined,
@@ -103,6 +108,56 @@ export function AnalyzePage() {
               files={files}
               onChange={setFiles}
               disabled={analyze.isPending}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <Controller
+              control={form.control}
+              name="mode"
+              render={({ field }) => (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">{t("analyze.mode")}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        {
+                          value: "fast" as const,
+                          title: t("analyze.modeFast"),
+                          hint: t("analyze.modeFastHint"),
+                        },
+                        {
+                          value: "accurate" as const,
+                          title: t("analyze.modeAccurate"),
+                          hint: t("analyze.modeAccurateHint"),
+                        },
+                      ]
+                    ).map((opt) => {
+                      const active = field.value === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => field.onChange(opt.value)}
+                          className={`rounded-lg border p-4 text-left transition-colors ${
+                            active
+                              ? "border-primary bg-primary/5 ring-1 ring-primary"
+                              : "border-border hover:bg-muted/50"
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold">{opt.title}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {opt.hint}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             />
           </CardContent>
         </Card>

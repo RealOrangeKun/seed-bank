@@ -1,0 +1,314 @@
+\chapter{Testing and Evaluation}
+
+This chapter describes how the system is tested and what the tests tell us about
+its behaviour. The backend is the largest and most safety-relevant part of the
+project, so it carries the bulk of the suite, organised as a test pyramid and
+guarded by automated gates that run on every commit and in continuous
+integration. The two client applications and the companion data generator,
+\textbf{MultiSeedGen}, each have their own checks tuned to their risks. The
+chapter closes with what we measured about performance and an honest account of
+what the suite does not yet cover.
+
+\section{Testing Strategy}
+
+\subsection{The backend test pyramid}
+
+The backend tests are split into tiers by cost and by how much of the real
+system each tier exercises. The cheap tiers run constantly; the expensive ones
+run less often but check the parts that unit tests cannot reach.
+
+\textbf{Unit tests} are fast and isolated. They exercise one function or one
+class at a time with the slow collaborators replaced by fakes: the database
+session, the object store, and the inference backends are all mocked or stubbed
+so a unit test never opens a socket. This tier covers the parts of the system
+that are pure logic and benefit most from quick feedback, including the
+traffic router's bucketing and fallback rules, the batch state-machine
+transitions, the RFC~9457 error rendering \cite{rfc9457problem}, the Pydantic
+request and response schemas, and the JWT encode and decode paths
+\cite{rfc7519jwt}.
+
+\textbf{Integration tests} run against real backing services rather than fakes.
+The suite uses \texttt{testcontainers} to spin up an actual PostgreSQL
+\cite{postgresinprod} and ClickHouse \cite{clickhouseolap} for the duration of
+the run, then tears them down, so repository code is tested against the same
+database engine it talks to in production rather than against a mock that might
+disagree with real SQL behaviour. Redis is replaced with \texttt{fakeredis} in
+this tier. Because Celery's \texttt{celery\_task\_always\_eager} setting makes
+tasks execute inline in the same process, the worker pipeline and the
+OLTP-to-warehouse dual-write can be driven from an integration test without a
+separate worker container, which also lets worker-side metrics surface on this
+path \cite{celeryinplay}.
+
+\textbf{End-to-end tests} drive the full HTTP contract through the ASGI
+application. They send real requests to the assembled FastAPI app
+\cite{fastapi} and assert on the response envelopes, status codes, and the
+RFC~9457 problem bodies, so the routing, middleware, authentication, and
+serialization are all exercised together exactly as a client would hit them.
+
+On top of the pyramid sits a \textbf{smoke test}, \texttt{scripts/smoke.sh},
+which runs against a live Docker Compose stack \cite{merkel2014docker}. It boots
+the real services, seeds reference data, registers and promotes a model, then
+submits an analyze request and polls the batch until it reaches a terminal
+state. This is the only check that runs the genuine Celery worker with a real
+PyTorch backend against MinIO, so it is the closest thing in the suite to a
+production rehearsal.
+
+\subsection{Pre-commit gates}
+
+Before any change reaches a commit, a set of \texttt{pre-commit} hooks runs
+locally. Ruff handles both formatting and linting, so style and a class of
+likely bugs are caught before review. Mypy runs in strict mode, which means the
+boundary types between layers are checked statically and a function that returns
+the wrong shape is rejected at commit time rather than discovered at runtime.
+Gitleaks scans the staged diff for secrets so that credentials never enter the
+git history. These same checks form the fast feedback loop that the continuous
+integration pipeline mirrors.
+
+\subsection{Continuous integration workflows}
+
+CI is organised as four workflows, each with a clear responsibility, so a red
+build points at a specific kind of failure.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.13\textwidth}p{0.78\textwidth}@{}}
+\caption{Continuous integration workflows and what each one guards.}
+\label{tab:ch6-ci}\\
+\toprule
+\textbf{Workflow} & \textbf{What it runs and what it protects} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Workflow} & \textbf{What it runs and what it protects} \\
+\midrule
+\endhead
+\texttt{check} & Ruff lint plus mypy strict type-checking plus the unit tier. The fast gate; mirrors the pre-commit hooks so a clean local commit rarely fails here. \\
+\addlinespace
+\texttt{test} & The full pyramid: unit, integration (with \texttt{testcontainers} bringing up Postgres and ClickHouse), and end-to-end. This is where database and contract regressions are caught. \\
+\addlinespace
+\texttt{build} & Builds the multi-stage Docker images and enforces the CPU/GPU split. A guard asserts that \texttt{torch} is absent from the API image, so the heavy inference dependency can never leak into the lightweight web container. \\
+\addlinespace
+\texttt{smoke} & Brings the Compose stack up, seeds it, and runs \texttt{scripts/smoke.sh} end to end against the live services. \\
+\bottomrule
+\end{longtable}
+\end{singlespace}
+
+The \texttt{build} workflow's torch guard deserves a note. The Dockerfile
+produces separate runtimes so that only the inference worker carries PyTorch and
+torchvision, while the API and the CPU worker run on a much smaller image. If a
+careless import ever pulled torch into the API process, the image would balloon
+by more than a gigabyte and the architectural boundary would be quietly broken.
+The CI assertion makes that mistake fail the build rather than ship.
+
+\subsection{Client and generator testing}
+
+The web application is checked with Vitest and Testing Library for unit and
+component tests, \texttt{tsc} for type-checking, and ESLint for linting, with a
+production \texttt{build} as a final gate \cite{reactindepth}. The component
+tests include the localization system, where the test asserts that switching to
+Arabic flips the document direction to right-to-left, changes the rendered text,
+and persists the choice. The mobile application, built on Expo and React Native
+\cite{reactnativeexpo}, runs \texttt{tsc}, \texttt{expo-doctor} for project
+configuration sanity, and a full \texttt{expo export} bundle so that a packaging
+break is caught before a build is cut.
+
+MultiSeedGen adds two kinds of test that matter for a data generator whose whole
+value is reproducibility. \textbf{Golden byte-manifest tests} pin the exact
+bytes of generated output against committed manifests, so any change that alters
+a single pixel surfaces as a diff a reviewer must consciously accept rather than
+a silent regression. \textbf{Determinism tests} assert the core contract that a
+fixed \texttt{(config, seed)} pair produces byte-identical output regardless of
+the parallel backend or the number of worker processes. This is enforced by
+per-(split, scene-index) random seeding, a content-hashed segmentation cache,
+and pinning OpenCV to a single thread inside every worker, since OpenCV
+reductions are not bit-identical across thread counts.
+
+\subsection{What we report on coverage, and why}
+
+The suite is broad. Across the backend there are about \textbf{52 test files}
+and on the order of \textbf{293 test cases} spanning the unit, integration, and
+end-to-end tiers, plus the smoke test and MultiSeedGen's golden and determinism
+checks. That breadth, together with the CI gates above, is the honest measure of
+how much of the system is exercised.
+
+We deliberately do not print a single aggregate coverage percentage. The figure
+recorded in the repository's \texttt{coverage.xml} is a non-hermetic measurement
+artifact: it comes from a fast \texttt{check}-style run that does not start the
+live services the integration and end-to-end tiers depend on, so the router and
+service code that those tiers do exercise reads as untouched there. Quoting that
+number would understate the real coverage, sometimes badly. A trustworthy
+aggregate therefore depends on first making the suite fully hermetic, so that one
+run can execute every tier and produce one defensible number. That work is
+tracked as future work and is described in Section~\ref{sec:ch6-limits}.
+
+\section{Test Cases and Results}
+
+Table~\ref{tab:ch6-cases} lists representative cases drawn from across the suite.
+The \emph{Result} column reports \emph{Pass} where the design and the
+corresponding tests support the expected behaviour. No numeric accuracy or
+benchmark figures are claimed here, because the suite asserts behaviour and
+contracts rather than model accuracy on a held-out set.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.06\textwidth}p{0.12\textwidth}p{0.30\textwidth}p{0.30\textwidth}p{0.07\textwidth}@{}}
+\caption{Representative test cases across the system.}
+\label{tab:ch6-cases}\\
+\toprule
+\textbf{ID} & \textbf{Area} & \textbf{Scenario} & \textbf{Expected} & \textbf{Result} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{ID} & \textbf{Area} & \textbf{Scenario} & \textbf{Expected} & \textbf{Result} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+T-01 & Auth & Login with a correct email and password. & Returns an access token and a refresh token; the login metric records \texttt{ok}. & Pass \\
+\addlinespace
+T-02 & Auth & A rotated refresh token is presented a second time (replay). & The reused token is rejected and the token chain is invalidated. & Pass \\
+\addlinespace
+T-03 & Auth & Refresh with a valid current token. & A new access and refresh pair is issued and the old refresh token is retired. & Pass \\
+\addlinespace
+T-04 & Analyze & Multipart upload of several valid images to \texttt{POST /analyze}. & A \texttt{scan\_batch} is created in \texttt{pending} and one task per image is dispatched after commit. & Pass \\
+\addlinespace
+T-05 & Analyze & Upload of more than 16 files in one request. & The request is rejected before any image is stored (\texttt{analyze\_max\_files\_per\_request} is 16). & Pass \\
+\addlinespace
+T-06 & Analyze & Upload of a file whose bytes are not a real image. & Validation fails on the file and no batch is committed. & Pass \\
+\addlinespace
+T-07 & Batch state & Two workers race to start the same pending batch. & A compare-and-set moves \texttt{pending} to \texttt{running} exactly once; the loser does not corrupt state. & Pass \\
+\addlinespace
+T-08 & Batch state & Detection succeeds but classification raises for an image. & Detection rows are kept and the batch degrades to \texttt{partial}, never \texttt{failed}. & Pass \\
+\addlinespace
+T-09 & Model routing & A user with an active A/B split submits repeated scans. & The sticky bucket sends the same user to the same model every time. & Pass \\
+\addlinespace
+T-10 & Model routing & Analyze runs with no promoted detection model. & The batch ends \texttt{failed} with a human-readable message, not a blank error. & Pass \\
+\addlinespace
+T-11 & API keys & A personal API key is created. & The key is shown in plaintext once and stored only as a hash. & Pass \\
+\addlinespace
+T-12 & RBAC & An \texttt{end\_user} calls an admin-only route. & The request is forbidden by the role gate. & Pass \\
+\addlinespace
+T-13 & DWH & A batch completes with \texttt{dwh\_enabled} on. & The dual-write task fires and dimension and fact rows reach ClickHouse. & Pass \\
+\addlinespace
+T-14 & MultiSeedGen & Generate twice from one \texttt{(config, seed)} with different worker counts. & Both runs produce byte-identical output. & Pass \\
+\addlinespace
+T-15 & MultiSeedGen & Build a train/val split from the seed pool. & The split is leakage-safe; a source seed never lands in both partitions. & Pass \\
+\addlinespace
+T-16 & MultiSeedGen & Export a dataset in YOLO and COCO formats. & The written annotations and \texttt{data.yaml} match the pinned export schema. & Pass \\
+\end{longtable}
+\end{singlespace}
+
+A few of these cases are worth expanding because they protect the parts of the
+system most likely to fail in subtle ways. T-02, the refresh-token replay case,
+checks that token rotation actually detects reuse rather than merely issuing new
+tokens; a token presented twice invalidates the whole chain, which is what makes
+the rotation scheme worth having \cite{rfc7519jwt}. T-07 and T-08 protect the
+batch state machine: because a multi-image batch is processed by several workers
+at once, the transitions are compare-and-set updates so that exactly one task
+owns each transition, and a classification crash after a successful detection
+degrades the batch to \texttt{partial} instead of throwing away good detection
+results. T-10 matters because the mobile point-and-shoot flow sends no seed type
+and so routes to the global production model; if no model is promoted, the user
+must see a clear failure rather than an empty screen. T-14 and T-15 are the
+contracts that make MultiSeedGen useful as a training-data source: reproducible
+bytes and a split that does not leak the same source seed across partitions.
+
+\section{Performance Evaluation}
+
+The project did not run a formal load-testing campaign; the planned load tests
+under \texttt{tests/load/} were not built, so this section reports the
+performance behaviour that the design provides and the concrete figures the
+documentation actually records, rather than synthetic benchmark results.
+
+The dominant cost in the backend is model inference, and the design keeps it off
+the critical path in two ways. A single image's forward pass runs in a worker
+thread via \texttt{asyncio.to\_thread}, so the event loop stays responsive while
+PyTorch computes. When a batch contains several images, each image is a separate
+Celery task graded in parallel by the \texttt{worker-inference} pool, so a batch
+is processed concurrently rather than one image at a time, and throughput scales
+horizontally by adding more inference workers. This is the same path the
+conveyor-belt scanning use case relies on.
+
+The honest cost is cold-start CPU inference, which is slow: the first inference
+on a cold CPU process pays the model load and the first forward pass with no warm
+caches. The smoke test allows roughly 75~seconds for a batch to complete on a
+cold CPU, which sets the expectation for an un-warmed deployment. After the first
+run, the process-wide LRU cache in the model manager keeps loaded weights
+resident, so subsequent inferences skip the load cost and run far faster. On the
+observability side, Prometheus histograms expose both HTTP request latency and
+per-image inference latency, so latency can be tracked per route and per model
+backend once a deployment is running \cite{opentelemetry2022}.
+
+For MultiSeedGen, the documentation records two concrete effects. Running the
+rembg background-removal model on a GPU is roughly an order of magnitude faster
+than on CPU, measured at about 11x on an RTX~3060 \cite{qin2020u2net}. Separately,
+the content-hash segmentation cache makes re-runs near-instant: once a source
+seed has been segmented, a later run with the same inputs reuses the cached
+result instead of recomputing it. These figures are collected in
+Table~\ref{tab:ch6-perf}.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.34\textwidth}p{0.30\textwidth}p{0.28\textwidth}@{}}
+\caption{Observed and expected performance figures recorded in the project documentation.}
+\label{tab:ch6-perf}\\
+\toprule
+\textbf{Aspect} & \textbf{Figure} & \textbf{Source} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Aspect} & \textbf{Figure} & \textbf{Source} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Cold-start CPU batch completion & $\approx$ 75~s allowed & Smoke-test budget \\
+\addlinespace
+Warm inference & Much faster after first load & Model-manager LRU cache \\
+\addlinespace
+MultiSeedGen rembg, GPU vs CPU & $\approx$ 11x faster on an RTX 3060 & MultiSeedGen docs \\
+\addlinespace
+MultiSeedGen cached re-run & Near-instant & Content-hash segmentation cache \\
+\bottomrule
+\end{longtable}
+\end{singlespace}
+
+\section{Limitations and Known Issues}
+\label{sec:ch6-limits}
+
+The system works end to end, but the testing and evaluation tail of the project
+is unfinished, and several known gaps are worth stating plainly.
+
+The most consequential testing limitation is that the suite is \textbf{not fully
+hermetic}. Some integration tests boot the assembled application, and the slowapi
+rate limiter inside that app reaches for a live Redis on the Compose hostname,
+which \texttt{fakeredis} does not intercept; outside Docker those tests fail for
+an environmental reason rather than a product bug \cite{redisinaction}. The
+direct consequence is the one discussed in the testing strategy: until the rate
+limiter runs on fakeredis end to end, or CI provides a real Redis service for the
+test job, there is no single coverage number that can be trusted. Making the
+suite hermetic and then establishing a defensible aggregate coverage figure is
+the first item of remaining work.
+
+On the product side, image upload is \textbf{multipart-only}. The presigned-upload
+endpoint and batch cancellation were designed but never built, so a client cannot
+upload directly to object storage or abort a running batch. The analytics
+warehouse is populated by an \textbf{application-level dual-write} rather than
+true change-data-capture: when a batch completes, the application dispatches a
+Celery task that writes to ClickHouse, instead of streaming changes off the
+Postgres write-ahead log. The database is configured with logical replication
+enabled so that real CDC can be added later, but that path is not wired today.
+
+Observability is \textbf{opt-in}. OpenTelemetry tracing and Sentry error
+reporting are complete no-ops unless their endpoints are configured, which keeps
+the development stack quiet but means neither is exercised by default. A handful
+of endpoints have a service and a schema behind them but no route yet, including
+password change and experiment-results retrieval, so the underlying capability
+exists but is not reachable over HTTP.
+
+Finally, a limitation specific to MultiSeedGen's purpose: there is a
+\textbf{synthetic-to-real domain gap}. Compositing seeds onto backgrounds with
+matched lighting and camera degradation produces realistic-looking images, but a
+detector trained only on synthetic data can still behave differently on real
+field photographs than its synthetic validation metrics suggest
+\cite{tobin2017domainrand}. The generator narrows the gap with domain-matched
+degradation, but closing it for a given crop still requires validating the
+trained detector against genuine images before trusting it in the field
+\cite{kamilaris2018deepag}.
