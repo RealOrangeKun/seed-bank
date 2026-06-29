@@ -18,7 +18,6 @@ service never raises ``HTTPException`` — domain errors only.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -143,9 +142,7 @@ class ModelRegistryService:
         # than letting the unique constraint surface as a generic 500.
         existing = await self.models.find_by_name_version(payload.name, payload.version)
         if existing is not None:
-            raise ConflictError(
-                f"Model {payload.name}:{payload.version} already registered."
-            )
+            raise ConflictError(f"Model {payload.name}:{payload.version} already registered.")
 
         await self._verify_artifact_exists(payload.artifact_uri)
 
@@ -206,9 +203,7 @@ class ModelRegistryService:
             return row  # idempotent no-op
         allowed = _TRANSITIONS[current]
         if new_status not in allowed:
-            raise ValidationError(
-                f"Illegal transition {current.value} → {new_status.value}."
-            )
+            raise ConflictError(f"Illegal transition {current.value} → {new_status.value}.")
 
         # Verify the artifact still exists in MinIO before promoting it onto
         # the staging/production hot path. Skipped for archive transitions.
@@ -218,9 +213,7 @@ class ModelRegistryService:
         # Promotion to production demotes the incumbent in the same txn so
         # the partial-unique index never sees two productions for the segment.
         if new_status is ModelStatus.PRODUCTION:
-            incumbent = await self.models.get_production(
-                ModelKind(row.kind), row.seed_type_id
-            )
+            incumbent = await self.models.get_production(ModelKind(row.kind), row.seed_type_id)
             if incumbent is not None and incumbent.id != row.id:
                 incumbent.status = ModelStatus.ARCHIVED.value
                 self.session.add(
@@ -293,9 +286,7 @@ class ModelRegistryService:
         except ExternalServiceError:
             raise
         if not exists:
-            raise ValidationError(
-                f"Artifact {bucket}/{key} not found in object storage."
-            )
+            raise ValidationError(f"Artifact {bucket}/{key} not found in object storage.")
 
 
 __all__ = ["ModelRegistryService", "RegisterModelInput"]

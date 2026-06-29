@@ -96,7 +96,10 @@ def test_route_template_returns_unmatched_when_scope_lacks_router() -> None:
 
 
 def _http_count(method: str, path: str, status: str) -> float:
-    return metrics.HTTP_REQUESTS.labels(method=method, path=path, status=status)._value.get()
+    value: float = metrics.HTTP_REQUESTS.labels(
+        method=method, path=path, status=status
+    )._value.get()
+    return value
 
 
 def _hist_count(method: str, path: str) -> float:
@@ -110,7 +113,8 @@ def _hist_count(method: str, path: str) -> float:
 
 
 def _inflight(method: str) -> float:
-    return metrics.HTTP_REQUESTS_INFLIGHT.labels(method=method)._value.get()
+    value: float = metrics.HTTP_REQUESTS_INFLIGHT.labels(method=method)._value.get()
+    return value
 
 
 def _build_app(*, raises: bool = False) -> Starlette:

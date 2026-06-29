@@ -23,17 +23,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dev dependencies
+      - name: Install dev toolchain (from the lockfile — reproducible)
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install --upgrade pip uv
+          uv sync --frozen --extra dev
 
       # The coverage gate (pyproject `fail_under = 80`) is intentionally
       # relaxed to 0 until the Phase-10 coverage holes (worker tasks, ML
       # backends, MinIO storage, OAuth callback) are filled. Ratchet this
       # back up to 80 as those land. See docs/revamp-status.md.
       - name: Run full pyramid (measure coverage, do not yet enforce)
-        run: pytest --cov-fail-under=0
+        run: .venv/bin/pytest --cov-fail-under=0
 
       - name: Upload coverage.xml
         if: always()

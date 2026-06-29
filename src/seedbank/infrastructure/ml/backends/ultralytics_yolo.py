@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import io
-from typing import TYPE_CHECKING
 
 from seedbank.core.exceptions import ExternalServiceError
 from seedbank.core.logging import get_logger
@@ -20,9 +19,6 @@ from seedbank.infrastructure.ml.backends.base import (
     Detection,
     DetectionConfig,
 )
-
-if TYPE_CHECKING:  # pragma: no cover
-    pass
 
 log = get_logger(__name__)
 
@@ -65,7 +61,7 @@ class UltralyticsYoloBackend:
                 imgsz=cfg.image_size or 640,
                 verbose=False,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"yolo predict failed: {exc}") from exc
 
         detections: list[Detection] = []
@@ -97,9 +93,7 @@ class UltralyticsYoloBackend:
             )
         return detections
 
-    async def classify(
-        self, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:
+    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:
         if self._manager is None:
             raise RuntimeError("UltralyticsYoloBackend requires a ModelManager.")
         yolo = await self._manager.load_yolo(  # type: ignore[attr-defined]
@@ -108,9 +102,7 @@ class UltralyticsYoloBackend:
         return await asyncio.to_thread(self._classify_sync, yolo, crop, cfg)
 
     @staticmethod
-    def _classify_sync(
-        yolo: object, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:
+    def _classify_sync(yolo: object, crop: bytes, cfg: ClassificationConfig) -> Classification:
         from PIL import Image
 
         img = Image.open(io.BytesIO(crop)).convert("RGB")
@@ -120,7 +112,7 @@ class UltralyticsYoloBackend:
                 imgsz=cfg.image_size,
                 verbose=False,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"yolo classify failed: {exc}") from exc
         if not results:
             raise ExternalServiceError("yolo classify: empty results.")
@@ -130,9 +122,7 @@ class UltralyticsYoloBackend:
             raise ExternalServiceError("yolo classify: no probs in result.")
         top1 = int(probs.top1)
         confidence = float(probs.top1conf)
-        return Classification(
-            label=str(names.get(top1, str(top1))), confidence=confidence
-        )
+        return Classification(label=str(names.get(top1, str(top1))), confidence=confidence)
 
 
 __all__ = ["UltralyticsYoloBackend"]

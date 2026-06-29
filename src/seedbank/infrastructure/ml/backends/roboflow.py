@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from typing import TYPE_CHECKING
 
 from seedbank.core.config import get_settings
 from seedbank.core.exceptions import ExternalServiceError
@@ -24,9 +23,6 @@ from seedbank.infrastructure.ml.backends.base import (
     Detection,
     DetectionConfig,
 )
-
-if TYPE_CHECKING:  # pragma: no cover
-    pass
 
 log = get_logger(__name__)
 
@@ -77,9 +73,11 @@ class RoboflowBackend:
         b64 = base64.b64encode(image).decode("ascii")
         try:
             result = await asyncio.to_thread(
-                client.infer, b64, model_id=model_id  # type: ignore[attr-defined]
+                client.infer,  # type: ignore[attr-defined]
+                b64,
+                model_id=model_id,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc
 
         predictions = result.get("predictions", []) if isinstance(result, dict) else []
@@ -110,17 +108,17 @@ class RoboflowBackend:
             )
         return detections
 
-    async def classify(
-        self, crop: bytes, cfg: ClassificationConfig
-    ) -> Classification:
+    async def classify(self, crop: bytes, cfg: ClassificationConfig) -> Classification:
         client = await self._get_client()
         model_id = self._parse_uri(cfg.artifact_uri)
         b64 = base64.b64encode(crop).decode("ascii")
         try:
             result = await asyncio.to_thread(
-                client.infer, b64, model_id=model_id  # type: ignore[attr-defined]
+                client.infer,  # type: ignore[attr-defined]
+                b64,
+                model_id=model_id,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ExternalServiceError(f"roboflow infer failed: {exc}") from exc
 
         # Single-label classifier output: top-1 prediction.

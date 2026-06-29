@@ -52,9 +52,7 @@ async def list_splits(
         stmt = stmt.where(TrafficSplit.seed_type_id == seed_type_id)
     stmt = stmt.order_by(TrafficSplit.kind, TrafficSplit.seed_type_id, TrafficSplit.created_at)
     rows = list((await session.execute(stmt)).scalars().all())
-    return Envelope[list[TrafficSplitOut]](
-        data=[TrafficSplitOut.model_validate(r) for r in rows]
-    )
+    return Envelope[list[TrafficSplitOut]](data=[TrafficSplitOut.model_validate(r) for r in rows])
 
 
 @router.patch("", response_model=Envelope[list[TrafficSplitOut]])
@@ -99,9 +97,7 @@ async def replace_splits(
         if payload.seed_type_id is None
         else TrafficSplit.seed_type_id == payload.seed_type_id
     )
-    existing_stmt = select(TrafficSplit).where(
-        TrafficSplit.kind == payload.kind.value, seed_filter
-    )
+    existing_stmt = select(TrafficSplit).where(TrafficSplit.kind == payload.kind.value, seed_filter)
     for old in (await session.execute(existing_stmt)).scalars().all():
         await session.delete(old)
 
@@ -129,8 +125,7 @@ async def replace_splits(
                 "kind": payload.kind.value,
                 "seed_type_id": str(payload.seed_type_id) if payload.seed_type_id else None,
                 "entries": [
-                    {"model_id": str(e.model_id), "weight": e.weight}
-                    for e in payload.entries
+                    {"model_id": str(e.model_id), "weight": e.weight} for e in payload.entries
                 ],
                 "total": total,
             },
@@ -146,9 +141,7 @@ async def replace_splits(
 
     # Bust the router cache for this segment so requests pick up the change
     # within the next request cycle.
-    tr = TrafficRouter(
-        session=session, models=ModelArtifactRepository(session), redis=redis
-    )
+    tr = TrafficRouter(session=session, models=ModelArtifactRepository(session), redis=redis)
     await tr.invalidate(payload.kind, payload.seed_type_id)
 
     log.info(

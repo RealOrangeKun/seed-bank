@@ -19,8 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 from uuid import UUID
 
 from redis.asyncio import Redis
@@ -29,8 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.core.exceptions import ModelNotReadyError
 from seedbank.core.logging import get_logger
-from seedbank.infrastructure.db.enums import ModelKind, ModelStatus
-from seedbank.infrastructure.db.models import ModelArtifact, TrafficSplit
+from seedbank.infrastructure.db.enums import ModelKind
+from seedbank.infrastructure.db.models import TrafficSplit
 from seedbank.infrastructure.db.repositories import ModelArtifactRepository
 
 log = get_logger(__name__)
@@ -93,9 +92,8 @@ class TrafficRouter:
                     if total >= 100:
                         if bucket < cumulative:
                             return entry.model_id
-                    else:
-                        if bucket * total // 100 < cumulative:
-                            return entry.model_id
+                    elif bucket * total // 100 < cumulative:
+                        return entry.model_id
                 # Defensive fallback: last entry wins (rounding rounding).
                 return splits[-1].model_id
 
@@ -122,9 +120,7 @@ class TrafficRouter:
 
     # ── Internals ────────────────────────────────────────────────────────────
 
-    async def _splits_for(
-        self, kind: ModelKind, seed_type_id: UUID | None
-    ) -> list[_SplitEntry]:
+    async def _splits_for(self, kind: ModelKind, seed_type_id: UUID | None) -> list[_SplitEntry]:
         key = _segment_key(kind, seed_type_id)
         cached = await self.redis.get(key)
         if cached:
@@ -141,22 +137,18 @@ class TrafficRouter:
         rows = await self._query_splits(kind, seed_type_id)
         await self.redis.set(
             key,
-            json.dumps(
-                [{"model_id": str(r.model_id), "weight": r.weight} for r in rows]
-            ),
+            json.dumps([{"model_id": str(r.model_id), "weight": r.weight} for r in rows]),
             ex=_CACHE_TTL_SECONDS,
         )
         return rows
 
-    async def _query_splits(
-        self, kind: ModelKind, seed_type_id: UUID | None
-    ) -> list[_SplitEntry]:
+    async def _query_splits(self, kind: ModelKind, seed_type_id: UUID | None) -> list[_SplitEntry]:
         seed_filter = (
             TrafficSplit.seed_type_id.is_(None)
             if seed_type_id is None
             else TrafficSplit.seed_type_id == seed_type_id
         )
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         stmt = (
             select(TrafficSplit)
             .where(

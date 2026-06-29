@@ -73,7 +73,7 @@ def make_celery_app() -> Celery:
 celery_app: Celery = make_celery_app()
 
 
-@worker_process_init.connect  # type: ignore[misc]
+@worker_process_init.connect  # type: ignore[untyped-decorator]
 def _init_per_worker(**_: object) -> None:
     """Initialise tracing + Sentry + the async runtime **after** prefork.
 
@@ -90,7 +90,7 @@ def _init_per_worker(**_: object) -> None:
     init_worker_runtime(settings)
 
 
-@worker_process_shutdown.connect  # type: ignore[misc]
+@worker_process_shutdown.connect  # type: ignore[untyped-decorator]
 def _shutdown_per_worker(**_: object) -> None:
     """Tear down the async runtime cleanly. Closes the redis client and
     disposes the engine on the persistent loop, then closes the loop.

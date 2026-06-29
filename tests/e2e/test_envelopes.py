@@ -9,9 +9,10 @@ tests prove the wire format end-to-end.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from httpx import AsyncClient, Response
 
 from seedbank.infrastructure.db.enums import UserRole
 from tests.e2e.conftest import SeedAndLogin, SeededUser, auth_header
@@ -23,17 +24,15 @@ pytestmark = pytest.mark.e2e
 
 
 def _assert_problem_shape(
-    response, *, status_code: int, code: str, has_request_id: bool = True
-) -> dict:
+    response: Response, *, status_code: int, code: str, has_request_id: bool = True
+) -> dict[str, Any]:
     """Assert a response is a well-formed RFC 9457 Problem Details document.
 
     Returned to the caller so individual tests can layer code-specific
     assertions on top (e.g. checking ``errors[]`` on 422).
     """
     assert response.status_code == status_code
-    assert response.headers.get("content-type", "").startswith(
-        "application/problem+json"
-    )
+    assert response.headers.get("content-type", "").startswith("application/problem+json")
     body = response.json()
     for key in ("type", "title", "status", "code", "instance"):
         assert key in body, f"missing {key!r} in {body!r}"
@@ -44,7 +43,8 @@ def _assert_problem_shape(
     # Error responses must NOT carry a success envelope.
     assert "data" not in body
     assert "meta" not in body
-    return body
+    result: dict[str, Any] = body
+    return result
 
 
 # ── Success envelope ────────────────────────────────────────────────────────
@@ -65,9 +65,7 @@ async def test_single_resource_response_is_wrapped_in_data_envelope(
 async def test_collection_response_is_wrapped_in_page_envelope(
     app_client: AsyncClient, admin: SeededUser
 ) -> None:
-    r = await app_client.get(
-        "/api/v1/users?page=1&page_size=1", headers=auth_header(admin.token)
-    )
+    r = await app_client.get("/api/v1/users?page=1&page_size=1", headers=auth_header(admin.token))
 
     assert r.status_code == 200
     body = r.json()
@@ -102,9 +100,7 @@ async def test_pagination_has_more_is_false_on_last_page(
     app_client: AsyncClient, admin: SeededUser
 ) -> None:
     """Asking for a page_size larger than total returns ``has_more=False``."""
-    r = await app_client.get(
-        "/api/v1/users?page=1&page_size=200", headers=auth_header(admin.token)
-    )
+    r = await app_client.get("/api/v1/users?page=1&page_size=200", headers=auth_header(admin.token))
 
     assert r.status_code == 200
     meta = r.json()["meta"]
@@ -116,9 +112,7 @@ async def test_pagination_rejects_page_size_above_max(
     app_client: AsyncClient, admin: SeededUser
 ) -> None:
     """``page_size`` is clamped at 200 — 201 is a 422 from the Query validator."""
-    r = await app_client.get(
-        "/api/v1/users?page=1&page_size=201", headers=auth_header(admin.token)
-    )
+    r = await app_client.get("/api/v1/users?page=1&page_size=201", headers=auth_header(admin.token))
 
     _assert_problem_shape(r, status_code=422, code="validation_error")
 

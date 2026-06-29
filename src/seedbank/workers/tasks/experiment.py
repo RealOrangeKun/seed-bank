@@ -112,7 +112,7 @@ class _Repos:
     metrics: ModelMetricRepository
 
 
-async def _async_run_experiment(*, experiment_id: UUID) -> None:
+async def _async_run_experiment(*, experiment_id: UUID) -> None:  # noqa: PLR0915
     settings = get_settings()
     storage = get_storage()
 
@@ -297,7 +297,8 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
             duration_ms=duration_ms,
         )
         # DWH dual-write — fan out per-result fact rows + the model dim.
-        from seedbank.workers.tasks.dwh import (  # local import keeps the module discoverable lazily
+        # local import keeps the module discoverable lazily
+        from seedbank.workers.tasks.dwh import (
             SYNC_EXPERIMENT_RESULTS,
             dispatch_after_commit,
         )

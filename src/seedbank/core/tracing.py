@@ -117,7 +117,7 @@ def _instrument_common() -> None:
 def _try_instrument(name: str, fn: object) -> None:
     try:
         fn()  # type: ignore[operator]
-    except Exception as exc:  # noqa: BLE001 — instrumenting must never crash boot
+    except Exception as exc:
         log.warning("otel.instrument_failed", instrument=name, error=repr(exc))
 
 
@@ -126,9 +126,7 @@ def _instrument_fastapi(app: FastAPI) -> None:
 
     # Skip health/metrics scrape endpoints — they would otherwise dominate
     # the trace volume with noise that has nothing to do with user traffic.
-    FastAPIInstrumentor.instrument_app(  # type: ignore[no-untyped-call]
-        app, excluded_urls="/metrics,/healthz,/readyz"
-    )
+    FastAPIInstrumentor.instrument_app(app, excluded_urls="/metrics,/healthz,/readyz")
 
 
 def _instrument_sqlalchemy() -> None:
@@ -141,7 +139,7 @@ def _instrument_sqlalchemy() -> None:
     # toggle for the SQLA dialect path.
     # TODO(security): revisit once opentelemetry-instrumentation-sqlalchemy
     # exposes a first-class statement-sanitisation flag.
-    SQLAlchemyInstrumentor().instrument(  # type: ignore[no-untyped-call]
+    SQLAlchemyInstrumentor().instrument(
         enable_commenter=False,
     )
 
@@ -164,19 +162,19 @@ def _instrument_redis() -> None:
     # (token hashes, session payloads) while keeping the command name on
     # spans. Available since opentelemetry-instrumentation-redis 0.41.
     try:
-        RedisInstrumentor().instrument(  # type: ignore[no-untyped-call]
+        RedisInstrumentor().instrument(
             sanitize_query=True,
         )
     except TypeError:
         # TODO(security): instrumented version <0.41 lacks ``sanitize_query``
         # — sanitization deferred to upgrade.
-        RedisInstrumentor().instrument()  # type: ignore[no-untyped-call]
+        RedisInstrumentor().instrument()
 
 
 def _instrument_httpx() -> None:
     from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
-    HTTPXClientInstrumentor().instrument(  # type: ignore[no-untyped-call]
+    HTTPXClientInstrumentor().instrument(
         request_hook=_httpx_request_hook,
         response_hook=_httpx_response_hook,
     )
@@ -213,9 +211,7 @@ def _scrub_url(url: str) -> str:
             cleaned.append((k, "REDACTED"))
         else:
             cleaned.append((k, v))
-    return urlunsplit(
-        (parts.scheme, parts.netloc, parts.path, urlencode(cleaned), parts.fragment)
-    )
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(cleaned), parts.fragment))
 
 
 def _scrub_span_url_attributes(span: object) -> None:
@@ -236,9 +232,7 @@ def _httpx_request_hook(span: object, request: object) -> None:  # noqa: ARG001
     _scrub_span_url_attributes(span)
 
 
-def _httpx_response_hook(
-    span: object, request: object, response: object
-) -> None:  # noqa: ARG001
+def _httpx_response_hook(span: object, request: object, response: object) -> None:  # noqa: ARG001
     _scrub_span_url_attributes(span)
 
 

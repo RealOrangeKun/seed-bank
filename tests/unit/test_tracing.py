@@ -14,11 +14,13 @@ The tracing module is deliberately defensive:
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from seedbank.core import tracing as tracing_module
+from seedbank.core.config import Settings
 
 pytestmark = pytest.mark.unit
 
@@ -30,11 +32,14 @@ def _reset_tracing_state(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tracing_module, "_INITIALISED", False)
 
 
-def _settings(*, endpoint: str | None) -> SimpleNamespace:
-    return SimpleNamespace(
-        otel_exporter_otlp_endpoint=endpoint,
-        service_name="seedbank-api",
-        env="test",
+def _settings(*, endpoint: str | None) -> Settings:
+    return cast(
+        "Settings",
+        SimpleNamespace(
+            otel_exporter_otlp_endpoint=endpoint,
+            service_name="seedbank-api",
+            env="test",
+        ),
     )
 
 

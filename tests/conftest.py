@@ -19,8 +19,16 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+# The slowapi limiter is built at import time from Settings; its default storage
+# is the real Redis DSN (redis:6379), which is unreachable in the test env.
+# Force in-process storage BEFORE any seedbank module is imported so no
+# rate-limited route dials a live Redis. `memory://` still rate-limits, so 429
+# behaviour stays testable.
+os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
+
 if TYPE_CHECKING:
     from httpx import AsyncClient
+    from redis.asyncio import Redis
 
 
 @pytest.fixture(scope="session")
@@ -61,6 +69,73 @@ def clickhouse_container() -> Iterator[Any]:
         dbname="seedbank_test",
     ) as ch:
         yield ch
+
+
+_DWH_TABLES = (
+    "fact_inference",
+    "fact_detection",
+    "fact_experiment_result",
+    "fact_scan_batch",
+    "dim_user",
+    "dim_seed_type",
+    "dim_model",
+)
+
+
+@pytest_asyncio.fixture
+async def clickhouse_client(clickhouse_container: Any) -> AsyncIterator[Any]:
+    """Async ClickHouse client wired to the testcontainer.
+
+    Spins the container's HTTP port (8123) into ``Settings``, clears the
+    settings cache AND the process-wide ``get_clickhouse`` client (so the
+    app's ``ClickHouseDep`` and worker tasks rebuild against the container
+    rather than a default ``clickhouse:8123`` instance cached by an earlier
+    test), applies the star-schema DDL, and yields a :class:`ClickHouseClient`.
+
+    Lives at the top level so BOTH tiers can wire ClickHouse: integration
+    (dual-write) and e2e (the ``/models/{id}/performance`` read path).
+
+    **Function-scoped on purpose.** ``clickhouse-connect``'s async client binds
+    its socket to the event loop it was created on; pytest-asyncio runs each
+    test (and the function-scoped ``db_session``/``async_engine``) on its own
+    loop, so a session-scoped client would be reused across loops and raise
+    ``KeyError: <fileobj> is not registered`` from the selector. Rebuilding per
+    test keeps it on the test's loop. DDL is idempotent (CREATE IF NOT EXISTS);
+    the container stays session-scoped; per-test isolation is via
+    ``_truncate_clickhouse``.
+    """
+    from seedbank.core.config import get_settings
+    from seedbank.infrastructure.analytics import ClickHouseClient, apply_schema
+    from seedbank.infrastructure.analytics.clickhouse_client import close_clickhouse
+
+    host = clickhouse_container.get_container_host_ip()
+    http_port = clickhouse_container.get_exposed_port(8123)
+
+    os.environ["CLICKHOUSE_HOST"] = host
+    os.environ["CLICKHOUSE_PORT"] = str(http_port)
+    os.environ["CLICKHOUSE_USER"] = "test"
+    os.environ["CLICKHOUSE_PASSWORD"] = "test"
+    os.environ["CLICKHOUSE_DATABASE"] = "seedbank_test"
+    get_settings.cache_clear()
+    await close_clickhouse()
+
+    client = await ClickHouseClient.from_settings(get_settings())
+    try:
+        await apply_schema(client)
+        yield client
+    finally:
+        await client.close()
+        await close_clickhouse()
+
+
+@pytest_asyncio.fixture(autouse=False)
+async def _truncate_clickhouse(clickhouse_client: Any) -> None:
+    """TRUNCATE every dim/fact table before each test that asks for
+    ``clickhouse_client``. Not autouse — only DWH-touching tests pay the
+    round-trip (testcontainers are session-scoped; isolation is per-test).
+    """
+    for table in _DWH_TABLES:
+        await clickhouse_client.execute(f"TRUNCATE TABLE {table}")
 
 
 def _migrate_to_head(sync_dsn: str) -> None:
@@ -152,7 +227,7 @@ async def db_session(async_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 
 
 @pytest_asyncio.fixture
-async def app_client(async_engine: AsyncEngine) -> AsyncIterator["AsyncClient"]:
+async def app_client(async_engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
     """FastAPI app wired to the testcontainer Postgres + a fake Redis.
 
     Lives at the top-level conftest so both ``tests/integration/`` (HTTP
@@ -177,10 +252,11 @@ async def app_client(async_engine: AsyncEngine) -> AsyncIterator["AsyncClient"]:
                 await session.rollback()
                 raise
 
-    def _override_redis():
+    def _override_redis() -> Redis:
         return fake_redis
 
-    from seedbank.api.deps import db_session as db_session_dep, redis_dep
+    from seedbank.api.deps import db_session as db_session_dep
+    from seedbank.api.deps import redis_dep
     from seedbank.main import create_app
 
     app = create_app()

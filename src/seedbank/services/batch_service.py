@@ -51,7 +51,7 @@ _QUALITY_COLORS: dict[str | None, tuple[int, int, int]] = {
 }
 
 
-def _draw_boxes(raw: bytes, detections: list) -> bytes:  # noqa: ANN001 — ORM rows
+def _draw_boxes(raw: bytes, detections: list[SeedDetection]) -> bytes:
     """Burn normalized detection boxes onto an image, return PNG bytes.
 
     Pure/CPU-bound (runs in a thread). Coordinates are stored normalized

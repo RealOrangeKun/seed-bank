@@ -27,9 +27,7 @@ async def list_keys(
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> Page[ApiKeyOut]:
     offset = (page - 1) * page_size
-    rows, total = await service.list_for_user(
-        actor.id, limit=page_size, offset=offset
-    )
+    rows, total = await service.list_for_user(actor.id, limit=page_size, offset=offset)
     # Plaintext key is never returned outside of creation.
     items = [ApiKeyOut.model_validate(r) for r in rows]
     return paginate(items, total=total, page=page, page_size=page_size)

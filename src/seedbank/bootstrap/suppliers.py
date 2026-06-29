@@ -57,6 +57,6 @@ async def bootstrap_suppliers(session: AsyncSession, specs: list[GlobalSupplierS
     ]
     stmt = pg_insert(Supplier).values(rows).on_conflict_do_nothing(index_elements=[Supplier.slug])
     result = await session.execute(stmt)
-    inserted = result.rowcount or 0
+    inserted = result.rowcount or 0  # type: ignore[attr-defined]
     log.info("bootstrap.suppliers", requested=len(rows), inserted=inserted)
     return inserted

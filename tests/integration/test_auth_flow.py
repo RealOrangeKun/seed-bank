@@ -39,25 +39,19 @@ async def test_register_login_me_refresh_replay_logout(
     await _register_and_verify(app_client, db_session, "flow@e.com", pwd)
 
     # Login
-    r = await app_client.post(
-        "/api/v1/auth/login", json={"email": "flow@e.com", "password": pwd}
-    )
+    r = await app_client.post("/api/v1/auth/login", json={"email": "flow@e.com", "password": pwd})
     assert r.status_code == 200, r.text
     body = r.json()["data"]
     access_a = body["access_token"]
     refresh_a = body["refresh_token"]
 
     # /me with the access token
-    r = await app_client.get(
-        "/api/v1/users/me", headers={"Authorization": f"Bearer {access_a}"}
-    )
+    r = await app_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {access_a}"})
     assert r.status_code == 200
     assert r.json()["data"]["email"] == "flow@e.com"
 
     # Refresh — should get a new pair
-    r = await app_client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": refresh_a}
-    )
+    r = await app_client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_a})
     assert r.status_code == 200
     body = r.json()["data"]
     access_b = body["access_token"]
@@ -65,27 +59,19 @@ async def test_register_login_me_refresh_replay_logout(
     assert refresh_b != refresh_a
 
     # New access still works
-    r = await app_client.get(
-        "/api/v1/users/me", headers={"Authorization": f"Bearer {access_b}"}
-    )
+    r = await app_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {access_b}"})
     assert r.status_code == 200
 
     # Replay the OLD refresh token — must 401
-    r = await app_client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": refresh_a}
-    )
+    r = await app_client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_a})
     assert r.status_code == 401
 
     # Logout the new refresh
-    r = await app_client.post(
-        "/api/v1/auth/logout", json={"refresh_token": refresh_b}
-    )
+    r = await app_client.post("/api/v1/auth/logout", json={"refresh_token": refresh_b})
     assert r.status_code == 200
 
     # Refresh after logout fails
-    r = await app_client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": refresh_b}
-    )
+    r = await app_client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_b})
     assert r.status_code == 401
 
 

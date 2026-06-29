@@ -37,7 +37,7 @@ log = get_logger(__name__)
 
 
 class _CacheEntry:
-    __slots__ = ("module", "device", "loaded_at", "updated_at")
+    __slots__ = ("device", "loaded_at", "module", "updated_at")
 
     def __init__(
         self,
@@ -90,10 +90,7 @@ class ModelManager:
             # than all-time cardinality. Tasks that already hold a reference
             # to the old Lock complete on it; new tasks lazily allocate a
             # fresh one in ``_lock_for`` — safe under the GIL/asyncio loop.
-            if (
-                evicted_id not in self._cache
-                and evicted_id not in self._yolo_cache
-            ):
+            if evicted_id not in self._cache and evicted_id not in self._yolo_cache:
                 self._locks.pop(evicted_id, None)
             log.info("ml.manager.evict", model_id=str(evicted_id), kind=kind)
 
@@ -112,9 +109,7 @@ class ModelManager:
         try:
             return await self._storage.get_object(bucket, key)
         except Exception as exc:
-            raise ExternalServiceError(
-                f"manager: fetch {bucket}/{key}: {exc}"
-            ) from exc
+            raise ExternalServiceError(f"manager: fetch {bucket}/{key}: {exc}") from exc
 
     # ── Torch (registry-built) loading ───────────────────────────────────────
 
@@ -129,9 +124,7 @@ class ModelManager:
         from MinIO + builder if missing or stale."""
         async with self._lock_for(model_id):
             entry = self._cache.get(model_id)
-            if entry is not None and (
-                updated_at is None or entry.updated_at == updated_at
-            ):
+            if entry is not None and (updated_at is None or entry.updated_at == updated_at):
                 # LRU touch.
                 self._cache.move_to_end(model_id)
                 return entry.module, entry.device
@@ -159,57 +152,17 @@ class ModelManager:
             return module, device
 
     @staticmethod
-    def _build_and_load_sync(
-        builder_key: str, weights: bytes
-    ) -> tuple[nn.Module, torch.device]:
+    def _build_and_load_sync(builder_key: str, weights: bytes) -> tuple[nn.Module, torch.device]:
         import torch
 
         builder = get_builder(builder_key)
         module = builder()
-        # Load state dict from in-memory bytes. Prefer the safe ``weights_only=True``
-        # path, but training checkpoints (e.g. the EfficientNet-B2 specialists) wrap
-        # the tensors alongside metadata like ``best_macro_f1``/``history`` that may
-        # be numpy scalars, which torch 2.6+ refuses under ``weights_only=True``.
-        # These artifacts come from our own MinIO (trusted), so fall back to a full
-        # unpickle rather than failing the load.
-        buf = io.BytesIO(weights)
-        try:
-            state = torch.load(buf, map_location="cpu", weights_only=True)
-        except Exception as exc:
-            log.warning(
-                "ml.manager.weights_only_fallback",
-                builder=builder_key,
-                error=repr(exc),
-            )
-            buf.seek(0)
-            state = torch.load(buf, map_location="cpu", weights_only=False)
-        # Training checkpoints wrap the parameters under a top-level key alongside
-        # optimizer/scheduler/history: ResNet/Faster-RCNN exports use
-        # ``state_dict``; the EfficientNet-B2 specialists use ``model``. A bare
-        # state dict (the Faster-RCNN detector) is loaded as-is.
-        if isinstance(state, dict):
-            for wrapper_key in ("state_dict", "model"):
-                inner = state.get(wrapper_key)
-                if isinstance(inner, dict):
-                    state = inner
-                    break
-        # ``strict=False`` tolerates a head-size mismatch (e.g. a checkpoint
-        # trained with a different class count) but it also *silently* ignores a
-        # total key mismatch — leaving the module on random init and producing
-        # garbage detections/labels. Log what didn't match so a broken artifact
-        # is diagnosable instead of looking like a bad threshold.
-        incompatible = module.load_state_dict(state, strict=False)
-        missing = list(getattr(incompatible, "missing_keys", []) or [])
-        unexpected = list(getattr(incompatible, "unexpected_keys", []) or [])
-        if missing or unexpected:
-            log.warning(
-                "ml.manager.state_dict_mismatch",
-                builder=builder_key,
-                n_missing=len(missing),
-                n_unexpected=len(unexpected),
-                missing_sample=missing[:5],
-                unexpected_sample=unexpected[:5],
-            )
+        # Load state dict from in-memory bytes; weights_only=True is the safe
+        # default in modern torch and rejects pickled python objects.
+        state = torch.load(io.BytesIO(weights), map_location="cpu", weights_only=True)
+        if isinstance(state, dict) and "state_dict" in state:
+            state = state["state_dict"]
+        module.load_state_dict(state, strict=False)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         module = module.to(device)
         module.eval()

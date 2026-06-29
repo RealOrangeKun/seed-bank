@@ -32,9 +32,7 @@ def test_http_counter_has_expected_labels() -> None:
     # would still leave this assertion green.
     metrics.HTTP_REQUESTS.labels(method="GET", path="/healthz", status="2xx").inc()
     body = metrics.generate_latest(metrics.REGISTRY).decode()
-    assert (
-        'http_requests_total{method="GET",path="/healthz",status="2xx"}' in body
-    )
+    assert 'http_requests_total{method="GET",path="/healthz",status="2xx"}' in body
 
 
 def test_dwh_dispatch_counter_supports_finding_5() -> None:
@@ -45,9 +43,7 @@ def test_dwh_dispatch_counter_supports_finding_5() -> None:
     delta-based tests live in ``test_dwh_helpers.py``.
     """
     metrics.DWH_DISPATCH.labels(task="seedbank.dwh.sync_inference", result="ok").inc()
-    metrics.DWH_DISPATCH.labels(
-        task="seedbank.dwh.sync_inference", result="error"
-    ).inc()
+    metrics.DWH_DISPATCH.labels(task="seedbank.dwh.sync_inference", result="error").inc()
     body = metrics.generate_latest(metrics.REGISTRY).decode()
     assert "seedbank_dwh_dispatch_total" in body
     assert 'result="ok"' in body

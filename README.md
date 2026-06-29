@@ -1,26 +1,55 @@
 # Seed-Bank
 
-Production-grade seed quality analysis API.
+**v1.0.0** — Seed quality analysis platform: point a camera (web or mobile) at
+a batch of seeds and get a good/bad breakdown back, powered by a real ML
+pipeline (detection + quality classification, model registry, A/B traffic
+splits, experiments).
 
-> Repo is mid-revamp from the original prototype (now archived under
-> `legacy/`) to an async FastAPI service with a real DB design, an ML
-> registry, MinIO object storage, Celery + Redis, ClickHouse OLAP, and
-> MLflow. See `CLAUDE.md` for stack pillars and `docs/operations.md`
-> for the dev loop.
+> The legacy prototype is archived under `legacy/`. The platform is now an
+> async FastAPI service with a real DB design, an ML registry, MinIO object
+> storage, Celery + Redis, ClickHouse OLAP, MLflow, a bilingual (EN/AR + RTL)
+> React web app, and a React Native (Expo) mobile app.
+
+## What's here
+
+| | |
+|---|---|
+| **Backend** (`src/seedbank/`) | Async FastAPI API — auth, ML platform, inference, DWH, observability |
+| **Frontend** (`frontend/`) | React + Vite SPA — farmer + admin/ML-platform surfaces, full EN/AR i18n |
+| **Mobile** (`mobile/`) | Expo / React Native app — realtime camera capture → analyze → results |
+
+See [`frontend/README.md`](frontend/README.md) and [`mobile/README.md`](mobile/README.md)
+for the details of each client.
 
 ## Quick start
 
 ```bash
 make env             # generate .env from .env.example
-make up-infra        # postgres + redis + minio + clickhouse only — fast smoke
-make up              # full stack (builds api image first time)
-make migrate         # apply Alembic migrations
-make test            # full test pyramid (unit + integration + e2e)
-make check           # lint + typecheck + fast unit subset
-make help            # everything else
+make up               # full stack: api + workers + postgres + redis + minio + clickhouse + mlflow
+make migrate          # apply Alembic migrations
+make seed             # demo users + sample data (see Demo credentials below)
+make up-front         # optional: frontend on :5173 via the Docker nginx image
 ```
 
-`/api/v1/docs` is the OpenAPI UI once `make up` finishes.
+- API: `http://localhost:8000` (`/api/v1/docs` for the OpenAPI UI)
+- Frontend: `http://localhost:5173` (or `cd frontend && npm install && npm run dev`)
+- Mobile: `cd mobile && npm install && npm start` (press `w` for the browser, or scan the QR with Expo Go)
+
+```bash
+make test             # full test pyramid (unit + integration + e2e)
+make check            # lint + typecheck + fast unit subset
+make help             # everything else
+```
+
+### Demo credentials
+
+Seeded by `make seed` (`scripts/seed_dev.py`), one account per role:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@seedbank.dev` | `AdminDemo123!` |
+| AI developer | `ai-dev@seedbank.dev` | `AiDevDemo123!` |
+| End user | `user@seedbank.dev` | `UserDemo123!` |
 
 ## Layout
 
@@ -30,11 +59,13 @@ alembic/versions/    # schema migrations (one per change, never edit applied)
 models/              # trained .pth files — uploaded to MinIO at bootstrap
 tests/               # unit / integration / e2e / load + factories
 scripts/             # seed_dev, register_model, run_experiment
-docs/                # architecture, auth, ml-platform, dwh, operations
+docs/                # architecture, auth, ml-platform, dwh, operations, system overview
+frontend/            # React + Vite web app (EN/AR + RTL)
+mobile/              # Expo / React Native app
 legacy/              # archived prototype, do not import from here
 ```
 
-## Stack pillars (from `CLAUDE.md`)
+## Stack pillars
 
 1. Async end-to-end (FastAPI + SQLAlchemy 2.0 async + asyncpg).
 2. Layered architecture: routers → services → repositories → ORM. No
@@ -45,17 +76,14 @@ legacy/              # archived prototype, do not import from here
 
 ## Status
 
-Phases 1–9 landed: scaffold, schema, repos + clients, auth (bcrypt +
-JWT + OAuth + API keys + RBAC), ML platform (registry, backends, model
-manager, traffic-split router, `/api/v1/models`), the unified inference
-path (`POST /analyze` + Celery batch), experiments + MLflow, the DWH
-(OLTP → ClickHouse, implemented as Celery dual-write rather than logical
-replication), and observability (`/metrics` + OTel + Sentry, opt-in).
+**v1.0.0 (beta)** — backend (auth, ML platform, unified inference path,
+experiments + MLflow, the OLTP→ClickHouse DWH, observability) plus a fully
+localized web app and a new mobile app are all in place and manually verified
+end-to-end. See [`docs/system-overview.md`](docs/system-overview.md) for the
+full architecture and [`docs/revamp-status.md`](docs/revamp-status.md) for the
+backend's phase-by-phase history.
 
-Outstanding — the original **Phase 10** (load tests, full e2e coverage,
-docs polish) plus CI/CD, which was never scoped. See
-[`docs/revamp-status.md`](docs/revamp-status.md) for the full reconstructed
-state, the remaining-work list, and the resume roadmap.
+Outstanding: load tests, full e2e coverage, CI/CD — not yet scoped.
 
 ## License
 

@@ -251,7 +251,9 @@ async def _async_analyze_image(
                 repos=repos,
                 batch_id=batch.id,
                 started_at=batch_started_at,
-                error_message="Could not start analysis: the requested model is invalid or unavailable.",
+                error_message=(
+                    "Could not start analysis: the requested model is invalid or unavailable."
+                ),
             )
             await session.commit()
             dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))

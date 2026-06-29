@@ -28,6 +28,13 @@ x-app-env: &app-env
   JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
   ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
   SENTRY_DSN: ${SENTRY_DSN:-}
+  # Demo-seed controls — `make seed` (scripts/seed_dev.py) runs inside this
+  # container and refuses default demo passwords unless SEED_ALLOW_DEMO_DEFAULTS=1
+  # (set in .env.example for dev/CI). Per-role passwords override when provided.
+  SEED_ALLOW_DEMO_DEFAULTS: ${SEED_ALLOW_DEMO_DEFAULTS:-0}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+  SEED_AI_DEV_PASSWORD: ${SEED_AI_DEV_PASSWORD:-}
+  SEED_END_USER_PASSWORD: ${SEED_END_USER_PASSWORD:-}
 
 services:
   api:

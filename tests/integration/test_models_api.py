@@ -6,6 +6,8 @@ GET / POST / PATCH.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +28,7 @@ class _StubStorage:
         return True
 
 
-async def _seed_user(
-    db_session: AsyncSession, *, email: str, role: UserRole
-) -> User:
+async def _seed_user(db_session: AsyncSession, *, email: str, role: UserRole) -> User:
     repo = UserRepository(db_session)
     user = User(
         email=email,
@@ -48,16 +48,17 @@ async def _login(client: AsyncClient, email: str) -> str:
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["data"]["access_token"]
+    token: str = r.json()["data"]["access_token"]
+    return token
 
 
 @pytest.fixture
-def _override_storage(app_client: AsyncClient) -> None:
+def _override_storage(app_client: AsyncClient) -> Iterator[None]:
     # The fixture creates the app inside its own scope, but exposes the
     # client; we reach into the app to override the storage dep for these
     # tests so the registry's existence check is a no-op.
     app = app_client._transport.app  # type: ignore[attr-defined]
-    app.dependency_overrides[storage_dep] = lambda: _StubStorage()
+    app.dependency_overrides[storage_dep] = _StubStorage
     yield
     app.dependency_overrides.pop(storage_dep, None)
 
@@ -103,9 +104,7 @@ async def test_ai_developer_can_register_and_list(
     model_id = created["id"]
 
     # list filtered by status (paginated envelope)
-    r = await app_client.get(
-        "/api/v1/models?status=registered", headers=auth
-    )
+    r = await app_client.get("/api/v1/models?status=registered", headers=auth)
     assert r.status_code == 200
     body = r.json()
     assert body["meta"]["total"] >= 1

@@ -40,7 +40,8 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import CITEXT, INET, JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import CITEXT, INET, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from seedbank.core.ids import uuid7
@@ -57,7 +58,6 @@ from .enums import (
     SEED_QUALITY_ENUM,
     USER_ROLE_ENUM,
 )
-
 
 # ── Identity & access ───────────────────────────────────────────────────────
 

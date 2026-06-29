@@ -26,9 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { formatDateTime, humanize, shortId } from "@/lib/format";
 import { isApiError } from "@/lib/api/errors";
-import { MODEL_STATUSES } from "@/lib/api/types";
+import { MODEL_STATUS_TRANSITIONS } from "@/lib/api/types";
 import type { ModelOut, ModelStatus } from "@/lib/api/types";
 
 import { useModel, useModelPerformance, useUpdateModelStatus } from "../api";
@@ -43,56 +44,65 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function PromoteCard({ model }: { model: ModelOut }) {
-  const [target, setTarget] = useState<ModelStatus>(model.status);
+  const { t } = useI18n();
+  // Only transitions the backend allows from the current state are offered.
+  // A terminal state (e.g. `archived`) yields an empty list.
+  const options = MODEL_STATUS_TRANSITIONS[model.status];
+  const [target, setTarget] = useState<ModelStatus | undefined>(options[0]);
   const update = useUpdateModelStatus(model.id);
 
   const onUpdate = async () => {
+    if (!target) return;
     try {
       const next = await update.mutateAsync(target);
-      toast.success(`Status set to ${humanize(next.status)}.`);
+      toast.success(t("models.statusSet", { status: humanize(next.status) }));
     } catch (err) {
-      toast.error(
-        isApiError(err) ? err.message : "Failed to update status.",
-      );
+      toast.error(isApiError(err) ? err.message : t("models.statusFailed"));
     }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Lifecycle</CardTitle>
+        <CardTitle className="text-base">{t("models.lifecycle")}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            Status
-          </span>
-          <Select value={target} onValueChange={(v) => setTarget(v as ModelStatus)}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MODEL_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {humanize(s)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          onClick={onUpdate}
-          disabled={update.isPending || target === model.status}
-        >
-          {update.isPending ? <Spinner /> : null}
-          Update status
-        </Button>
-      </CardContent>
+      {options.length === 0 ? (
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {t("models.terminalStatus", { status: humanize(model.status) })}
+          </p>
+        </CardContent>
+      ) : (
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+              {t("field.status")}
+            </span>
+            <Select value={target} onValueChange={(v) => setTarget(v as ModelStatus)}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {humanize(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={onUpdate} disabled={update.isPending || !target}>
+            {update.isPending ? <Spinner /> : null}
+            {t("models.updateStatus")}
+          </Button>
+        </CardContent>
+      )}
     </Card>
   );
 }
 
 function PerformanceCard({ modelId }: { modelId: string }) {
+  const { t } = useI18n();
   const query = useModelPerformance(modelId);
   const offlineMetrics = query.data?.offline_metrics ?? [];
   const rows = query.data?.rows ?? [];
@@ -100,7 +110,7 @@ function PerformanceCard({ modelId }: { modelId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Performance</CardTitle>
+        <CardTitle className="text-base">{t("models.performance")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {query.isPending ? (
@@ -117,16 +127,16 @@ function PerformanceCard({ modelId }: { modelId: string }) {
 
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Offline metrics
+                {t("models.offlineMetrics")}
               </p>
               {offlineMetrics.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Metric</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Dataset</TableHead>
-                      <TableHead>Computed</TableHead>
+                      <TableHead>{t("field.metric")}</TableHead>
+                      <TableHead>{t("field.value")}</TableHead>
+                      <TableHead>{t("field.dataset")}</TableHead>
+                      <TableHead>{t("models.colComputed")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -146,7 +156,7 @@ function PerformanceCard({ modelId }: { modelId: string }) {
                 </Table>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No offline metrics yet — run an experiment to populate them.
+                  {t("models.noOfflineMetrics")}
                 </p>
               )}
             </div>
@@ -154,14 +164,14 @@ function PerformanceCard({ modelId }: { modelId: string }) {
             {rows.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Online (served traffic)
+                  {t("models.online")}
                 </p>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Model</TableHead>
-                      <TableHead>Count</TableHead>
-                      <TableHead>Avg latency</TableHead>
+                      <TableHead>{t("field.model")}</TableHead>
+                      <TableHead>{t("models.colCount")}</TableHead>
+                      <TableHead>{t("models.colAvgLatency")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -197,18 +207,19 @@ function PerformanceCard({ modelId }: { modelId: string }) {
 }
 
 export function ModelDetailPage() {
+  const { t } = useI18n();
   const { modelId = "" } = useParams();
   const model = useModel(modelId);
 
   return (
     <>
       <PageHeader
-        title={model.data ? `${model.data.name} ${model.data.version}` : "Model"}
-        description="Model artifact details, lifecycle, and performance."
+        title={model.data ? `${model.data.name} ${model.data.version}` : t("models.detailFallback")}
+        description={t("models.detailDescription")}
         actions={
           <Button variant="outline" asChild>
             <Link to="/models">
-              <ArrowLeft className="h-4 w-4" /> Back
+              <ArrowLeft className="h-4 w-4" /> {t("common.back")}
             </Link>
           </Button>
         }
@@ -223,26 +234,26 @@ export function ModelDetailPage() {
           <Card>
             <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3">
               <MetaRow
-                label="ID"
+                label={t("field.id")}
                 value={
                   <span className="inline-flex items-center gap-1 font-mono text-xs">
                     {shortId(model.data.id)}
-                    <CopyButton value={model.data.id} label="Copy model id" />
+                    <CopyButton value={model.data.id} label={t("models.copyId")} />
                   </span>
                 }
               />
-              <MetaRow label="Name" value={model.data.name} />
-              <MetaRow label="Version" value={model.data.version} />
-              <MetaRow label="Kind" value={<Badge variant="outline">{humanize(model.data.kind)}</Badge>} />
-              <MetaRow label="Backend" value={humanize(model.data.backend)} />
-              <MetaRow label="Status" value={<StatusBadge status={model.data.status} />} />
+              <MetaRow label={t("field.name")} value={model.data.name} />
+              <MetaRow label={t("field.version")} value={model.data.version} />
+              <MetaRow label={t("field.kind")} value={<Badge variant="outline">{humanize(model.data.kind)}</Badge>} />
+              <MetaRow label={t("field.backend")} value={humanize(model.data.backend)} />
+              <MetaRow label={t("field.status")} value={<StatusBadge status={model.data.status} />} />
               <MetaRow
-                label="Seed type"
+                label={t("field.seedType")}
                 value={
                   model.data.seed_type_id ? (
                     <span className="inline-flex items-center gap-1 font-mono text-xs">
                       {shortId(model.data.seed_type_id)}
-                      <CopyButton value={model.data.seed_type_id} label="Copy seed type id" />
+                      <CopyButton value={model.data.seed_type_id} label={t("models.copySeedTypeId")} />
                     </span>
                   ) : (
                     "—"
@@ -250,7 +261,7 @@ export function ModelDetailPage() {
                 }
               />
               <MetaRow
-                label="MLflow run"
+                label={t("common.mlflowRun")}
                 value={
                   model.data.mlflow_run_id ? (
                     <span className="font-mono text-xs">{model.data.mlflow_run_id}</span>
@@ -259,14 +270,14 @@ export function ModelDetailPage() {
                   )
                 }
               />
-              <MetaRow label="Created" value={formatDateTime(model.data.created_at)} />
-              <MetaRow label="Updated" value={formatDateTime(model.data.updated_at)} />
+              <MetaRow label={t("field.created")} value={formatDateTime(model.data.created_at)} />
+              <MetaRow label={t("field.updated")} value={formatDateTime(model.data.updated_at)} />
               <MetaRow
-                label="Artifact URI"
+                label={t("models.artifactUri")}
                 value={
                   <span className="inline-flex items-center gap-1 break-all font-mono text-xs">
                     {model.data.artifact_uri}
-                    <CopyButton value={model.data.artifact_uri} label="Copy artifact URI" />
+                    <CopyButton value={model.data.artifact_uri} label={t("models.copyArtifactUri")} />
                   </span>
                 }
               />

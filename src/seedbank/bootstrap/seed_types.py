@@ -31,9 +31,7 @@ class SeedTypeSpec:
     default_confidence_threshold: Decimal = Decimal("0.5000")
 
 
-async def bootstrap_seed_types(
-    session: AsyncSession, specs: list[SeedTypeSpec]
-) -> int:
+async def bootstrap_seed_types(session: AsyncSession, specs: list[SeedTypeSpec]) -> int:
     """Upsert the seed-type catalog. Returns rows inserted."""
     if not specs:
         return 0
@@ -46,12 +44,8 @@ async def bootstrap_seed_types(
         }
         for spec in specs
     ]
-    stmt = (
-        pg_insert(SeedType)
-        .values(rows)
-        .on_conflict_do_nothing(index_elements=[SeedType.code])
-    )
+    stmt = pg_insert(SeedType).values(rows).on_conflict_do_nothing(index_elements=[SeedType.code])
     result = await session.execute(stmt)
-    inserted = result.rowcount or 0
+    inserted = result.rowcount or 0  # type: ignore[attr-defined]
     log.info("bootstrap.seed_types", requested=len(rows), inserted=inserted)
     return inserted

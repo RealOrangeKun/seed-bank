@@ -63,7 +63,7 @@ def test_page_meta_rejects_below_minimum_values(field: str, value: int) -> None:
 
 
 def test_paginate_empty_collection_reports_no_more_pages() -> None:
-    page = paginate([], total=0, page=1, page_size=50)
+    page: Page[_Item] = paginate([], total=0, page=1, page_size=50)
 
     assert page.data == []
     assert page.meta.total == 0
@@ -119,16 +119,12 @@ def test_problem_validation_error_carries_per_field_errors() -> None:
         status=422,
         code="validation_error",
         errors=[
-            ProblemFieldError(
-                field="password", message="too short", code="value_error"
-            ),
+            ProblemFieldError(field="password", message="too short", code="value_error"),
         ],
     )
 
     body = p.model_dump(exclude_none=True)
-    assert body["errors"] == [
-        {"field": "password", "message": "too short", "code": "value_error"}
-    ]
+    assert body["errors"] == [{"field": "password", "message": "too short", "code": "value_error"}]
 
 
 def test_problem_allows_extension_fields() -> None:

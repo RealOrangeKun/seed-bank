@@ -139,7 +139,7 @@ wait: ## Wait until api becomes healthy.
 	done; echo "api did not become ready"; $(COMPOSE) ps; exit 1
 
 # ── Migrations / seed ────────────────────────────────────────────────────────
-.PHONY: migrate migrate-down migrate-clickhouse seed register-models
+.PHONY: migrate migrate-down migrate-clickhouse seed register-models provision-smoke-model
 migrate: ## Apply Alembic migrations against the dev DB.
 	$(COMPOSE) exec api alembic upgrade head
 
@@ -149,7 +149,7 @@ migrate-down: ## Roll back one Alembic revision.
 migrate-clickhouse: ## Apply ClickHouse star-schema DDL (idempotent).
 	$(COMPOSE) exec api python -m scripts.init_clickhouse
 
-seed: migrate-clickhouse ## Seed catalog (20 superclasses), create demo users.
+seed: migrate-clickhouse ## Seed catalog, suppliers, and demo users.
 	$(COMPOSE) exec api python -m scripts.seed_dev
 
 # Uploads the seed-bank-app weights into MinIO and registers the two-stage
@@ -159,6 +159,9 @@ WEIGHTS_DIR ?= /weights
 register-models: ## Register the new two-stage + YOLO models (run after `seed`).
 	$(COMPOSE) exec worker-inference python -m scripts.register_seed_bank_app_models \
 		--weights-dir "$(WEIGHTS_DIR)" --promote
+
+provision-smoke-model: ## CI/dev only: register a tiny untrained detector so the analyze pipeline can run.
+	$(COMPOSE) exec worker-inference python -m scripts.provision_smoke_model
 
 # ── Quality gates ────────────────────────────────────────────────────────────
 .PHONY: fmt lint typecheck check test test-unit test-integration test-e2e cov
@@ -178,8 +181,8 @@ check: lint typecheck test-unit ## Fast pre-commit gate.
 test: ## Full test pyramid (unit + integration + e2e).
 	$(VENV)/bin/pytest
 
-test-unit: ## Unit tests only.
-	$(VENV)/bin/pytest -m "unit or not integration and not e2e" tests/unit
+test-unit: ## Unit tests only (fast gate — no full-suite coverage threshold).
+	$(VENV)/bin/pytest -m "unit or not integration and not e2e" tests/unit --cov-fail-under=0
 
 test-integration: ## Integration tests (testcontainers).
 	$(VENV)/bin/pytest -m integration tests/integration

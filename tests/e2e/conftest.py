@@ -25,7 +25,7 @@ import os
 # ``get_settings.cache_clear()`` after the testcontainer DSN is set,
 # which guarantees the bootstrap token is visible to the app under test.
 # Settings has no env_prefix, so the env var is just ``BOOTSTRAP_TOKEN``.
-TEST_BOOTSTRAP_TOKEN = "test-bootstrap-secret-do-not-ship"  # noqa: S105 — fixture
+TEST_BOOTSTRAP_TOKEN = "test-bootstrap-secret-do-not-ship"
 os.environ.setdefault("BOOTSTRAP_TOKEN", TEST_BOOTSTRAP_TOKEN)
 # Phase 8 — keep the warehouse dual-write off in e2e; we don't spin up a
 # ClickHouse testcontainer in this tier. Unit + integration cover that.
@@ -77,15 +77,15 @@ async def _truncate_db(async_engine: AsyncEngine) -> None:
 async def _reset_rate_limiter() -> None:
     """Clear the slowapi Limiter singleton between tests; see the matching
     fixture in ``tests/integration/conftest.py`` for the rationale."""
+    import contextlib
+
     from limits.errors import StorageError
     from redis.exceptions import ConnectionError as RedisConnectionError
 
     from seedbank.api.rate_limit import limiter
 
-    try:
+    with contextlib.suppress(StorageError, RedisConnectionError):
         limiter.reset()
-    except (StorageError, RedisConnectionError):
-        pass
 
 
 # ── Auth helpers ───────────────────────────────────────────────────────────
@@ -121,9 +121,7 @@ async def admin(app_client: AsyncClient) -> SeededUser:
 
 
 @pytest_asyncio.fixture
-async def seed_and_login(
-    app_client: AsyncClient, db_session: AsyncSession
-) -> SeedAndLogin:
+async def seed_and_login(app_client: AsyncClient, db_session: AsyncSession) -> SeedAndLogin:
     """Repository-backed user provisioning for non-admin roles.
 
     The HTTP register flow requires capturing a verification token from
@@ -139,9 +137,7 @@ async def seed_and_login(
             json={"email": email, "password": DEFAULT_TEST_PASSWORD},
         )
         assert r.status_code == 200, r.text
-        return SeededUser(
-            user=user, email=email, token=r.json()["data"]["access_token"]
-        )
+        return SeededUser(user=user, email=email, token=r.json()["data"]["access_token"])
 
     return _factory
 

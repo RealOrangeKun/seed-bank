@@ -26,8 +26,14 @@ jobs:
       - name: Apply migrations
         run: make migrate
 
-      - name: Seed catalog, models, demo users
+      - name: Seed catalog, suppliers, demo users
         run: make seed
+
+      # The analyze pipeline needs a production detection model. Production
+      # weights live in MinIO (never in git), so CI provisions a tiny,
+      # untrained detector fixture — see scripts/provision_smoke_model.py.
+      - name: Provision smoke inference fixture (tiny detector)
+        run: make provision-smoke-model
 
       - name: Run smoke
         run: make smoke

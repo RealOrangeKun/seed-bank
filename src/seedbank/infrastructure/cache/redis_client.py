@@ -14,12 +14,13 @@ from seedbank.core.config import Settings, get_settings
 
 
 def _build_redis(settings: Settings) -> Redis:
-    return Redis.from_url(
+    client: Redis = Redis.from_url(
         str(settings.redis_dsn),
         encoding="utf-8",
         decode_responses=True,
         health_check_interval=30,
     )
+    return client
 
 
 @lru_cache(maxsize=1)

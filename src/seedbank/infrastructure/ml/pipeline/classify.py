@@ -50,12 +50,8 @@ class ClassifyPipeline:
             raise
         finally:
             elapsed = time.perf_counter() - start
-            INFERENCE_DURATION.labels(
-                kind="classification", backend=backend_name
-            ).observe(elapsed)
-            INFERENCE_TOTAL.labels(
-                kind="classification", backend=backend_name, status=status
-            ).inc()
+            INFERENCE_DURATION.labels(kind="classification", backend=backend_name).observe(elapsed)
+            INFERENCE_TOTAL.labels(kind="classification", backend=backend_name, status=status).inc()
         elapsed_ms = int(elapsed * 1000)
         log.info(
             "ml.classify",

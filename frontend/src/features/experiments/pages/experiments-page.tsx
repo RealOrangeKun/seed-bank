@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FlaskConical } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/table";
 import { EXPERIMENT_STATUSES } from "@/lib/api/types";
 import type { ExperimentStatus } from "@/lib/api/types";
+import { useI18n } from "@/i18n";
 import { applyApiError } from "@/lib/form";
 import { formatDateTime, formatDuration, humanize, shortId } from "@/lib/format";
 import { usePagination } from "@/hooks/use-pagination";
@@ -52,17 +53,27 @@ import { useCreateExperiment, useExperiments } from "../api";
 
 const ALL = "all";
 
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  modelId: z.string().uuid("Select a model to evaluate"),
-  datasetId: z.string().uuid("Select a dataset"),
-});
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  name: string;
+  modelId: string;
+  datasetId: string;
+}
 
 function RunExperimentDialog() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const create = useCreateExperiment();
+
+  const schema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("experiments.nameRequired")),
+        modelId: z.string().uuid(t("experiments.selectModel")),
+        datasetId: z.string().uuid(t("experiments.selectDataset")),
+      }),
+    [t],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -76,7 +87,7 @@ function RunExperimentDialog() {
         model_id: values.modelId,
         dataset_id: values.datasetId,
       });
-      toast.success("Experiment queued.");
+      toast.success(t("experiments.queued"));
       setOpen(false);
       form.reset();
       navigate(`/experiments/${experiment.id}`);
@@ -95,21 +106,19 @@ function RunExperimentDialog() {
     >
       <DialogTrigger asChild>
         <Button>
-          <FlaskConical className="h-4 w-4" /> Run experiment
+          <FlaskConical className="h-4 w-4" /> {t("experiments.run")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>Run experiment</DialogTitle>
-            <DialogDescription>
-              Evaluate a model against a frozen dataset.
-            </DialogDescription>
+            <DialogTitle>{t("experiments.run")}</DialogTitle>
+            <DialogDescription>{t("experiments.runDesc")}</DialogDescription>
           </DialogHeader>
 
           <Field
             id="name"
-            label="Name"
+            label={t("field.name")}
             required
             error={form.formState.errors.name?.message}
           >
@@ -117,9 +126,9 @@ function RunExperimentDialog() {
           </Field>
           <Field
             id="modelId"
-            label="Model"
+            label={t("field.model")}
             required
-            hint="The model to evaluate"
+            hint={t("experiments.modelHint")}
             error={form.formState.errors.modelId?.message}
           >
             <Controller
@@ -132,9 +141,9 @@ function RunExperimentDialog() {
           </Field>
           <Field
             id="datasetId"
-            label="Dataset"
+            label={t("field.dataset")}
             required
-            hint="The frozen dataset to evaluate against"
+            hint={t("experiments.datasetHint")}
             error={form.formState.errors.datasetId?.message}
           >
             <Controller
@@ -149,7 +158,7 @@ function RunExperimentDialog() {
           <DialogFooter>
             <Button type="submit" disabled={create.isPending}>
               {create.isPending ? <Spinner /> : null}
-              Run
+              {t("experiments.runSubmit")}
             </Button>
           </DialogFooter>
         </form>
@@ -159,6 +168,7 @@ function RunExperimentDialog() {
 }
 
 export function ExperimentsPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const pagination = usePagination(20);
   const [status, setStatus] = useState<ExperimentStatus | undefined>(undefined);
@@ -177,8 +187,8 @@ export function ExperimentsPage() {
   return (
     <>
       <PageHeader
-        title="Experiments"
-        description="Offline evaluations of models against frozen datasets."
+        title={t("experiments.title")}
+        description={t("experiments.description")}
         actions={<RunExperimentDialog />}
       />
 
@@ -191,10 +201,10 @@ export function ExperimentsPage() {
           }}
         >
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="All statuses" />
+            <SelectValue placeholder={t("common.allStatuses")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All statuses</SelectItem>
+            <SelectItem value={ALL}>{t("common.allStatuses")}</SelectItem>
             {EXPERIMENT_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {humanize(s)}
@@ -210,8 +220,8 @@ export function ExperimentsPage() {
         <ErrorState error={query.error} />
       ) : query.data.data.length === 0 ? (
         <EmptyState
-          title="No experiments yet"
-          description="Run an evaluation to compare a model against a dataset."
+          title={t("experiments.empty")}
+          description={t("experiments.emptyDesc")}
           action={<RunExperimentDialog />}
         />
       ) : (
@@ -220,12 +230,12 @@ export function ExperimentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Model</TableHead>
-                  <TableHead>Dataset</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead>{t("field.name")}</TableHead>
+                  <TableHead>{t("field.status")}</TableHead>
+                  <TableHead>{t("field.model")}</TableHead>
+                  <TableHead>{t("field.dataset")}</TableHead>
+                  <TableHead>{t("field.duration")}</TableHead>
+                  <TableHead>{t("field.created")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -240,10 +250,12 @@ export function ExperimentsPage() {
                       <StatusBadge status={e.status} />
                     </TableCell>
                     <TableCell>
-                      {modelMap.get(e.model_id) ?? `model ${shortId(e.model_id)}`}
+                      {modelMap.get(e.model_id) ??
+                        t("experiments.modelFallback", { id: shortId(e.model_id) })}
                     </TableCell>
                     <TableCell>
-                      {datasetMap.get(e.dataset_id) ?? `dataset ${shortId(e.dataset_id)}`}
+                      {datasetMap.get(e.dataset_id) ??
+                        t("experiments.datasetFallback", { id: shortId(e.dataset_id) })}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDuration(e.duration_ms)}
