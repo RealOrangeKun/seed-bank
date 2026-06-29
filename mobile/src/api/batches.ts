@@ -34,8 +34,17 @@ async function appendPhoto(form: FormData, photo: CapturedPhoto, index: number):
   }
 }
 
-/** Upload captured photos for analysis. */
-export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> {
+/**
+ * Upload captured photos for analysis.
+ *
+ * ``source`` tags the scan's origin so history stays split per app: "mobile"
+ * shows up in the mobile history; "mobile_realtime" (live-video frames) is
+ * hidden from history entirely so a realtime session doesn't bury real scans.
+ */
+export async function analyzePhotos(
+  photos: CapturedPhoto[],
+  source: "mobile" | "mobile_realtime" = "mobile",
+): Promise<BatchOut> {
   const form = new FormData();
   for (let i = 0; i < photos.length; i += 1) {
     await appendPhoto(form, photos[i], i);
@@ -43,12 +52,14 @@ export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> 
   // Phones always run the fast YOLO one-shot pipeline — we value quick scanning
   // over the slower two-stage accuracy on mobile.
   form.append("mode", "fast");
+  form.append("source", source);
   return apiData<BatchOut>("/api/v1/analyze", { method: "POST", form });
 }
 
-/** Submit a single live frame for analysis (realtime mode). */
+/** Submit a single live frame for analysis (realtime mode). Tagged so the
+ *  per-frame batches stay out of history. */
 export async function analyzeFrame(frame: CapturedPhoto): Promise<BatchOut> {
-  return analyzePhotos([frame]);
+  return analyzePhotos([frame], "mobile_realtime");
 }
 
 /**
@@ -75,8 +86,10 @@ export async function waitForBatch(
 }
 
 export async function listBatches(page = 1, pageSize = 20): Promise<Page<BatchOut>> {
+  // Scope to mobile scans only — the web history is separate, and realtime
+  // live-frame batches are hidden server-side.
   return apiData<Page<BatchOut>>(
-    `/api/v1/batches?page=${page}&page_size=${pageSize}`,
+    `/api/v1/batches?page=${page}&page_size=${pageSize}&source=mobile`,
   );
 }
 

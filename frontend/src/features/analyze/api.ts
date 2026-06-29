@@ -20,6 +20,9 @@ export interface AnalyzeInput {
 async function analyze(input: AnalyzeInput): Promise<BatchOut> {
   const form = new FormData();
   for (const file of input.files) form.append("files", file);
+  // Tag the scan's origin so the web history shows only web scans (mobile and
+  // realtime frames are bucketed separately).
+  form.append("source", "web");
   if (input.mode) form.append("mode", input.mode);
   if (input.supplierId) form.append("supplier_id", input.supplierId);
   if (input.seedTypeId) form.append("seed_type_id", input.seedTypeId);

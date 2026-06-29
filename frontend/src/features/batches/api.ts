@@ -22,6 +22,9 @@ export interface BatchListParams {
   pageSize: number;
   supplierId?: string;
   countryCode?: string;
+  /** Scope to a client origin ("web"/"mobile"). The web app passes "web" so its
+   *  history shows only web scans, never mobile or realtime frames. */
+  source?: "web" | "mobile" | "api" | "sdk";
 }
 
 async function listBatches(params: BatchListParams): Promise<Page<BatchOut>> {
@@ -32,6 +35,7 @@ async function listBatches(params: BatchListParams): Promise<Page<BatchOut>> {
         page_size: params.pageSize,
         supplier_id: params.supplierId || undefined,
         country_code: params.countryCode || undefined,
+        source: params.source || undefined,
       },
     },
   });

@@ -61,6 +61,17 @@ async def list_batches(
     service: BatchServiceDep,
     supplier_id: Annotated[UUID | None, Query()] = None,
     country_code: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
+    source: Annotated[
+        str | None,
+        Query(
+            pattern="^(web|mobile|api|sdk)$",
+            description=(
+                "Scope history to one client origin: 'web' or 'mobile' so each "
+                "app shows only its own scans. Omitted → all of the user's "
+                "batches except the hidden realtime live-frame scans."
+            ),
+        ),
+    ] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> Page[BatchOut]:
@@ -70,6 +81,7 @@ async def list_batches(
         page_size=page_size,
         supplier_id=supplier_id,
         country_code=country_code,
+        source=source,
     )
     # ``image_count`` isn't a column on ``scan_batches``; the service ships
     # it back alongside each batch (one grouped query). Patch it onto the

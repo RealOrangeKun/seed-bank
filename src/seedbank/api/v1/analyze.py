@@ -70,6 +70,17 @@ async def analyze(
             ),
         ),
     ] = None,
+    source: Annotated[
+        str | None,
+        Form(
+            pattern="^(web|mobile|mobile_realtime)$",
+            description=(
+                "Client origin, used to split history per app: 'web', 'mobile', "
+                "or 'mobile_realtime' (live-video frames, hidden from history). "
+                "Omitted for direct/SDK callers → recorded as 'api'."
+            ),
+        ),
+    ] = None,
     gps_lat: Annotated[Decimal | None, Form()] = None,
     gps_long: Annotated[Decimal | None, Form()] = None,
     country_code: Annotated[
@@ -100,6 +111,7 @@ async def analyze(
         seed_type_id=seed_type_id,
         model_id_override=model_id,
         mode=mode,
+        source=source,
         gps_lat=gps_lat,
         gps_long=gps_long,
         country_code=country_code,
