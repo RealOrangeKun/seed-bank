@@ -45,14 +45,14 @@ def _cfg(classes: tuple[str, ...], threshold: float = 0.5) -> ClassificationConf
 # ── taxonomy ──────────────────────────────────────────────────────────────────
 
 
-def test_taxonomy_shapes():
+def test_taxonomy_shapes() -> None:
     assert len(SUPERCLASSES) == 20
     assert len(SPECIALISTS) == 10
     # CLASS_MAP keys are the detector indices 1..20.
     assert sorted(CLASS_MAP) == list(range(1, 21))
 
 
-def test_every_specialist_code_is_a_superclass():
+def test_every_specialist_code_is_a_superclass() -> None:
     codes = {sc.code for sc in SUPERCLASSES}
     for spec in SPECIALISTS:
         assert spec.code in codes
@@ -64,7 +64,7 @@ def test_every_specialist_code_is_a_superclass():
 # ── registry ──────────────────────────────────────────────────────────────────
 
 
-def test_registry_exposes_new_builders():
+def test_registry_exposes_new_builders() -> None:
     keys = set(list_builders())
     assert "faster-rcnn-resnet50-pan-v1" in keys
     for spec in SPECIALISTS:
@@ -78,7 +78,7 @@ def test_registry_exposes_new_builders():
 # ── multi-label collapse ──────────────────────────────────────────────────────
 
 
-def test_healthy_marker_detection():
+def test_healthy_marker_detection() -> None:
     assert _is_healthy_class("Healthy_MAIZE")
     assert _is_healthy_class("01_intact_SOYBEAN")
     assert _is_healthy_class("GOOD_GARLIC")
@@ -87,7 +87,7 @@ def test_healthy_marker_detection():
     assert not _is_healthy_class("02_cercospora_SOYBEAN")
 
 
-def test_multilabel_defect_fires_bad():
+def test_multilabel_defect_fires_bad() -> None:
     classes = ("Healthy_MAIZE", "Fungus_MAIZE")
     # logits chosen so sigmoid(Healthy) low, sigmoid(Fungus) high.
     logits = torch.tensor([[-4.0, 4.0]])
@@ -97,7 +97,7 @@ def test_multilabel_defect_fires_bad():
     assert 0.0 <= out.confidence <= 1.0
 
 
-def test_multilabel_only_healthy_fires_good():
+def test_multilabel_only_healthy_fires_good() -> None:
     classes = ("GOOD_GARLIC", "BAD_GARLIC")
     logits = torch.tensor([[5.0, -5.0]])
     out = _multilabel_classification(logits, _cfg(classes))
@@ -106,7 +106,7 @@ def test_multilabel_only_healthy_fires_good():
     assert out.confidence > 0.9
 
 
-def test_multilabel_nothing_fires_is_good():
+def test_multilabel_nothing_fires_is_good() -> None:
     classes = ("GOOD_GARLIC", "BAD_GARLIC")
     logits = torch.tensor([[-1.0, -1.0]])  # both below 0.5
     out = _multilabel_classification(logits, _cfg(classes))

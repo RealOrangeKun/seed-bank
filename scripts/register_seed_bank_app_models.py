@@ -168,9 +168,7 @@ async def _resolve_seed_type_id(session: AsyncSession, code: str | None) -> UUID
         await session.execute(select(SeedType).where(SeedType.code == code))
     ).scalar_one_or_none()
     if row is None:
-        raise SystemExit(
-            f"Seed type {code!r} not found. Run `python -m scripts.seed_dev` first."
-        )
+        raise SystemExit(f"Seed type {code!r} not found. Run `python -m scripts.seed_dev` first.")
     return row.id
 
 

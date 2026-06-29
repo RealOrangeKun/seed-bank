@@ -106,9 +106,9 @@ class ClassifyPipeline:
         finally:
             elapsed = time.perf_counter() - start
             for _ in crops:
-                INFERENCE_DURATION.labels(
-                    kind="classification", backend=backend_name
-                ).observe(elapsed / len(crops))
+                INFERENCE_DURATION.labels(kind="classification", backend=backend_name).observe(
+                    elapsed / len(crops)
+                )
                 INFERENCE_TOTAL.labels(
                     kind="classification", backend=backend_name, status=status
                 ).inc()

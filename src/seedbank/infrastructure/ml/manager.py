@@ -157,12 +157,50 @@ class ModelManager:
 
         builder = get_builder(builder_key)
         module = builder()
-        # Load state dict from in-memory bytes; weights_only=True is the safe
-        # default in modern torch and rejects pickled python objects.
-        state = torch.load(io.BytesIO(weights), map_location="cpu", weights_only=True)
-        if isinstance(state, dict) and "state_dict" in state:
-            state = state["state_dict"]
-        module.load_state_dict(state, strict=False)
+        # Load state dict from in-memory bytes. Prefer the safe ``weights_only=True``
+        # path, but training checkpoints (e.g. the EfficientNet-B2 specialists) wrap
+        # the tensors alongside metadata like ``best_macro_f1``/``history`` that may
+        # be numpy scalars, which torch 2.6+ refuses under ``weights_only=True``.
+        # These artifacts come from our own MinIO (trusted), so fall back to a full
+        # unpickle rather than failing the load.
+        buf = io.BytesIO(weights)
+        try:
+            state = torch.load(buf, map_location="cpu", weights_only=True)
+        except Exception as exc:
+            log.warning(
+                "ml.manager.weights_only_fallback",
+                builder=builder_key,
+                error=repr(exc),
+            )
+            buf.seek(0)
+            state = torch.load(buf, map_location="cpu", weights_only=False)
+        # Training checkpoints wrap the parameters under a top-level key alongside
+        # optimizer/scheduler/history: ResNet/Faster-RCNN exports use
+        # ``state_dict``; the EfficientNet-B2 specialists use ``model``. A bare
+        # state dict (the Faster-RCNN detector) is loaded as-is.
+        if isinstance(state, dict):
+            for wrapper_key in ("state_dict", "model"):
+                inner = state.get(wrapper_key)
+                if isinstance(inner, dict):
+                    state = inner
+                    break
+        # ``strict=False`` tolerates a head-size mismatch (e.g. a checkpoint
+        # trained with a different class count) but it also *silently* ignores a
+        # total key mismatch — leaving the module on random init and producing
+        # garbage detections/labels. Log what didn't match so a broken artifact
+        # is diagnosable instead of looking like a bad threshold.
+        incompatible = module.load_state_dict(state, strict=False)
+        missing = list(getattr(incompatible, "missing_keys", []) or [])
+        unexpected = list(getattr(incompatible, "unexpected_keys", []) or [])
+        if missing or unexpected:
+            log.warning(
+                "ml.manager.state_dict_mismatch",
+                builder=builder_key,
+                n_missing=len(missing),
+                n_unexpected=len(unexpected),
+                missing_sample=missing[:5],
+                unexpected_sample=unexpected[:5],
+            )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         module = module.to(device)
         module.eval()
