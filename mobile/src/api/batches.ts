@@ -40,6 +40,9 @@ export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> 
   for (let i = 0; i < photos.length; i += 1) {
     await appendPhoto(form, photos[i], i);
   }
+  // Phones always run the fast YOLO one-shot pipeline — we value quick scanning
+  // over the slower two-stage accuracy on mobile.
+  form.append("mode", "fast");
   return apiData<BatchOut>("/api/v1/analyze", { method: "POST", form });
 }
 

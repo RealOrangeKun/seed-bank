@@ -59,6 +59,17 @@ async def analyze(
     supplier_id: Annotated[UUID | None, Form()] = None,
     seed_type_id: Annotated[UUID | None, Form()] = None,
     model_id: Annotated[UUID | None, Form()] = None,
+    mode: Annotated[
+        str | None,
+        Form(
+            pattern="^(fast|accurate)$",
+            description=(
+                "Pipeline selector: 'fast' = YOLO one-shot detector, "
+                "'accurate' = Faster R-CNN two-stage. Unlike model_id this is "
+                "open to all users. Ignored when model_id is set."
+            ),
+        ),
+    ] = None,
     gps_lat: Annotated[Decimal | None, Form()] = None,
     gps_long: Annotated[Decimal | None, Form()] = None,
     country_code: Annotated[
@@ -88,6 +99,7 @@ async def analyze(
         supplier_id=supplier_id,
         seed_type_id=seed_type_id,
         model_id_override=model_id,
+        mode=mode,
         gps_lat=gps_lat,
         gps_long=gps_long,
         country_code=country_code,

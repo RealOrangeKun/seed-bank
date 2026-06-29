@@ -104,7 +104,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runtime-inference-cpu
+      # Full inference image: the two-stage torch_local stack PLUS ultralytics,
+      # required now that "fast mode" routes to the YOLO one-shot detector.
+      target: runtime-inference-cpu-full
     image: seedbank/worker-inference:0.1.0
     container_name: seedbank-worker-inference
     # Explicit ``--concurrency``: matches the 2-CPU cap. Celery's host-CPU

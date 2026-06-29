@@ -115,6 +115,11 @@ export const en = {
   // ── Analyze ───────────────────────────────────────────────────────────────
   "analyze.title": "Check seeds",
   "analyze.description": "Upload seed photos to detect seeds and grade their quality.",
+  "analyze.mode": "Scan mode",
+  "analyze.modeFast": "Fast",
+  "analyze.modeFastHint": "YOLO one-shot — quickest, good for a rapid scan.",
+  "analyze.modeAccurate": "Accurate",
+  "analyze.modeAccurateHint": "Faster R-CNN two-stage — slower, highest accuracy.",
   "analyze.optionalMetadata": "Optional details",
   "analyze.seedType": "Seed type",
   "analyze.seedTypeHint": "Helps pick the right grading model",

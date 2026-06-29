@@ -3,8 +3,12 @@ import { useMutation } from "@tanstack/react-query";
 import { api, unwrap } from "@/lib/api/client";
 import type { BatchOut, Envelope } from "@/lib/api/types";
 
+export type AnalyzeMode = "fast" | "accurate";
+
 export interface AnalyzeInput {
   files: File[];
+  /** "fast" = YOLO one-shot, "accurate" = Faster R-CNN two-stage. */
+  mode?: AnalyzeMode;
   supplierId?: string;
   seedTypeId?: string;
   modelId?: string;
@@ -16,6 +20,7 @@ export interface AnalyzeInput {
 async function analyze(input: AnalyzeInput): Promise<BatchOut> {
   const form = new FormData();
   for (const file of input.files) form.append("files", file);
+  if (input.mode) form.append("mode", input.mode);
   if (input.supplierId) form.append("supplier_id", input.supplierId);
   if (input.seedTypeId) form.append("seed_type_id", input.seedTypeId);
   if (input.modelId) form.append("model_id", input.modelId);

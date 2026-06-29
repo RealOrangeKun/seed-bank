@@ -114,6 +114,11 @@ export const ar: Record<TranslationKey, string> = {
   // ── Analyze ───────────────────────────────────────────────────────────────
   "analyze.title": "افحص البذور",
   "analyze.description": "ارفع صور البذور لاكتشافها وتقييم جودتها.",
+  "analyze.mode": "وضع الفحص",
+  "analyze.modeFast": "سريع",
+  "analyze.modeFastHint": "YOLO بمرحلة واحدة — الأسرع، مناسب للفحص السريع.",
+  "analyze.modeAccurate": "دقيق",
+  "analyze.modeAccurateHint": "Faster R-CNN بمرحلتين — أبطأ، أعلى دقة.",
   "analyze.optionalMetadata": "تفاصيل اختيارية",
   "analyze.seedType": "نوع البذور",
   "analyze.seedTypeHint": "يساعد في اختيار نموذج التقييم المناسب",

@@ -111,6 +111,7 @@ class AnalysisService:
         gps_long: Decimal | None,
         country_code: str | None,
         ip: str | None,
+        mode: str | None = None,
     ) -> ScanBatch:
         """Validate, persist, and dispatch one analyze request.
 
@@ -191,6 +192,7 @@ class AnalysisService:
                     str(image.id),
                     str(model_id_override) if model_id_override else None,
                     str(seed_type_id) if seed_type_id else None,
+                    mode,
                 ],
                 queue=_ANALYZE_TASK_QUEUE,
             )
