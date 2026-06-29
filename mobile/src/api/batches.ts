@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-import { apiData } from "./client";
+import { apiData, apiFetch } from "./client";
 import type {
   BatchDetailOut,
   BatchOut,
@@ -86,10 +86,15 @@ export async function waitForBatch(
 }
 
 export async function listBatches(page = 1, pageSize = 20): Promise<Page<BatchOut>> {
-  // Scope to mobile scans only — the web history is separate, and realtime
-  // live-frame batches are hidden server-side.
-  return apiData<Page<BatchOut>>(
-    `/api/v1/batches?page=${page}&page_size=${pageSize}&source=mobile`,
+  // Show the user's full scan history regardless of origin (api/web/mobile).
+  // No `source` filter, so the server returns every batch the user owns except
+  // the realtime live-frame batches, which it hides from history by default.
+  //
+  // Use `apiFetch`, not `apiData`: the paginated response is `{ data, meta }`,
+  // which already *is* the `Page` — `apiData` would strip it to the inner array
+  // and drop `meta`, leaving the history screen with no `.data` to read.
+  return apiFetch<Page<BatchOut>>(
+    `/api/v1/batches?page=${page}&page_size=${pageSize}`,
   );
 }
 
