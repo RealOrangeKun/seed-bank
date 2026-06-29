@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n/i18n";
 import { CameraScreen } from "@/screens/camera-screen";
 import { HistoryScreen } from "@/screens/history-screen";
 import { LoginScreen } from "@/screens/login-screen";
+import { RealtimeScreen } from "@/screens/realtime-screen";
 import { ResultScreen } from "@/screens/result-screen";
 import { SettingsScreen } from "@/screens/settings-screen";
 import { useTheme } from "@/theme/use-theme";
@@ -19,6 +20,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
   Capture: "camera",
+  Realtime: "videocam",
   History: "time",
   Settings: "settings",
 };
@@ -29,6 +31,7 @@ function MainTabs() {
 
   const labels: Record<keyof TabsParamList, string> = {
     Capture: t("tab.capture"),
+    Realtime: t("tab.realtime"),
     History: t("tab.history"),
     Settings: t("tab.settings"),
   };
@@ -50,6 +53,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Capture" component={CameraScreen} />
+      <Tab.Screen name="Realtime" component={RealtimeScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>

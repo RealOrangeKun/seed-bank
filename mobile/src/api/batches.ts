@@ -23,6 +23,34 @@ export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> 
   return apiData<BatchOut>("/api/v1/analyze", { method: "POST", form });
 }
 
+/** Submit a single live frame for analysis (realtime mode). */
+export async function analyzeFrame(frame: CapturedPhoto): Promise<BatchOut> {
+  return analyzePhotos([frame]);
+}
+
+/**
+ * Poll a batch until it reaches a terminal status (or times out). Used by the
+ * realtime screen to await each frame's result before grabbing the next one.
+ * Aborting via `signal` throws an `AbortError` so the caller's loop can exit.
+ */
+export async function waitForBatch(
+  id: string,
+  opts: { intervalMs?: number; timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<BatchDetailOut> {
+  const { intervalMs = 700, timeoutMs = 20000, signal } = opts;
+  const start = Date.now();
+  for (;;) {
+    if (signal?.aborted) {
+      const err = new Error("aborted");
+      err.name = "AbortError";
+      throw err;
+    }
+    const batch = await getBatch(id);
+    if (isTerminal(batch.status) || Date.now() - start > timeoutMs) return batch;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 export async function listBatches(page = 1, pageSize = 20): Promise<Page<BatchOut>> {
   return apiData<Page<BatchOut>>(
     `/api/v1/batches?page=${page}&page_size=${pageSize}`,

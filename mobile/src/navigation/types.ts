@@ -2,6 +2,7 @@ import type { NavigatorScreenParams } from "@react-navigation/native";
 
 export type TabsParamList = {
   Capture: undefined;
+  Realtime: undefined;
   History: undefined;
   Settings: undefined;
 };
