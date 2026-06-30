@@ -3,18 +3,28 @@ flowchart LR
     dev([AI Developer])
     admin([Administrator])
 
-    subgraph SB[Seed Bank Platform]
-        u1((Register / Log in))
-        u2((Analyze seed photos))
-        u3((View batch results))
-        u4((Browse scan history))
-        u5((Share read-only report))
-        u6((View analytics))
-        u7((Compare scans))
-        u9((Register / promote models))
-        u10((Run offline experiments))
-        u11((Manage datasets))
-        u13((Manage users and roles))
+    subgraph SB["Seed Bank Platform"]
+        direction LR
+        subgraph Col1["Core Operations"]
+            direction TB
+            u1((Register / Log in))
+            u2((Analyze seed photos))
+            u3((View batch results))
+            u4((Browse scan history))
+        end
+        subgraph Col2["Analytics & Sharing"]
+            direction TB
+            u5((Share read-only report))
+            u6((View analytics))
+            u7((Compare scans))
+        end
+        subgraph Col3["ML & Administration"]
+            direction TB
+            u9((Register / promote models))
+            u10((Run offline experiments))
+            u11((Manage datasets))
+            u13((Manage users and roles))
+        end
     end
 
     farmer --- u1

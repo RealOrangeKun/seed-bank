@@ -1,0 +1,10 @@
+flowchart TD
+    admin([Administrator])
+
+    subgraph SB["Seed Bank Platform (Admin Use Cases)"]
+        u9((Register / promote models))
+        u13((Manage users and roles))
+    end
+
+    admin --- u9
+    admin --- u13

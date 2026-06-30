@@ -21,18 +21,18 @@ gets an immediate acknowledgement instead of waiting on a slow forward pass,
 and several images can be graded in parallel by the worker.
 
 \autoref{fig:context} places the system in its setting, showing the actors and the boundary they talk to.
-\figslot[0.52]{01-system-context.pdf}{System context: the actors and the Seed Bank boundary they interact with.}{fig:context}
+\figslot[0.92]{01-system-context.pdf}{System context: the actors and the Seed Bank boundary they interact with.}{fig:context}
 
 \autoref{fig:containers} shows the running pieces (web client, API, worker, databases, and file storage) and how they connect.
-\figslot[0.85]{02-containers.pdf}{Container view: the web client, the API, the inference worker, the databases, and file storage.}{fig:containers}
+\figslot[1.1]{02-containers.pdf}{Container view: the web client, the API, the inference worker, the databases, and file storage.}{fig:containers}
 
 The backend components are detailed in two parts. \autoref{fig:api-flow} shows the request flow as it enters through middleware and is routed to core services. \autoref{fig:api-data} shows how these services interact with the repository layer and the underlying database ORM model.
-\figslot[0.72]{03-api-components-flow.pdf}{Backend request routing and services flow.}{fig:api-flow}
-\figslotlarge[0.95]{03-api-components-data.pdf}{Backend data-access layer and repositories.}{fig:api-data}
+\figslot[1]{03-api-components-flow.pdf}{Backend request routing and services flow.}{fig:api-flow}
+\figslotlarge[0.85]{03-api-components-data.pdf}{Backend data-access layer and repositories.}{fig:api-data}
 
 The worker side is similarly divided. \autoref{fig:worker-flow} shows the task orchestration and worker process loop. \autoref{fig:worker-pipeline} maps the detailed steps of the inference pipeline.
-\figslot[0.72]{04-worker-components-flow.pdf}{Inference worker task orchestration and dispatch.}{fig:worker-flow}
-\figslotlarge[0.95]{04-worker-components-pipeline.pdf}{Inference worker detailed pipeline steps.}{fig:worker-pipeline}
+\figslot[0.82]{04-worker-components-flow.pdf}{Inference worker task orchestration and dispatch.}{fig:worker-flow}
+\figslotlarge[1]{04-worker-components-pipeline.pdf}{Inference worker detailed pipeline steps.}{fig:worker-pipeline}
 
 \section{Class Diagrams}
 
@@ -50,7 +50,7 @@ coordinates and a quality label of \texttt{GOOD} or \texttt{BAD}. A
 \texttt{User} entity owns the batches and ties each scan back to the account
 that created it.
 
-\figslot{13-class.pdf}{Class diagram: \texttt{ScanBatch} as the central entity, its images and per-seed detections, and the \texttt{User} that owns them.}{fig:class}
+\figslot[1.1]{13-class.pdf}{Class diagram: \texttt{ScanBatch} as the central entity, its images and per-seed detections, and the \texttt{User} that owns them.}{fig:class}
 
 \section{Sequence Diagrams}
 
@@ -67,11 +67,11 @@ classifies it as good or bad. When every image is done it aggregates the
 statistics across the batch, updates the status to \texttt{COMPLETED}, and returns
 the structured report to the client.
 
-\figslot[0.95]{06-analyze-sequence.pdf}{Batch-analysis sequence: identify the user, create the batch, save images, detect seeds, crop and classify each one, aggregate, and complete.}{fig:analyze-seq}
+\figslot[1.1]{06-analyze-sequence.pdf}{Batch-analysis sequence: identify the user, create the batch, save images, detect seeds, crop and classify each one, aggregate, and complete.}{fig:analyze-seq}
 
 \section{Database Entity-Relationship Diagram}
 
-The database schema is split into two logical areas to preserve printed legibility. \autoref{fig:erd-core} shows the Core Platform and Analysis database tables (users, authentication details, audit log, scan batches, and detections). \autoref{fig:erd-ml} shows the Machine Learning Registry, datasets, and experiment tables.
+The database schema is split into three logical areas to preserve printed legibility. \autoref{fig:erd-auth} shows the User Identity, Access, and Auditing tables. \autoref{fig:erd-scan} shows the Scan Operational Hierarchy and Inference Results tables. \autoref{fig:erd-ml} shows the Machine Learning Registry, datasets, and experiment tables.
 
 The core scan hierarchy spans four central entities:
 \begin{itemize}
@@ -82,11 +82,15 @@ The core scan hierarchy spans four central entities:
 \end{itemize}
 
 \clearpage
-\figslotlarge[0.9]{05-db-erd-core.pdf}{Core database schema: users, scans, and detections.}{fig:erd-core}
+\figslotlarge[1.0]{05-db-erd-auth.pdf}{Database schema: User identity, access, and auditing.}{fig:erd-auth}
 \clearpage
 
 \clearpage
-\figslotlarge[0.9]{05-db-erd-ml.pdf}{Machine learning database schema: models, datasets, and experiments.}{fig:erd-ml}
+\figslotlarge[1.2]{05-db-erd-scan.pdf}{Database schema: Scan operational hierarchy and results.}{fig:erd-scan}
+\clearpage
+
+\clearpage
+\figslotlarge[1.0]{05-db-erd-ml.pdf}{Database schema: Machine learning models, datasets, and experiments.}{fig:erd-ml}
 \clearpage
 
 \section{MultiSeedGen Design}
@@ -124,7 +128,7 @@ in any training image, so the validation score is not inflated by the same seed
 showing up on both sides. The resulting detection and segmentation datasets are
 what train the Seed Bank detector.
 
-\figslotlarge[1.0]{14-multiseedgen-pipeline.pdf}{MultiSeedGen pipeline: segment single seeds, composite many onto varied backgrounds, augment per seed, record exact boxes and masks, and export detection and segmentation datasets.}{fig:msg-pipeline}
+\figslotlarge[1.1]{14-multiseedgen-pipeline.pdf}{MultiSeedGen pipeline: segment single seeds, composite many onto varied backgrounds, augment per seed, record exact boxes and masks, and export detection and segmentation datasets.}{fig:msg-pipeline}
 
 \section{User Interface Design (Wireframes and Mockups)}
 
