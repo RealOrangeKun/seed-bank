@@ -31,7 +31,6 @@ flowchart TB
             end
 
             subgraph Tooling["Tooling"]
-                ML[mlflow:v2.18<br/>:5000<br/>backend=postgres,<br/>artifacts=minio]
                 ADM["adminer:4.8.1<br/>:8080<br/>profile: dev"]
             end
         end
@@ -47,7 +46,6 @@ flowchart TB
     API --> RD
     API --> MIN
     API --> CH
-    API --> ML
 
     WCPU --> PG
     WCPU --> RD
@@ -57,9 +55,6 @@ flowchart TB
     WGPU --> RD
     WGPU --> MIN
 
-    ML --> PG
-    ML --> MIN
-
     ADM -.-> PG
 ```
 
@@ -67,7 +62,7 @@ flowchart TB
 
 | Profile | Brings up | Why |
 |---|---|---|
-| (default) | api, worker-cpu, postgres, redis, minio, clickhouse, mlflow | Full functional stack on a CPU-only laptop. |
+| (default) | api, worker-cpu, postgres, redis, minio, clickhouse | Full functional stack on a CPU-only laptop. |
 | `gpu` | + worker-inference | Real model inference. Requires `nvidia-container-toolkit`. |
 | `dev` | + adminer | Local DB browser. Off in CI. |
 

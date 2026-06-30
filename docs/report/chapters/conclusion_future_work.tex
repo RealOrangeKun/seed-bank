@@ -28,7 +28,7 @@ Network \cite{resnet2015, lin2017fpn}, carrying a three-class head over
 ResNet-18 backbones with a Convolutional Block Attention Module inserted after
 the final residual stage \cite{cbam2018}, one classifier trained per crop type.
 Splitting the problem this way means a detector and a classifier can be
-versioned, swapped, and A/B-tested independently, because detection and
+versioned and swapped independently, because detection and
 classification are recorded as separate \texttt{inferences} rows over the same
 image.
 
@@ -38,12 +38,12 @@ foreign key to the \texttt{inference} that produced it, and every
 \texttt{inference} carries a foreign key to the exact \texttt{model\_artifact}
 that ran. Any single seed label in the system can be traced back to the model
 version and weights that generated it. This chain is what makes the rest of the
-ML platform trustworthy: an A/B result or an offline evaluation score means
+ML platform trustworthy: an offline evaluation score means
 nothing if you cannot say which weights produced which label.
 
 The request path that ties these together is the unified \texttt{POST /analyze}
 endpoint. An upload lands in MinIO and Postgres, a Celery task picks it up
-\cite{celeryinplay}, the traffic router selects a model for the segment, the
+\cite{celeryinplay}, the \texttt{ModelResolver} selects a model for the segment, the
 detector runs, each crop is classified, and the results are persisted with the
 traceability chain intact. Batch state moves through a state machine
 (\texttt{pending} $\rightarrow$ \texttt{running} $\rightarrow$ \texttt{succeeded}/\texttt{partial}/\texttt{failed}),
@@ -53,29 +53,28 @@ the batch degrades to \texttt{partial} rather than discarding good detection
 results, and if no model is promoted the user gets a readable message instead of
 a blank error.
 
-\subsection{A model registry with A/B routing and offline evaluation}
+\subsection{A model registry with production-model resolution and offline evaluation}
 
 Weights are uploaded to MinIO and recorded in the \texttt{model\_artifacts}
 table, each row carrying its kind, backend, builder key, a per-model config
 blob, and a lifecycle status that moves
 \texttt{registered} $\rightarrow$ \texttt{staging} $\rightarrow$ \texttt{production} $\rightarrow$ \texttt{archived}.
-Only staging and production models can serve traffic. The traffic router decides
-which model runs for a given segment: when weighted splits exist in
-\texttt{traffic\_splits} it routes by a sticky per-user bucket so the same user
-always lands on the same model during an experiment, and when no split exists it
-falls back to the production model for that crop type and then to a global
-production model. That fallback is what lets the mobile point-and-shoot flow,
-which sends no crop type, still resolve to a model.
+Only staging and production models can serve traffic. The \texttt{ModelResolver}
+decides which model runs for a given segment: it resolves the production model
+promoted for that crop type, falling back to a global production model when no
+per-type model exists, so a single promoted model can serve every scan. That
+fallback is what lets the mobile point-and-shoot flow, which sends no crop type,
+still resolve to a model.
 
 Around the registry sits the experiments subsystem. A labelled dataset stored in
 MinIO and Postgres is the ground truth; an experiment runs a chosen model over
 that dataset offline, computes classification metrics including the confusion
-matrix, logs parameters, metrics, and artifacts to MLflow \cite{mlflow2018}, and
-writes a Markdown report. The model manager keeps a per-process LRU cache of
+matrix, persists its metrics to PostgreSQL and writes a Markdown report to
+object storage. The model manager keeps a per-process LRU cache of
 loaded modules, serialises concurrent loads of the same model through a lock so
 two workers never duplicate a GPU load, and hot-reloads a model when its artifact
 timestamp advances. A developer can register new weights, evaluate them offline,
-promote them, and route a slice of live traffic to them without a restart.
+and promote them to production so they serve live scans without a restart.
 
 \subsection{Three clients, bilingual and right-to-left}
 
@@ -147,10 +146,11 @@ value showed up when the ML platform grew. Because every backend satisfies the
 same duck-typed protocol and returns framework-free DTOs, adding the YOLO and
 Roboflow backends alongside the default local-torch one was a matter of writing a
 class and registering it in a factory \cite{designpatterns1994},
-with no churn in the services that call them. The one place that skipped the
-pattern, the traffic router querying \texttt{traffic\_splits} ad-hoc instead of
-through a repository, is also the one place that now reads as a wart, which is its
-own kind of confirmation.
+with no churn in the services that call them. The same payoff showed up in model
+selection: collapsing the routing layer down to a deterministic, stateless
+\texttt{ModelResolver} that resolves the promoted production model for a segment,
+with a global fallback, left the services that call it untouched and removed an
+entire stateful subsystem from the request path.
 
 The single \texttt{Settings} object was a similar bet that paid off. Routing all
 configuration through one validated object, sourced from environment variables or
@@ -239,8 +239,8 @@ be kept honest by hand.
 The platform supports coffee and maize today, and the architecture was built to
 extend. A new crop is a new detector head class, or a retrained detector, plus a
 new per-crop classifier registered through a builder and the model registry. The
-traffic router already routes per crop type, so a new classifier can be promoted
-and A/B-tested in isolation without disturbing the existing crops. On the data
+\texttt{ModelResolver} already resolves models per crop type, so a new classifier
+can be promoted and swapped in isolation without disturbing the existing crops. On the data
 side, MultiSeedGen extends the same way: a new crop is a new set of source seed
 photos and a config recipe, with no pipeline changes.
 
@@ -250,7 +250,7 @@ inference. For field use with poor connectivity, running a lightweight detector
 and classifier on the device would let a farmer get a result with no round trip.
 This is a natural fit for a quantised YOLO detector \cite{redmon2016yolo,
 yolov8} exported to a mobile runtime, with the server remaining the authority for
-history, A/B routing, and the traceability record once connectivity returns.
+history and the traceability record once connectivity returns.
 
 \paragraph{An active-learning loop.}
 The most valuable enhancement closes the loop between the two systems. Real scans
@@ -261,9 +261,9 @@ scans through the existing traceability chain, feed their characteristics back
 into MultiSeedGen to regenerate training data weighted toward the failure modes,
 retrain the detector and the affected classifier on the augmented set, evaluate
 the candidate offline against a held-out set of real labelled scans, and promote
-it through the registry's existing staging-to-production lifecycle behind a
-traffic split for safety. Each turn of the loop targets generation at the
-platform's measured weaknesses instead of producing more of what it already
-handles well. The registry, the offline-evaluation runner, the traffic router,
-and MultiSeedGen's reproducible recipes are all already in place; what remains is
-the orchestration that connects them.
+the improved model to production through the registry's existing
+staging-to-production lifecycle once it clears that bar. Each turn of the loop
+targets generation at the platform's measured weaknesses instead of producing
+more of what it already handles well. The registry, the offline-evaluation
+runner, the \texttt{ModelResolver}, and MultiSeedGen's reproducible recipes are
+all already in place; what remains is the orchestration that connects them.

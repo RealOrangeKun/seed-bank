@@ -24,11 +24,11 @@ flowchart TB
             direction TB
             CAS["CAS pending → running<br/>via ScanBatchRepository.cas_status"]
             FETCH["MinIO.get_object<br/>image bytes"]
-            RES_DET["TrafficRouter.select_model<br/>kind=DETECTION<br/>or model_id_override + scope check"]
+            RES_DET["ModelResolver.resolve_model<br/>kind=DETECTION<br/>or model_id_override + scope check"]
             DET["DetectPipeline.detect<br/>via ModelManager.load"]
             P_INF["InferenceRepository.add_inference<br/>+ SeedDetectionRepository.add_many"]
             COMMIT1["commit detect rows"]
-            RES_CLS["TrafficRouter.select_model<br/>kind=CLASSIFICATION<br/>graceful skip if absent"]
+            RES_CLS["ModelResolver.resolve_model<br/>kind=CLASSIFICATION<br/>graceful skip if absent"]
             CROP["PIL crop per detection<br/>using normalized bbox × img.size"]
             CLS["ClassifyPipeline.classify"]
             P_QC["InferenceRepository.add_inference<br/>+ SeedDetectionRepository.update_quality_many"]
@@ -43,7 +43,7 @@ flowchart TB
     subgraph EXT["External adapters"]
         MIN[("MinIO")]
         ML["infrastructure/ml<br/>backends, manager, pipeline"]
-        TR["services/traffic_router"]
+        TR["services/model_resolver"]
     end
 
     BRK --> APP

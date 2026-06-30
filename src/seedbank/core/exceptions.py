@@ -68,7 +68,7 @@ class RateLimitError(DomainError):
 
 
 class ExternalServiceError(DomainError):
-    """An attached resource (DB, MinIO, ClickHouse, MLflow) failed."""
+    """An attached resource (DB, MinIO, ClickHouse) failed."""
 
     code = "external_service_unavailable"
     title = "Service Unavailable"

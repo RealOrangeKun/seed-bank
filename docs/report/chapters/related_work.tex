@@ -237,11 +237,14 @@ location, builder key, per-model configuration, and a lifecycle status that runs
 \texttt{registered} to \texttt{staging} to \texttt{production} to
 \texttt{archived}, with promotion exposed as an explicit API action. Only staging
 or production models may serve. Offline evaluation runs a model over a labelled
-dataset, computes classification metrics, and logs the run to MLflow with a saved
-report, so a model can be assessed before it is promoted. At serving time a
-traffic router selects the model for a given segment, supports weighted A/B splits
-with a sticky per-user bucket so the same user always lands on the same model, and
-falls back to a production model when no split is configured. Every prediction is
+dataset, computes classification metrics, persists them to PostgreSQL, and writes
+a Markdown report to object storage, so a model can be assessed before it is
+promoted. At serving time a model resolver selects the model for a given segment:
+it resolves the production model promoted for that segment, falls back to the
+global, seed-type-agnostic production model for the kind when a seed type was
+supplied but no segment model is promoted, and otherwise reports that no model is
+ready. The resolution is deterministic and stateless, with no weighting;
+production-model resolution with a global fallback is the whole policy. Every prediction is
 recorded as an inference row linked to the exact model version that produced it,
 which gives full traceability from a stored seed label back to its model. This is
 the operational discipline that most published vision work, which stops at a
@@ -269,7 +272,7 @@ Seed Bank differs on each of these points. It chains a detector and a per-type
 classifier into one pipeline so a single photograph yields a located, per-seed
 good/bad verdict and an aggregate report. Detection and classification are
 recorded as separate inference rows over the same image, so each stage can be
-versioned, swapped, and A/B-tested on its own. Every seed label links back to the
+versioned and swapped on its own. Every seed label links back to the
 exact model version that produced it. The same backend serves a web client, a
 mobile point-and-shoot flow, and a conveyor-belt batch mode from one inference
 path. And the data-labelling bottleneck is solved at the source by MultiSeedGen,
@@ -306,7 +309,7 @@ One fixed model; replacing it means retraining the system &
 Registry with a \texttt{registered}$\rightarrow$\texttt{production} lifecycle, hot reload, and per-segment selection \\
 Comparing models &
 Evaluated once, offline, by hand &
-Offline evaluation against labelled datasets plus weighted A/B splits with sticky per-user routing \\
+Offline evaluation against labelled datasets plus production-model resolution with a global fallback \\
 Traceability &
 No record of which model produced a result &
 Every seed label links to the exact model version via an inference row \\
@@ -324,8 +327,8 @@ Deterministic leak-free split, IoU-limited overlap, box clipping, and per-instan
 
 The wider point is that the contribution sits at the system level. Each model
 family here is taken from published work and used as intended; the originality is
-in binding detection, per-type classification, a versioned registry with A/B
-serving, full traceability, and a synthetic-data generator into one platform that
+in binding detection, per-type classification, a versioned registry with
+promotion-based serving, full traceability, and a synthetic-data generator into one platform that
 a non-researcher can run, and in attacking the labelling bottleneck head-on
 rather than living with a small hand-labelled dataset. The chapters that follow
 describe how that system is built.

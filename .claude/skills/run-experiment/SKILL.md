@@ -1,6 +1,6 @@
 ---
 name: run-experiment
-description: Run an offline evaluation of a model against a frozen dataset, read its metrics, and decide whether to promote. Use this for any model rollout, A/B preparation, or quality regression check.
+description: Run an offline evaluation of a model against a frozen dataset, read its metrics, and decide whether to promote. Use this for any model rollout or quality regression check.
 ---
 
 # Run an experiment
@@ -16,7 +16,7 @@ hunch.
 ## When to use
 
 - Before promoting a model from `staging` to `production`.
-- Preparing an A/B test or canary — establish the offline baseline first.
+- Comparing two candidate models — establish the offline baseline first.
 - Checking a candidate for a quality regression against a frozen holdout set.
 
 ## What an experiment does
@@ -28,11 +28,9 @@ hunch.
    - Detection: precision, recall, F1, mAP@0.5, mAP@0.5:0.95, latency p50/p95.
    - Classification: accuracy, per-class precision/recall, confusion matrix,
      latency p50/p95.
-4. Writes per-item rows to `experiment_results` (Postgres) and
-   `fact_experiment_result` (ClickHouse).
-5. Logs the run to MLflow with params (model_id, dataset_id, git SHA, library
-   versions) and metrics.
-6. Renders a Markdown report and uploads it to
+4. Writes per-item rows to `experiment_results` and summary metrics
+   (`summary_metrics`) to Postgres, plus `fact_experiment_result` (ClickHouse).
+5. Renders a Markdown report and uploads it to
    `seedbank-experiments/<experiment_id>/report.md`.
 
 ## Steps
@@ -111,8 +109,7 @@ curl -H "Authorization: Bearer $AI_DEV_TOKEN" \
   http://localhost:8000/api/v1/experiments/<id>/report
 ```
 
-Or via UI: MLflow (`http://localhost:5000`) for run-level params, metrics, and
-plots; Adminer (`make up-dev`) for the `experiments` / `experiment_results`
+Or via UI: Adminer (`make up-dev`) for the `experiments` / `experiment_results`
 tables; ClickHouse for rich aggregations over `fact_experiment_result`.
 
 ### 4. Compare two experiments
@@ -143,15 +140,14 @@ look better on paper but worse in production:
   breakdown, not just the average.
 - A human spot-checked a sample of disagreements between the new and old model.
 
-If it passes, hand off to the `add-model` skill for the promotion and
-traffic-split flow.
+If it passes, hand off to the `add-model` skill for the production promotion.
 
 ## Conventions
 
 - Datasets and ground truth are frozen: an experiment is only comparable if the
   items and labels are identical across runs.
 - Reproducibility — every experiment should be re-runnable from its recorded
-  params. Confirm MLflow captured: `git_sha`, `model_artifact_uri` (the exact
+  params. Confirm the run captured: `git_sha`, `model_artifact_uri` (the exact
   MinIO key), `dataset_id`, `library_versions` (torch, torchvision,
   ultralytics), and `random_seed` if any randomness exists. Without these, an
   experiment is a number, not a result.
@@ -181,4 +177,4 @@ traffic-split flow.
 - [ ] No intolerable p95 latency regression
 - [ ] Per-class / tail-failure breakdown reviewed, not just the average
 - [ ] Disagreements spot-checked by a human
-- [ ] MLflow params let someone re-run the experiment cold
+- [ ] Recorded params let someone re-run the experiment cold

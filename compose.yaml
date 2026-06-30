@@ -24,10 +24,18 @@ x-app-env: &app-env
   CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
   CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-seedbank-dev-secret}
   CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB:-seedbank}
-  MLFLOW_TRACKING_URI: http://mlflow:5000
   JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
   ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
   SENTRY_DSN: ${SENTRY_DSN:-}
+  # OAuth — a provider is enabled only when both its id+secret are set. Google
+  # redirects the browser to OAUTH_REDIRECT_BASE_URL + the callback path; the
+  # callback then bounces to OAUTH_POST_LOGIN_REDIRECT_URL (the SPA route).
+  OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+  OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-}
+  OAUTH_GITHUB_CLIENT_ID: ${OAUTH_GITHUB_CLIENT_ID:-}
+  OAUTH_GITHUB_CLIENT_SECRET: ${OAUTH_GITHUB_CLIENT_SECRET:-}
+  OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8000}
+  OAUTH_POST_LOGIN_REDIRECT_URL: ${OAUTH_POST_LOGIN_REDIRECT_URL:-http://localhost:5173/auth/callback}
   # Demo-seed controls — `make seed` (scripts/seed_dev.py) runs inside this
   # container and refuses default demo passwords unless SEED_ALLOW_DEMO_DEFAULTS=1
   # (set in .env.example for dev/CI). Per-role passwords override when provided.
@@ -236,51 +244,6 @@ services:
     deploy:
       resources:
         limits: {cpus: "1.0", memory: 1G}
-
-  mlflow:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: mlflow
-    image: seedbank/mlflow:0.1.0
-    container_name: seedbank-mlflow
-    command:
-      - "mlflow"
-      - "server"
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
-      - "5000"
-      - "--backend-store-uri"
-      - "postgresql://${POSTGRES_USER:-seedbank}:${POSTGRES_PASSWORD:-seedbank}@postgres:5432/mlflow"
-      - "--artifacts-destination"
-      - "s3://seedbank-experiments/mlflow"
-    environment:
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-seedbank}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-seedbank-dev-secret}
-    ports:
-      - "127.0.0.1:5000:5000"
-    healthcheck:
-      # The slim mlflow image doesn't ship curl; use the Python interpreter
-      # we know is there. ``urlopen`` raises on non-2xx, so we don't need
-      # an explicit status check.
-      test:
-        - "CMD"
-        - "python"
-        - "-c"
-        - "import urllib.request,sys; urllib.request.urlopen('http://localhost:5000/health').read()"
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
-    depends_on:
-      postgres: {condition: service_healthy}
-      minio: {condition: service_healthy}
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits: {cpus: "0.5", memory: 512M}
 
   adminer:
     profiles: ["dev"]

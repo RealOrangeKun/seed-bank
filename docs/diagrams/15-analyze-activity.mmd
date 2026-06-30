@@ -1,0 +1,53 @@
+%% Activity diagram - the analyze pipeline (submit -> detect -> classify -> finalise)
+%% Swimlanes: Client / API / Worker. Source of truth:
+%%   src/seedbank/services/analysis_service.py, src/seedbank/workers/tasks/analyze.py
+flowchart TD
+    subgraph Client
+        start(["User submits POST /analyze<br/>multipart images"])
+        poll(["Poll GET /batches/id<br/>until terminal status"])
+    end
+    subgraph API
+        validate{"All files valid?<br/>count<=16, size, MIME, real image"}
+        reject["Return 4xx Problem Details"]
+        store["Write images to MinIO"]
+        commit["Create scan_batch=pending + scan_images<br/>write audit log, COMMIT"]
+        dispatch["Dispatch one Celery task per image<br/>queue=inference"]
+    end
+    subgraph Worker
+        cas1{"CAS pending -> running<br/>(first task wins)"}
+        fetch["Fetch image bytes from MinIO"]
+        resolveD["Resolve detection model<br/>(override or ModelResolver)"]
+        rok{"Model resolved?"}
+        detect["Run detection<br/>persist 1 inference + N seed_detections"]
+        group["Group detections by seed_type"]
+        classify["Per group: resolve classifier, crop each seed,<br/>classify good/bad, bulk-update quality,<br/>add 1 classify inference"]
+        done{"Every image in batch detected?"}
+        wait["Await sibling tasks"]
+        outcome{"Batch outcome"}
+        succeeded["CAS running -> succeeded"]
+        partial["CAS running -> partial"]
+        failed["CAS running -> failed<br/>(ModelNotReadyError or detect error)"]
+    end
+    start --> validate
+    validate -- no --> reject
+    validate -- yes --> store
+    store --> commit
+    commit -. async .-> dispatch
+    dispatch -. async .-> cas1
+    cas1 --> fetch
+    fetch --> resolveD
+    resolveD --> rok
+    rok -- no --> failed
+    rok -- yes --> detect
+    detect --> group
+    group --> classify
+    classify --> done
+    done -- no --> wait
+    done -- yes --> outcome
+    outcome -- all detected and classified --> succeeded
+    outcome -- classify degraded --> partial
+    outcome -- detect failed --> failed
+    succeeded -. dual-write .-> poll
+    partial -. dual-write .-> poll
+    failed --> poll
+    reject --> poll

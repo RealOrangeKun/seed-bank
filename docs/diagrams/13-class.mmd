@@ -3,9 +3,8 @@ classDiagram
         +start_batch(files, opts) ScanBatch
         +get_batch(id) ScanBatch
     }
-    class TrafficRouter {
-        +resolve(kind, seed_type, user) ModelArtifact
-        -sticky_bucket(user_id) int
+    class ModelResolver {
+        +select_model(kind, seed_type) UUID
     }
     class ModelManager {
         -lru: OrderedDict
@@ -49,7 +48,7 @@ classDiagram
     InferenceBackend <|.. RoboflowBackend
     TorchLocalBackend --> ModelManager : loads via
     ModelManager --> ModelBuilder : builds module
-    AnalysisService --> TrafficRouter : selects model
+    AnalysisService --> ModelResolver : selects model
     AnalysisService --> ScanBatchRepository : persists state
     TorchLocalBackend ..> Detection : returns
     TorchLocalBackend ..> Classification : returns

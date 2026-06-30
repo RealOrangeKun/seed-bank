@@ -2,8 +2,9 @@
 # End-to-end smoke test for a running seed-bank stack.
 #
 # Verifies the *running* compose stack — not unit/integration tests
-# (which use testcontainers and don't catch issues like "psycopg2 missing
-# in the mlflow image" or "worker-cpu OOMs because concurrency is wrong").
+# (which use testcontainers and don't catch issues like "torch missing
+# from the worker-inference image" or "worker-cpu OOMs because concurrency
+# is wrong").
 #
 # Exit status is the gate. Logs are noisy on purpose so a failing run
 # tells the operator exactly which step broke.
@@ -60,8 +61,8 @@ LOGIN_RESP=$(curl -fsS -X POST "${BASE}/api/v1/auth/login" \
 TOKEN=$(printf "%s" "$LOGIN_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['access_token'])")
 [ -n "$TOKEN" ] || fail "login returned empty access_token"
 
-# 3. Submit analyze. We don't pin a seed_type — the demo registry has
-#    matching traffic splits seeded by ``make seed`` for at least one type.
+# 3. Submit analyze. We don't pin a seed_type — model selection falls back to
+#    the global production detector (provisioned by ``make provision-smoke-model``).
 log "submitting ${IMAGE} to /api/v1/analyze"
 ANALYZE_RESP=$(curl -fsS -X POST "${BASE}/api/v1/analyze" \
     -H "authorization: Bearer ${TOKEN}" \

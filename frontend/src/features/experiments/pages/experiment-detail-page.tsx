@@ -103,16 +103,6 @@ export function ExperimentDetailPage() {
                 value={formatDuration(experiment.data.duration_ms)}
               />
               <MetaRow label={t("experiments.metaResults")} value={experiment.data.result_count} />
-              {experiment.data.mlflow_run_id ? (
-                <MetaRow
-                  label={t("common.mlflowRun")}
-                  value={
-                    <span className="font-mono text-xs">
-                      {experiment.data.mlflow_run_id}
-                    </span>
-                  }
-                />
-              ) : null}
             </CardContent>
           </Card>
 

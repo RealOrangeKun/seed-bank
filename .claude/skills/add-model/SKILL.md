@@ -9,7 +9,7 @@ description: Register a new ML model (architecture + weights + metadata) in the 
 
 Add a new model variant to the platform as a self-contained change: a builder
 file, a script invocation, and a status promotion. The platform is layered so
-that the registry and traffic router pick up new models by data, not by code —
+that the registry and model resolver pick up new models by data, not by code —
 if you find yourself editing a service, a router, or `manager.py` to add a
 model, the change is in the wrong place; the design exists to prevent that.
 
@@ -27,8 +27,6 @@ model, the change is in the wrong place; the design exists to prevent that.
 - Whether it is a **detection** model (multi-class object detection) or a
   **classification** model (per-crop quality good/bad). This is the `kind`.
 - For classification: the seed type code (e.g. `coffee`, `maize`, `lentil`).
-- An MLflow run id if you tracked the training (optional, but it makes the
-  artifact reproducible later).
 
 ### 1. Add the architecture builder
 
@@ -82,7 +80,6 @@ python scripts/register_model.py upload \
     --version v1 \
     --threshold 0.5 \
     --image-size 224 \
-    --mlflow-run-id <optional> \
     --metadata '{"dataset":"lentil-2026-q1","val_f1":0.91}'
 ```
 
@@ -117,7 +114,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ### 4. Promote to production
 
-When offline metrics hold up (and any staging canary has run long enough):
+When offline metrics hold up (at least one successful experiment behind it):
 
 ```bash
 python scripts/register_model.py promote --model-id <id> --to production
@@ -129,27 +126,11 @@ Promotion is atomic and enforces the `model_artifacts` state machine
 1. Sets the new model's `status='production'`.
 2. Auto-archives the previously-active production model for the same
    `(kind, seed_type_id)` — there is at most one production model per segment,
-   so the traffic router never has to break a tie.
-3. Updates `traffic_splits` so the new model takes the segment (unless you set
-   up a canary first; see below).
-4. Mirrors the stage to the MLflow Model Registry.
+   so the model resolver never has to break a tie.
 
-### Optional — canary with a traffic split
-
-Send a small fraction first instead of cutting over to 100%:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/traffic-splits \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '[
-    {"kind": "classification", "seed_type": "lentil", "model_id": "<old-id>", "weight": 90},
-    {"kind": "classification", "seed_type": "lentil", "model_id": "<new-id>", "weight": 10}
-  ]'
-```
-
-Weights are 0–100 and the rows for a segment must sum to 100. Watch
-`fact_inference` in ClickHouse for both models, compare bad-rate / confidence /
-latency, then dial up to 50/50 and finally 0/100.
+The new model takes the segment immediately; the resolver routes to it on the
+next request (it also serves as the global fallback when promoted with
+`seed_type_id = NULL`).
 
 ## Conventions
 

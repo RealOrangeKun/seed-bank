@@ -107,7 +107,7 @@ A **full, phased overhaul** of both tiers. Scope locked with the owner:
 | **P0** | Catalog & foundations (seed-type + supplier endpoints) — unblocks the UX work | ✅ Done |
 | **P1** | Core UX: kill UUID inputs, redesign dark mode, fix visible bugs | ✅ Done |
 | **P2** | Feature parity & new flows: datasets, OAuth + password change, experiment results, audit log, model config | ⬜ Open (only model config/metadata backend landed) |
-| **P3** | Backend correctness & architecture hardening | 🟡 Mostly done (only the `traffic.py` layer violation remains) |
+| **P3** | Backend correctness & architecture hardening | ✅ Done (the last item — the `traffic.py` layer violation — was resolved by deleting that router entirely when the traffic-splits A/B feature was removed) |
 | **P4** | Accessibility & responsive polish | 🟡 ~50% done |
 
 P0 unblocks P1. Once P0/P1 are in, **P3 and P4 can proceed in parallel with P2**.
@@ -123,7 +123,7 @@ export/compare — **none of which are in this ADR's scope**. Net: **P0 and P1 a
 fully landed and intact, most of P3 landed, and P2 + P4 are the genuine remaining
 backlog** — they were leapfrogged by the v1.0.0 work.
 
-### P3 — backend hardening: mostly done
+### P3 — backend hardening: done
 
 | Item | Status | Evidence |
 |---|---|---|
@@ -132,7 +132,7 @@ backlog** — they were leapfrogged by the v1.0.0 work.
 | Pydantic `extra="forbid"` on `*In` schemas | ✅ Done | shared `STRICT_INPUT` in `schemas/common.py`, applied across dataset/experiment inputs. |
 | MinIO public endpoint | 🟡 Partial | `@field_validator` (rejects scheme/path/empty) + `minio_region` landed (`core/config.py`), but `minio_public_endpoint` still **defaults** to `localhost:9000`. |
 | Authorization filter on list endpoints | 🟡 By design | `batches`/`api-keys` filter by actor; `experiments`/`datasets`/`models` are role-gated (ai_dev+) but not actor-filtered — currently intentional (AI-developer artefacts, not user data). |
-| **Router imports ORM (layer violation)** | ❌ Open | `api/v1/traffic.py` still does `select(...)` + `session.execute` + model imports directly (lines 16, 23, 48–101). **The only remaining P3 item.** |
+| **Router imports ORM (layer violation)** | ✅ Done (by removal) | `api/v1/traffic.py` was the offender. The traffic-splits A/B feature was removed entirely (router, ORM model, schemas, and the `traffic_splits` table dropped in `0004_drop_traffic_mlflow`; `TrafficRouter` replaced by `services/model_resolver.py::ModelResolver`), so the violating router no longer exists. |
 
 ### P2 — feature parity: still open
 
@@ -413,5 +413,6 @@ canvas.
   aggregates. See `CLAUDE.md` for the full list.
 - Demo users (from `scripts/seed_dev.py`): `admin@seedbank.dev / AdminDemo123!`,
   `ai-dev@seedbank.dev / AiDevDemo123!`, `user@seedbank.dev / UserDemo123!`.
-- Switching the production model or running an A/B is a registry + `traffic_splits`
-  operation — **no code change** (see `docs/ml-platform.md`).
+- Switching the production model is a promotion via `PATCH /api/v1/models/{id}`
+  (the `ModelResolver` then resolves it) — **no code change**. There is no A/B /
+  `traffic_splits` mechanism anymore.

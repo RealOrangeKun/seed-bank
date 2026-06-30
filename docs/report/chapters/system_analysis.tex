@@ -36,9 +36,9 @@ the one in production. They also curate the datasets those experiments run
 against. Because they need to test a specific model on a real photo, they can
 override the routed model at analyze time, which an ordinary user cannot do.
 
-The \textbf{administrator} owns the operational levers. They configure weighted
-traffic splits to run A/B tests between model versions, manage users and their
-roles, and read the audit log. Administrators inherit everything the AI developer
+The \textbf{administrator} owns the operational levers. They promote models
+through their lifecycle, manage users and their roles, and read the audit log.
+Administrators inherit everything the AI developer
 can do and add the controls that change behaviour for everyone, so the system
 gates their actions tightly and records them.
 
@@ -64,7 +64,7 @@ system capabilities each stakeholder relies on.
 \midrule
 Farmer / end user & Check seed quality of a batch in the field and review past results & Web/mobile capture, \texttt{POST /analyze}, batch polling, share links, EN/AR UI \\
 AI developer & Improve and validate models offline; pick the right model & Model registry, datasets, experiments, per-request model override \\
-Administrator & Control which model serves traffic and manage access & Traffic splits, user/role management, audit log \\
+Administrator & Control which model serves traffic and manage access & Model promotion, user/role management, audit log \\
 Supplier (secondary) & Be attributable in quality results & Supplier catalog, \texttt{supplier\_id} on scans \\
 Faculty / evaluators (secondary) & Assess engineering quality against a production bar & Layered architecture, tests, observability \\
 \bottomrule
@@ -113,11 +113,11 @@ separate analytical store so these queries do not load the transactional databas
 AI developers and administrators operate the machine-learning platform through the
 API. They register model artifacts with their weights and metadata, list and fetch
 them, promote a model through its lifecycle, and read per-model performance
-records. Administrators define weighted traffic splits that route inference between
-model versions for A/B tests. Developers manage labelled datasets and their items,
-and create offline-evaluation experiments that run a model over a dataset and
-compute classification metrics. Switching the production model or starting an A/B
-test is a registry-and-traffic operation, not a code change.
+records. Promotion through the lifecycle determines which production model the
+resolver selects for a segment, with a global fallback. Developers manage
+labelled datasets and their items, and create offline-evaluation experiments
+that run a model over a dataset and compute classification metrics. Switching
+the production model is a promotion operation in the registry, not a code change.
 
 \subsection{Administration}
 
@@ -166,7 +166,7 @@ FR-16 & List reference seed types and suppliers; create/edit private suppliers &
 FR-17 & Register a model artifact; list/get models & AI developer \\
 FR-18 & Promote a model through its lifecycle; read per-model performance & AI developer \\
 FR-19 & Override the routed model at analyze time & AI developer \\
-FR-20 & Manage weighted traffic splits between model versions & Administrator \\
+FR-20 & Promote or demote a model through its lifecycle so the production model resolves for a segment & Administrator / AI developer \\
 FR-21 & Create and manage labelled datasets and their items & AI developer \\
 FR-22 & Create / list / get offline-evaluation experiments & AI developer \\
 FR-23 & List users and change a user's role & Administrator \\
@@ -297,8 +297,8 @@ performance, runs offline experiments, and overrides the routed model when
 submitting an analysis so they can test a specific model on a real image.
 
 The \textbf{administrator} extends the AI developer. Beyond the developer's cases,
-the administrator manages weighted traffic splits, manages users and their roles,
-and reads the audit log. These are the cases that change behaviour for other
+the administrator promotes models, manages users and their roles, and reads the
+audit log. These are the cases that change behaviour for other
 actors, which is why they sit at the top of the inheritance chain.
 
 The \textbf{public (unauthenticated) actor} has exactly one use case: opening a
@@ -311,16 +311,16 @@ the only path into the system that requires no account, and it is read-only.
 
 \textbf{Technical feasibility.} The whole stack runs from a single Docker Compose
 file \cite{merkel2014docker} on a laptop: the FastAPI backend, Celery workers,
-Postgres, Redis, MinIO, ClickHouse, and MLflow come up together with seeded demo
+Postgres, Redis, MinIO, and ClickHouse come up together with seeded demo
 data. A GPU is optional; the default inference runtime uses a CPU build of
 PyTorch, and the GPU runtime is a swap-in target rather than a hard dependency.
 Every major component is a mature open-source project with a large user base
-(FastAPI, Celery, PostgreSQL \cite{postgresinprod}, Redis, ClickHouse, MLflow
-\cite{mlflow2018}, React \cite{reactindepth}), so there is no bet on an unproven
+(FastAPI, Celery, PostgreSQL \cite{postgresinprod}, Redis, ClickHouse,
+React \cite{reactindepth}), so there is no bet on an unproven
 technology and the integration patterns are well documented. The two-tier ML
-design, where switching the production model is a registry-and-traffic operation
-rather than a code change, keeps the system maintainable as new crop types and
-models are added.
+design, where switching the production model is a promotion operation in the
+registry rather than a code change, keeps the system maintainable as new crop
+types and models are added.
 
 \textbf{Economic feasibility.} The cost case rests on open-source software and
 commodity hardware. There are no licensing fees for any component of the stack,

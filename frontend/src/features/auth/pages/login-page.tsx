@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n";
 import { applyApiError } from "@/lib/form";
+import { fetchOAuthProviders, oauthLoginUrl } from "@/features/auth/api";
 import { useAuth } from "@/features/auth/use-auth";
 
 import { AuthLayout } from "../components/auth-layout";
@@ -25,6 +27,17 @@ export function LoginPage() {
   const location = useLocation();
   const { t } = useI18n();
   const from = (location.state as { from?: Location } | null)?.from?.pathname ?? "/dashboard";
+
+  // Reference data: which OAuth providers the backend has configured. A button
+  // is rendered per provider, so a disabled provider simply never appears.
+  const { data: providers = [] } = useQuery({
+    queryKey: ["auth", "oauth-providers"],
+    queryFn: fetchOAuthProviders,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const providerLabel = (provider: string): string =>
+    provider === "google" ? t("auth.continueWithGoogle") : provider;
 
   const schema = useMemo(
     () =>
@@ -95,6 +108,34 @@ export function LoginPage() {
           {t("common.signIn")}
         </Button>
       </form>
+
+      {providers.length > 0 ? (
+        <div className="mt-4 space-y-3">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">
+                {t("auth.orContinueWith")}
+              </span>
+            </div>
+          </div>
+          {providers.map((provider) => (
+            <Button
+              key={provider}
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                window.location.href = oauthLoginUrl(provider);
+              }}
+            >
+              {providerLabel(provider)}
+            </Button>
+          ))}
+        </div>
+      ) : null}
     </AuthLayout>
   );
 }

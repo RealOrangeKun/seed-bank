@@ -260,16 +260,6 @@ export function ModelDetailPage() {
                   )
                 }
               />
-              <MetaRow
-                label={t("common.mlflowRun")}
-                value={
-                  model.data.mlflow_run_id ? (
-                    <span className="font-mono text-xs">{model.data.mlflow_run_id}</span>
-                  ) : (
-                    "—"
-                  )
-                }
-              />
               <MetaRow label={t("field.created")} value={formatDateTime(model.data.created_at)} />
               <MetaRow label={t("field.updated")} value={formatDateTime(model.data.updated_at)} />
               <MetaRow

@@ -1,6 +1,6 @@
 ---
 name: ml-platform
-description: Owns the model registry, plugin builders, inference backends, traffic router, experiment runner, and MLflow integration. Use when an AI engineer needs to register, promote, A/B-test, or evaluate a model, or when a diff touches infrastructure/ml/* or the model lifecycle.
+description: Owns the model registry, plugin builders, inference backends, model resolver, and experiment runner. Use when an AI engineer needs to register, promote, or evaluate a model, or when a diff touches infrastructure/ml/* or the model lifecycle.
 tools: Read, Glob, Grep, Edit, Write, Bash
 ---
 
@@ -22,18 +22,18 @@ Own and review:
 | `infrastructure/ml/manager.py` | Loads weights from MinIO, caches them, LRU-evicts past `max_models=4`, serializes same-model loads through a per-model `asyncio.Lock` |
 | `infrastructure/ml/pipeline/` | `detect.py` + `classify.py` — thin orchestrators that record `model_id`, `backend`, and `latency_ms` per call |
 | `services/model_registry_service.py` | CRUD + status transitions on `model_artifacts` |
-| `services/traffic_router.py` | Weighted, sticky-by-user routing for A/B |
+| `services/model_resolver.py` | Resolves the `production` model for a `(kind, seed_type_id)` segment, with a global seed-type-agnostic fallback |
 | `services/experiment_service.py` | Validates the model, writes the `experiments` row, dispatches the Celery task |
-| `workers/tasks/experiment.py` | The `seedbank.run_experiment` task: scores the dataset, writes `experiment_results`, renders a Markdown report to MinIO, records an MLflow run |
-| `infrastructure/mlflow/` | MLflow tracking + run sync |
+| `workers/tasks/experiment.py` | The `seedbank.run_experiment` task: scores the dataset, writes `experiment_results`, renders a Markdown report to MinIO |
 
 ## Hard rules
 
 These keep every result reproducible and every detection traceable (pillar 5).
 
 1. **Routing is data-driven.** No `if seed_type == "coffee":` anywhere — the
-   `traffic_splits` table and the registry decide which model serves a request.
-   A hardcoded branch is a model that can't be swapped without a deploy.
+   registry decides which model serves a request, by promoting it to
+   `production`. A hardcoded branch is a model that can't be swapped without a
+   deploy.
 2. **Builders are append-only by convention.** If the math changes, add a new
    key + version; never mutate a builder that shipped in production, or you
    silently rewrite history for results already attributed to that key.
@@ -45,18 +45,19 @@ These keep every result reproducible and every detection traceable (pillar 5).
    filesystem.
 5. **Every inference writes an `inferences` row** with `model_id` (NOT NULL),
    `backend`, and `latency_ms`, and each `SeedDetection` chains to it. That row
-   is the join key for A/B analysis — bypassing it breaks pillar-5 traceability.
+   is the join key for offline analysis — bypassing it breaks pillar-5
+   traceability.
 6. **The status machine is `registered → staging → production → archived`**, and
    promoting to production auto-archives the prior prod model for the same
    `(kind, seed_type_id)`. Don't hand-edit `status`; go through
    `model_registry_service` so the archive side-effect fires.
-7. **Traffic splits sum to 100** for a given `(kind, seed_type_id)`. The router
-   buckets a user by `sha256(user_id) % 100` (anonymous users hash a fixed
-   string), so each user is sticky across requests. Don't leave the table
-   summing to ≠100, even briefly.
+7. **At most one `production` model per `(kind, seed_type_id)` segment.** The
+   resolver picks that model, falling back to the global seed-type-agnostic
+   production model when a segment has none. Promotion's auto-archive keeps the
+   segment unambiguous, so the resolver never has to break a tie.
 8. **Reproducibility is recorded, not assumed.** The experiment runner ties the
-   `experiments` row to an MLflow run carrying dataset id, model id, and run
-   params. A metric without its sample size and provenance is a number, not a
+   `experiments` row to the dataset id, model id, and run params it scored
+   against. A metric without its sample size and provenance is a number, not a
    result — read both before promoting.
 
 ## Smoke fixture (CI/dev only)
@@ -64,8 +65,8 @@ These keep every result reproducible and every detection traceable (pillar 5).
 The analyze pipeline needs a *production* detection model to resolve a detector,
 and real weights don't ship in CI. `make provision-smoke-model` builds the
 seed-fixed `tiny-detector-smoke-v1`, registers it, and promotes it to **global
-production** (`seed_type_id = NULL`) so `TrafficRouter.select_model` always finds
-a detector. Idempotent, CI/dev only — never a real deployment, never a stand-in
+production** (`seed_type_id = NULL`) so `ModelResolver` always finds a detector
+via the global fallback. Idempotent, CI/dev only — never a real deployment, never a stand-in
 for a trained model in an experiment. Full detail and the FK-actor gotcha:
 `.claude/memory/known-issues.md#analyze-needs-a-promoted-detection-model`.
 
@@ -88,17 +89,17 @@ for a trained model in an experiment. Full detail and the FK-actor gotcha:
    `python scripts/run_experiment.py`) against a frozen dataset.
 4. Read `/api/v1/models/{id}/performance` (served from ClickHouse). If the
    metrics hold up, PATCH to `production` — the prior prod model for that
-   `(kind, seed_type)` archives automatically.
-5. Optionally add a `traffic_splits` canary row (e.g. 10% new / 90% current).
+   `(kind, seed_type)` archives automatically, and the resolver starts routing
+   to it.
 
-## When the user asks "how do I A/B test?"
+## When the user asks "how do I compare two models?"
 
-1. Insert two `traffic_splits` rows for the same `(kind, seed_type_id)` summing
-   to 100.
-2. The router's `sha256(user_id) % 100` bucketing keeps each user on one arm.
-3. After the agreed sample size, compare arms in ClickHouse (group by
-   `model_id`: count, avg confidence, avg latency, bad-rate).
-4. Promote the winner; archive the loser through the registry service.
+1. Run an offline experiment for each candidate against the same frozen dataset
+   (see the `run-experiment` skill).
+2. Compare their metrics in ClickHouse / `/models/{id}/performance` (count, avg
+   confidence, avg latency, bad-rate per `model_id`).
+3. Promote the winner to `production`; the prior prod model for the segment
+   archives automatically through the registry service.
 
 ## Output
 

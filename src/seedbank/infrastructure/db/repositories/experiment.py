@@ -105,7 +105,6 @@ class ExperimentRepository(Repository[Experiment]):
         set_finished_at: bool = False,
         duration_ms: int | None = None,
         summary_metrics: dict[str, object] | None = None,
-        mlflow_run_id: str | None = None,
     ) -> CasResult:
         """Atomic status flip. Returns a :class:`CasResult` whose ``won`` is
         true iff exactly one row was updated.
@@ -126,8 +125,6 @@ class ExperimentRepository(Repository[Experiment]):
             values["duration_ms"] = duration_ms
         if summary_metrics is not None:
             values["summary_metrics"] = summary_metrics
-        if mlflow_run_id is not None:
-            values["mlflow_run_id"] = mlflow_run_id
 
         stmt = (
             update(Experiment)
@@ -192,7 +189,7 @@ class ModelMetricRepository(Repository[ModelMetric]):
         the new values. Phase 8's ClickHouse mirror reads these directly,
         so consistency between the source rows and the latest experiment
         beats append-only history. An audit trail of past values lives in
-        ``experiment_results`` and on the MLflow run.
+        ``experiment_results``.
         """
         from sqlalchemy import delete
 

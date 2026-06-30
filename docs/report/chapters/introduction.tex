@@ -112,8 +112,9 @@ The objectives follow directly from the two problems above:
   \item Serve the same backend to three clients, a web app, a mobile app, and a
         programmatic API, so the product reaches both farmers and developers.
   \item Give the ML side real tooling: a model registry with a promotion
-        lifecycle, weighted A/B traffic splits, and offline evaluation of any
-        model against labelled datasets.
+        lifecycle, a production-model resolver that selects the promoted
+        production model for each segment, and offline evaluation of any model
+        against labelled datasets.
   \item Close the detection-data gap by generating annotated multi-seed training
         images from single-seed crops.
 \end{itemize}
@@ -127,8 +128,8 @@ a hard foreign-key chain from \texttt{seed\_detection} to \texttt{inference} to
 \texttt{model\_artifact}, which is what makes a result traceable. Around that
 pipeline sits a model registry that moves weights through a
 \texttt{registered} $\rightarrow$ \texttt{staging} $\rightarrow$ \texttt{production} $\rightarrow$ \texttt{archived}
-lifecycle, a traffic router that splits inference traffic across models for A/B
-tests with a sticky per-user bucket, and an experiment runner that scores models
+lifecycle, a model resolver that selects the promoted production model for each
+segment with a global fallback, and an experiment runner that scores models
 offline against ground-truth datasets. Three clients consume one API: a React web
 app, an Expo / React Native mobile app with a realtime camera, and the documented
 HTTP API itself.
@@ -152,8 +153,8 @@ configuration and random seed.
 \paragraph{In scope.} The platform grades two crops, coffee and maize, and is
 built so a third crop is added by registering a new detector class and a matching
 classifier rather than by rewriting the pipeline. It serves three clients (web,
-mobile, API), supports weighted A/B traffic splits with sticky per-user
-assignment, runs offline evaluation of any registered model against labelled
+mobile, API), resolves the promoted production model per segment with a global
+fallback, runs offline evaluation of any registered model against labelled
 datasets, and ships an observability stack covering structured logs, Prometheus
 metrics, OpenTelemetry traces, and Sentry error reporting. MultiSeedGen covers the
 full single-seed-to-multi-seed generation path with several segmentation backends
@@ -226,7 +227,8 @@ reported in the testing chapter.
 The stack is deliberately conventional where it can be, so that each choice is a
 well-understood tool with a known failure mode rather than a novelty. The backend
 is built on FastAPI with async SQLAlchemy~\cite{fastapi,sqlalchemyguide}; model
-experiments are tracked with MLflow~\cite{mlflow2018}; the web client is
+experiments persist their metrics to PostgreSQL alongside a Markdown report
+stored in MinIO, with no external tracking server; the web client is
 React~\cite{reactindepth} and the mobile client is Expo / React
 Native~\cite{reactnativeexpo}; and the whole system runs from a single Docker
 Compose file~\cite{merkel2014docker}. Table~\ref{tab:ch1-tools} groups the full
@@ -251,7 +253,7 @@ set by area.
     pydantic-settings, Alembic migrations. \\
   Async \& ML &
     Celery with a Redis broker, PyTorch and torchvision, Ultralytics YOLO,
-    Roboflow inference SDK, Pillow and OpenCV (headless), MLflow. \\
+    Roboflow inference SDK, Pillow and OpenCV (headless). \\
   Datastores &
     PostgreSQL 16 (OLTP), Redis 7 (cache, broker, rate-limit store), MinIO (object
     store), ClickHouse (analytics warehouse). \\
@@ -312,7 +314,7 @@ chapter.
 
 \textbf{Chapter 4, System Design}, describes the architecture: the layered backend,
 the data model and its traceability chain, the two-stage inference pipeline with
-its model registry and traffic router, the data warehouse, and the three clients.
+its model registry and model resolver, the data warehouse, and the three clients.
 
 \textbf{Chapter 5, Implementation}, covers how the design was actually built, the
 model builders and inference backends, the Celery orchestration of the

@@ -22,7 +22,7 @@ class at a time with the slow collaborators replaced by fakes: the database
 session, the object store, and the inference backends are all mocked or stubbed
 so a unit test never opens a socket. This tier covers the parts of the system
 that are pure logic and benefit most from quick feedback, including the
-traffic router's bucketing and fallback rules, the batch state-machine
+model resolver's production lookup and global-fallback rules, the batch state-machine
 transitions, the RFC~9457 error rendering \cite{rfc9457problem}, the Pydantic
 request and response schemas, and the JWT encode and decode paths
 \cite{rfc7519jwt}.
@@ -178,7 +178,7 @@ T-07 & Batch state & Two workers race to start the same pending batch. & A compa
 \addlinespace
 T-08 & Batch state & Detection succeeds but classification raises for an image. & Detection rows are kept and the batch degrades to \texttt{partial}, never \texttt{failed}. & Pass \\
 \addlinespace
-T-09 & Model routing & A user with an active A/B split submits repeated scans. & The sticky bucket sends the same user to the same model every time. & Pass \\
+T-09 & Model resolution & A scan with no seed type is submitted when only a global production model is promoted. & The resolver falls back to the global production model and the batch runs to \texttt{succeeded}. & Pass \\
 \addlinespace
 T-10 & Model routing & Analyze runs with no promoted detection model. & The batch ends \texttt{failed} with a human-readable message, not a blank error. & Pass \\
 \addlinespace

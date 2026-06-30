@@ -41,7 +41,6 @@ export const ar: Record<TranslationKey, string> = {
   "nav.models": "النماذج",
   "nav.datasets": "مجموعات البيانات",
   "nav.experiments": "التجارب",
-  "nav.traffic": "توزيع الحركة",
   "nav.users": "المستخدمون",
   "nav.apiKeys": "مفاتيح الواجهة البرمجية",
 
@@ -89,6 +88,11 @@ export const ar: Record<TranslationKey, string> = {
   "auth.passwordRequired": "كلمة المرور مطلوبة",
   "auth.passwordMin": "12 حرفًا على الأقل",
   "auth.passwordMax": "128 حرفًا كحد أقصى",
+  "auth.orContinueWith": "أو",
+  "auth.continueWithGoogle": "المتابعة باستخدام Google",
+  "auth.signingIn": "جارٍ تسجيل دخولك…",
+  "auth.oauthInProgress": "جارٍ إكمال تسجيل الدخول…",
+  "auth.oauthFailed": "فشل تسجيل الدخول. حاول مرة أخرى.",
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   "dashboard.welcome": "أهلًا بك",
@@ -386,7 +390,6 @@ export const ar: Record<TranslationKey, string> = {
   "common.run": "تشغيل",
   "common.update": "تحديث",
   "common.allStatuses": "كل الحالات",
-  "common.mlflowRun": "تشغيل MLflow",
 
   // ── Shared field / column labels ──────────────────────────────────────────
   "field.name": "الاسم",
@@ -487,37 +490,6 @@ export const ar: Record<TranslationKey, string> = {
   "models.colComputed": "وقت الحساب",
   "models.colCount": "العدد",
   "models.colAvgLatency": "متوسط زمن الاستجابة",
-
-  // ── Traffic splits ────────────────────────────────────────────────────────
-  "traffic.title": "تقسيم حركة المرور",
-  "traffic.description": "توجيه حركة الاستدلال عبر إصدارات النماذج لكل شريحة.",
-  "traffic.segment": "الشريحة",
-  "traffic.segmentDesc":
-    "اختر نوع النموذج ونوع بذور اختياريًا، ثم حمّل التقسيمات الحالية.",
-  "traffic.seedTypeHint": "اترك الافتراضي لتوجيه كل أنواع البذور",
-  "traffic.currentSplits": "التقسيمات الحالية",
-  "traffic.default": "افتراضي",
-  "traffic.noSplits": "لا توجد تقسيمات نشطة",
-  "traffic.noSplitsDesc": "لم تُضبط أي تقسيمات لحركة المرور لهذه الشريحة بعد.",
-  "traffic.colState": "الحالة",
-  "traffic.colValidFrom": "صالح من",
-  "traffic.colValidUntil": "صالح حتى",
-  "traffic.copyModelId": "نسخ معرّف النموذج",
-  "traffic.editSplit": "تعديل التقسيم",
-  "traffic.editSplitDesc":
-    "استبدل التقسيمات النشطة للشريحة المحمَّلة. يجب ألا يتجاوز مجموع الأوزان 100.",
-  "traffic.removeEntry": "إزالة المُدخل",
-  "traffic.addModel": "إضافة نموذج",
-  "traffic.totalWeight": "إجمالي الوزن: {total} / 100",
-  "traffic.saveSplit": "حفظ التقسيم",
-  "traffic.loadFirst": "حمّل شريحة أولًا.",
-  "traffic.updated": "تم تحديث تقسيم حركة المرور.",
-  "traffic.selectModel": "اختر نموذجًا",
-  "traffic.weightRequired": "الوزن مطلوب",
-  "traffic.wholeNumber": "عدد صحيح",
-  "traffic.range": "0–100",
-  "traffic.maxEntries": "16 مُدخلًا كحد أقصى",
-  "traffic.sumMax": "يجب ألا يتجاوز مجموع الأوزان 100",
 
   // ── Experiments ───────────────────────────────────────────────────────────
   "experiments.title": "التجارب",

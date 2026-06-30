@@ -16,8 +16,8 @@ goal was that a fresh checkout reaches a working stack in a handful of commands,
 without anyone installing Postgres, Redis, MinIO, ClickHouse, or a Python
 toolchain on the host. Compose profiles keep the default footprint small: the
 plain \texttt{make up} brings up only what the application needs to serve
-requests (the API, the two Celery workers, Postgres, Redis, MinIO, ClickHouse,
-and MLflow), and the heavier extras sit behind named profiles. The \texttt{dev}
+requests (the API, the two Celery workers, Postgres, Redis, MinIO, and
+ClickHouse), and the heavier extras sit behind named profiles. The \texttt{dev}
 profile adds Adminer and \texttt{ch-ui} for inspecting the two databases in a
 browser; the \texttt{obs} profile adds Prometheus and Grafana; the
 \texttt{frontend} profile adds the built React app served by nginx. A developer
@@ -119,7 +119,7 @@ group is routed to the matching model.
 Two implementation decisions in this pipeline are worth naming. First, detection
 and classification are recorded as separate \texttt{inferences} rows over the
 same image. That separation is what lets a detector and a classifier be
-versioned, swapped, and A/B-tested independently instead of being welded into one
+versioned and swapped independently instead of being welded into one
 opaque step. Second, the crops are never stored. The normalized bounding box is
 the source of truth, and the worker re-derives each crop by multiplying the box
 by the source image's pixel dimensions at classify time, so there is no second
@@ -187,25 +187,21 @@ shown, and only the quality labels are missing. Transient errors from MinIO or
 Redis are handled separately; they raise an \texttt{ExternalServiceError} that
 Celery auto-retries up to twice before the batch is failed.
 
-\subsection{A/B Traffic Routing}
+\subsection{Model Resolution}
 
-Which model serves a given request is decided by the traffic router, keyed on a
-segment of \texttt{(kind, seed\_type\_id)}. The router first reads the active
-rows from \texttt{traffic\_splits} for that segment, cached in Redis
-\cite{redisinaction} for sixty seconds to keep the hot path off Postgres. If
-splits exist, the request is assigned by a sticky bucket: \texttt{hash(user\_id)
-\% 100} is compared against the cumulative weights, so the same user always lands
-on the same model and the split stays stable for them across requests while
-traffic spreads uniformly over the user base. If no split is configured, the
-router falls back to the \texttt{production} model for that seed type, then to the
-global seed-type-agnostic production model. That fallback chain is what makes
-per-type promotion optional: a deployment can promote a single global model and
-every scan routes to it, including the mobile point-and-shoot flow, which sends
-no seed type at all. If nothing is routable, the router raises
-\texttt{ModelNotReadyError}, which becomes the clear failure described above
-rather than a blank error. A developer or admin can also override the model with
-an explicit \texttt{model\_id} at analyze time, provided it is in
-\texttt{staging} or \texttt{production} and matches the requested kind.
+Which model serves a given request is decided by the \texttt{ModelResolver},
+keyed on a segment of \texttt{(kind, seed\_type\_id)}. It resolves the
+\texttt{production} model promoted for that segment; if none exists and a seed
+type was supplied, it falls back to the global, seed-type-agnostic
+\texttt{production} model for that kind. That fallback chain makes per-type
+promotion optional: a deployment can promote a single global model and every
+scan routes to it, including the mobile point-and-shoot flow, which sends no
+seed type at all. If nothing is routable the resolver raises
+\texttt{ModelNotReadyError}, surfaced to the clients as a clear failure rather
+than a blank error. Resolution is deterministic and stateless. A developer or
+admin can override the model with an explicit \texttt{model\_id} at analyze
+time, provided it is in \texttt{staging} or \texttt{production} and matches the
+requested kind.
 
 \subsection{Authentication: Token Rotation and Replay Detection}
 

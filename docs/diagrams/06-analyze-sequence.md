@@ -51,7 +51,7 @@ sequenceDiagram
     participant SS as worker_session_scope
     participant SBR as ScanBatchRepository
     participant SIR as ScanImageRepository
-    participant TR as TrafficRouter
+    participant TR as ModelResolver
     participant ML as DetectPipeline /<br/>ClassifyPipeline
     participant Min as MinIO
     participant INF as InferenceRepository
@@ -66,7 +66,7 @@ sequenceDiagram
     W->>SIR: get(image_id) → ScanImage(width, height, key)
     W->>Min: get_object(key) → bytes
 
-    W->>TR: select_model(kind=DETECTION, seed_type_id, user_id)
+    W->>TR: resolve_model(kind=DETECTION, seed_type_id)<br/>resolve production model (ModelResolver)
     alt model_id_override given
         W->>TR: resolve override + verify scope (status ∈ {staging, production})
     end
@@ -77,7 +77,7 @@ sequenceDiagram
     W->>SDR: add_many(rows with normalized bbox + confidence)
     W->>SS: commit ← detect persisted
 
-    W->>TR: select_model(kind=CLASSIFICATION, seed_type_id, user_id)
+    W->>TR: resolve_model(kind=CLASSIFICATION, seed_type_id)
     alt no classifier registered
         note over W: log analyze.classify_skipped<br/>quality stays NULL
     else classifier present

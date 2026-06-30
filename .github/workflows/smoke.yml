@@ -1,7 +1,8 @@
 # End-to-end smoke against a real compose stack.
 # This is the gate that testcontainers can't catch (image-level issues:
-# missing psycopg2 in mlflow, worker concurrency/OOM, the analyze pipeline
-# actually running). Heavy (builds the CPU-torch inference worker), so it
+# torch missing from the inference worker image, worker concurrency/OOM,
+# the analyze pipeline actually running). Heavy (builds the CPU-torch
+# inference worker), so it
 # runs on master and on demand — not on every PR.
 name: smoke
 

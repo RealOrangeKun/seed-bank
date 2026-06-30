@@ -109,6 +109,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/oauth/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oauth Providers
+         * @description List the OAuth providers that are configured (have credentials).
+         *
+         *     The SPA renders one sign-in button per returned provider, so a provider
+         *     without credentials (e.g. GitHub when only Google is set) simply never
+         *     appears — disabling it is a matter of leaving its credentials unset.
+         */
+        get: operations["oauth_providers_api_v1_auth_oauth_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/oauth/{provider}/login": {
         parameters: {
             query?: never;
@@ -133,7 +157,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Oauth Callback */
+        /**
+         * Oauth Callback
+         * @description Complete the OAuth round-trip and bounce the browser back to the SPA.
+         *
+         *     The provider redirects the *browser* here, so we answer with a 302 to the
+         *     frontend callback route rather than a JSON body. Tokens ride in the URL
+         *     **fragment** (never sent to a server, scrubbed by the SPA once read) — the
+         *     same memory-access / localStorage-refresh model the password login uses. A
+         *     failed exchange bounces to the same route with ``?error`` so the SPA shows a
+         *     toast instead of a raw problem document.
+         */
         get: operations["oauth_callback_api_v1_auth_oauth__provider__callback_get"];
         put?: never;
         post?: never;
@@ -290,27 +324,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/traffic-splits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Splits */
-        get: operations["list_splits_api_v1_traffic_splits_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Replace Splits
-         * @description Atomically replace the traffic splits for one segment.
-         */
-        patch: operations["replace_splits_api_v1_traffic_splits_patch"];
         trace?: never;
     };
     "/api/v1/analyze": {
@@ -1296,10 +1309,10 @@ export interface components {
             /** Data */
             data: components["schemas"]["SupplierOut"][];
         };
-        /** Envelope[list[TrafficSplitOut]] */
-        Envelope_list_TrafficSplitOut__: {
+        /** Envelope[list[str]] */
+        Envelope_list_str__: {
             /** Data */
-            data: components["schemas"]["TrafficSplitOut"][];
+            data: string[];
         };
         /**
          * ExperimentCreateIn
@@ -1355,8 +1368,6 @@ export interface components {
             summary_metrics?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1408,8 +1419,6 @@ export interface components {
             summary_metrics?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1555,8 +1564,6 @@ export interface components {
             training_metadata?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
             status: components["schemas"]["ModelStatus"];
             /** Created By */
             created_by?: string | null;
@@ -1609,8 +1616,6 @@ export interface components {
             training_metadata?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
         };
         /**
          * ModelStatus
@@ -1946,59 +1951,6 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
-        /** TrafficSplitEntryIn */
-        TrafficSplitEntryIn: {
-            /**
-             * Model Id
-             * Format: uuid
-             */
-            model_id: string;
-            /** Weight */
-            weight: number;
-            /** Valid From */
-            valid_from?: string | null;
-            /** Valid Until */
-            valid_until?: string | null;
-        };
-        /** TrafficSplitOut */
-        TrafficSplitOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            kind: components["schemas"]["ModelKind"];
-            /** Seed Type Id */
-            seed_type_id?: string | null;
-            /**
-             * Model Id
-             * Format: uuid
-             */
-            model_id: string;
-            /** Weight */
-            weight: number;
-            /** Is Active */
-            is_active: boolean;
-            /** Valid From */
-            valid_from?: string | null;
-            /** Valid Until */
-            valid_until?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
-        /**
-         * TrafficSplitReplaceIn
-         * @description Atomic replacement of all active splits for ``(kind, seed_type_id)``.
-         */
-        TrafficSplitReplaceIn: {
-            kind: components["schemas"]["ModelKind"];
-            /** Seed Type Id */
-            seed_type_id?: string | null;
-            /** Entries */
-            entries: components["schemas"]["TrafficSplitEntryIn"][];
-        };
         /** UserListOut */
         UserListOut: {
             /**
@@ -2244,6 +2196,26 @@ export interface operations {
             };
         };
     };
+    oauth_providers_api_v1_auth_oauth_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_str__"];
+                };
+            };
+        };
+    };
     oauth_login_api_v1_auth_oauth__provider__login_get: {
         parameters: {
             query?: never;
@@ -2292,7 +2264,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_TokenPair_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2681,77 +2653,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ModelPerformanceOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_splits_api_v1_traffic_splits_get: {
-        parameters: {
-            query?: {
-                kind?: components["schemas"]["ModelKind"] | null;
-                seed_type_id?: string | null;
-            };
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_list_TrafficSplitOut__"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    replace_splits_api_v1_traffic_splits_patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrafficSplitReplaceIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_list_TrafficSplitOut__"];
                 };
             };
             /** @description Validation Error */

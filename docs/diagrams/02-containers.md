@@ -24,7 +24,6 @@ flowchart TB
     end
 
     subgraph Tooling["ML / ops tooling"]
-        ML[mlflow:v2.18<br/>:5000<br/>backend=postgres, artifacts=minio]
         ADM["adminer<br/>(profile: dev)"]
     end
 
@@ -35,7 +34,6 @@ flowchart TB
     API --> MIN
     API --> CH
     API -. "send_task" .-> RD
-    API --> ML
 
     WCPU --> PG
     WCPU --> RD
@@ -44,9 +42,6 @@ flowchart TB
     WGPU --> PG
     WGPU --> RD
     WGPU --> MIN
-
-    ML --> PG
-    ML --> MIN
 
     ADM -.-> PG
 ```
@@ -62,7 +57,6 @@ flowchart TB
 | `redis` | `redis:7-alpine` | Three logical DBs: 0 (cache), 1 (Celery broker), 2 (Celery result backend). 256M LRU cap. | `redis-cli ping` |
 | `minio` | `minio:RELEASE.2024-11-07` | Object store. Buckets are seeded by `make seed`. | `/minio/health/live` |
 | `clickhouse` | `clickhouse-server:24.10-alpine` | OLAP. Today: served by `GET /api/v1/models/{id}/performance`. Tomorrow: experiment fact rows + per-detection telemetry. | `/ping` |
-| `mlflow` | `ghcr.io/mlflow/mlflow:v2.18.0` | Tracking server. Backend = postgres `mlflow` DB; artifacts = MinIO `seedbank-experiments`. | `/health` |
 | `adminer` | `adminer:4.8.1` | DB UI for dev. **`dev` profile only.** | none |
 
 ## Network and ports

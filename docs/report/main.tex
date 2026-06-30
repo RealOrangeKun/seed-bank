@@ -239,7 +239,7 @@ seeds; an object detector locates every seed, a per-crop classifier grades each
 one as good or bad, and the system reports the seed count, the good-rate, and a
 breakdown by crop. The two crops supported today are coffee and maize. The
 backend is an asynchronous service with a layered architecture, a model registry,
-weighted A/B traffic splits, offline model evaluation, and a foreign-key chain
+offline model evaluation, and a foreign-key chain
 that traces every seed label back to the exact model version that produced it.
 One backend serves three clients: a web app, a bilingual mobile app with a
 realtime camera, and a documented HTTP API. Training the detector exposed a data
@@ -264,8 +264,8 @@ makes its detector trainable.
 المستخدم صورةً لدُفعة من البذور، فيحدّد نموذجٌ للكشف عن الأجسام موضع كلّ بذرة، ثمّ
 يصنّف نموذجٌ خاصّ بكلّ محصول كلَّ بذرة إلى سليمة أو تالفة، ويعرض النظام عدد البذور
 ونسبة السليم وتوزيعاً بحسب نوع المحصول. والمحصولان المدعومان حاليّاً هما البُنّ
-والذُّرة. بُني النظام الخلفيّ بمعماريّة طبقيّة غير متزامنة، مع سجلّ للنماذج، وتقسيم
-مروريّ لاختبارات A/B، وتقييم للنماذج دون اتصال، وسلسلة مفاتيح خارجيّة تتيح تتبّع
+والذُّرة. بُني النظام الخلفيّ بمعماريّة طبقيّة غير متزامنة، مع سجلّ للنماذج،
+وتقييم للنماذج دون اتصال، وسلسلة مفاتيح خارجيّة تتيح تتبّع
 كلّ نتيجة إلى إصدار النموذج الذي أنتجها. وتخدم هذه الواجهة الخلفيّة ثلاثة تطبيقات:
 تطبيق ويب، وتطبيق جوّال ثنائيّ اللغة بكاميرا فوريّة، وواجهة برمجيّة موثّقة. وقد
 كشف تدريبُ نموذج الكشف عن مشكلة في البيانات، لأنّ معظم مجموعات البيانات المتاحة

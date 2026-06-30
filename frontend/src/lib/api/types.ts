@@ -41,7 +41,6 @@ export type DatasetOut = S["DatasetOut"];
 export type DatasetItemOut = S["DatasetItemOut"];
 export type ExperimentSummaryOut = S["ExperimentSummaryOut"];
 export type ExperimentDetailOut = S["ExperimentDetailOut"];
-export type TrafficSplitOut = S["TrafficSplitOut"];
 
 // ── Catalog (reference data) ──────────────────────────────────────────────────
 export type SeedTypeOut = S["SeedTypeOut"];

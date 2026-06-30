@@ -132,8 +132,8 @@ flowchart TD
 | Role | Reads | Writes |
 |---|---|---|
 | `end_user` | own batches only | submit `POST /analyze`, manage own profile + own API keys |
-| `ai_developer` | any batch (read), any model, traffic splits, experiments | register / promote models, run experiments, **per-request `model_id` override on `/analyze`** |
-| `admin` | everything | everything (including user role changes, traffic, supplier creation) |
+| `ai_developer` | any batch (read), any model, experiments | register / promote models, run experiments, **per-request `model_id` override on `/analyze`** |
+| `admin` | everything | everything (including user role changes, supplier creation) |
 
 The `model_id` override is the single most-tested authz boundary — see
 `tests/unit/test_analysis_service.py::TestModelIdOverrideAuthz`.

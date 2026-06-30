@@ -49,7 +49,7 @@ result can be traced back to the exact model version that produced it.
 At the outermost zoom level the platform is a single boundary that three kinds of
 actor talk to over HTTPS and JSON. End users (farmers) upload seed images and poll
 for results. AI developers register and promote models and run offline
-experiments. Administrators manage users, suppliers, and traffic splits. All three
+experiments. Administrators manage users, suppliers, and model promotion. All three
 hit the same HTTP surface; what differs is the role each one carries and the
 operations that role is allowed to perform. Outside the boundary sit two OAuth
 identity providers (Google and GitHub), an optional hosted Roboflow inference
@@ -73,8 +73,9 @@ dependencies (\texttt{torch}, \texttt{torchvision}, around 1.6\,GB) load only in
 the inference worker and never weigh down a routine warehouse write. Four stateful
 services back the application: PostgreSQL for the OLTP database, Redis for cache,
 Celery broker, and rate-limit store, MinIO for object storage (images, weights,
-datasets, experiment reports), and ClickHouse for the analytics warehouse. MLflow
-tracks experiments. Every host port is bound to \texttt{127.0.0.1}, so nothing is
+datasets, experiment reports), and ClickHouse for the analytics warehouse. Experiment
+metrics persist to PostgreSQL and a Markdown report in MinIO. Every host port is bound
+to \texttt{127.0.0.1}, so nothing is
 exposed to the local network by default. \autoref{fig:containers} shows the stack.
 
 \figslot{02-containers.pdf}{Container view of the Compose stack: application processes, stateful services, and ML tooling.}{fig:containers}
@@ -89,8 +90,8 @@ versioned router under \texttt{api/v1/}, and is wired to its service through
 and supplies the database session and repositories. Each router maps to one
 service: \texttt{auth.py} to \texttt{AuthService}, \texttt{analyze.py} to
 \texttt{AnalysisService}, \texttt{batches.py} to \texttt{BatchService},
-\texttt{models.py} and \texttt{traffic.py} to \texttt{ModelRegistryService} and
-\texttt{TrafficRouter}, and so on. Services reach the database only through
+\texttt{models.py} to \texttt{ModelRegistryService} (with model selection handled
+by \texttt{ModelResolver}), and so on. Services reach the database only through
 repositories such as \texttt{UserRepository}, \texttt{ScanBatchRepository}, and
 \texttt{SeedDetectionRepository}, and reach the outside world through
 infrastructure adapters for storage, cache, OAuth, ML, and analytics. The ORM, a
@@ -134,7 +135,7 @@ it was created on, and every \texttt{asyncio.run} creates a new loop, so reusing
 the API's process-wide engine would fail with a future attached to a different
 loop. Within one task the worker runs a fixed sequence: compare-and-set the batch
 from pending to running, fetch the image bytes from MinIO, resolve the detection
-model through the traffic router, detect, persist the inference and its detections,
+model through the model resolver, detect, persist the inference and its detections,
 commit, resolve a classifier, crop and classify each detection, update the quality
 column, commit again, then finalise the batch. \autoref{fig:worker-components}
 shows these components.
@@ -182,8 +183,10 @@ loads of the same \texttt{model\_id} are serialised through a per-id
 used model is evicted to bound memory, and a model is hot-reloaded when its
 \texttt{model\_artifacts.updated\_at} advances.
 
-These pieces are coordinated by two services. \texttt{TrafficRouter} answers the
-question of which model should run for a given segment, and \texttt{AnalysisService}
+These pieces are coordinated by two services. \texttt{ModelResolver} answers the
+question of which model should run for a given segment, resolving the
+\texttt{production} model promoted for that segment deterministically and with no
+weighting, and \texttt{AnalysisService}
 drives the request: it persists the batch and its images through
 \texttt{ScanBatchRepository} and \texttt{ScanImageRepository}, which expose intents
 like \texttt{cas\_status} for the concurrency-safe state transitions. The same
@@ -227,9 +230,12 @@ has a detection inference, it compare-and-sets the batch to \texttt{succeeded},
 \texttt{GET /batches/\{id\}} roughly every two seconds until the batch reaches a
 terminal status, at which point a single eager-loaded query returns the batch with
 its images, inferences, and detections. \autoref{fig:analyze-seq} shows the
-submission, worker, and polling phases.
+submission, worker, and polling phases, and \autoref{fig:analyze-activity} traces the
+same pipeline as an activity across the client, API, and worker.
 
 \figslot{06-analyze-sequence.pdf}{Analyze request sequence: submission and dispatch, per-image worker consumption, and client polling.}{fig:analyze-seq}
+
+\figslot{15-analyze-activity.pdf}{Analyze pipeline activity across client, API, and worker: validate, store, dispatch, detect, classify, and the batch state transitions.}{fig:analyze-activity}
 
 Crash safety follows from this ordering. A transient MinIO or Redis fault raises
 \texttt{ExternalServiceError}, which Celery auto-retries up to twice; validation and
@@ -269,7 +275,7 @@ authenticated identity with the role and scopes attached to the key.
 
 \section{Database Entity-Relationship Diagram}
 
-The OLTP store is a PostgreSQL schema of eighteen tables, managed with Alembic
+The OLTP store is a PostgreSQL schema of seventeen tables, managed with Alembic
 \cite{postgresinprod}. Every primary key is a UUIDv7 generated in application code,
 which keeps keys time-ordered and therefore index-friendly while staying globally
 unique. The tables fall into four groups.
@@ -294,10 +300,9 @@ latency, and any error. Each detected seed becomes a \texttt{seed\_detections} r
 with its normalized bounding box, confidence, and quality, linked back to its
 inference. The data fans out as one image to N detections to N quality labels.
 
-The ML-platform group has seven tables: \texttt{model\_artifacts} (registered
+The ML-platform group has six tables: \texttt{model\_artifacts} (registered
 weights plus metadata and lifecycle status), \texttt{model\_metrics} (per-model
-performance records), \texttt{traffic\_splits} (weighted A/B routing with a temporal
-validity window), \texttt{datasets} and \texttt{dataset\_items} (offline-evaluation
+performance records), \texttt{datasets} and \texttt{dataset\_items} (offline-evaluation
 ground truth), and \texttt{experiments} and \texttt{experiment\_results}
 (offline-evaluation runs and their computed metrics). \autoref{fig:erd} shows the
 full schema, and Table~\ref{tab:ch4-invariants} lists the invariants the design
@@ -319,7 +324,7 @@ Traceability chain (FK) & Every \texttt{seed\_detections} row points to one \tex
 \texttt{uq\_scan\_images\_batch\_storage\_key} & Re-uploading the same bytes in the same batch fails fast, because the storage key embeds the SHA-256. \\
 Normalized bounding boxes & Box columns are \texttt{NUMERIC(7,6)} in the range $[0,1]$; pixel coordinates are derived at render time, never stored. \\
 Decimal confidences & \texttt{confidence} is \texttt{NUMERIC(5,4)}, so arithmetic over the audit trail does not lose precision to float drift. \\
-Append-only audit log & \texttt{audit\_log} is never updated or soft-deleted; the temporal validity window on \texttt{traffic\_splits} makes promotions inserts, not destructive updates. \\
+Append-only audit log & \texttt{audit\_log} is never updated or soft-deleted; a promotion records a status transition on \texttt{model\_artifacts} rather than a destructive rewrite of history. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -337,7 +342,7 @@ precision reason.
 
 The ML platform turns a trained \texttt{.pth} file into production traffic and lets
 developers experiment against production without disturbing it. It is organised
-around three ideas: a registry with a lifecycle, a router that selects a model per
+around three ideas: a registry with a lifecycle, a resolver that selects a model per
 request, and a manager that loads and caches weights.
 
 \subsection{Registry and lifecycle}
@@ -352,37 +357,42 @@ threshold), an optional seed type, and a lifecycle status. The status moves thro
 $\rightarrow$ \texttt{archived} by an explicit API action, and a model can also be
 archived directly from \texttt{registered} or \texttt{staging} when a promotion is
 abandoned. Only \texttt{staging} and \texttt{production} models are eligible to
-serve requests, which is the same condition a developer override must satisfy. This
-registry plays the role that MLflow plays for tracking, but for serving: MLflow
-records the offline experiment runs, while the registry governs what actually runs
-in production \cite{mlflow2018}.
+serve requests, which is the same condition a developer override must satisfy. The
+registry governs what actually runs in production, while the metrics from an offline
+experiment run live in PostgreSQL (the run's \texttt{summary\_metrics}, the per-item
+\texttt{experiment\_results}, and the per-model \texttt{model\_metrics} rows) together
+with a Markdown report uploaded to MinIO, surfaced through
+\texttt{GET /models/\{id\}/performance}. This division of labour, a tracking store for
+experiment history and a serving registry for production, mirrors the role a tracking
+tool such as MLflow plays for the former \cite{mlflow2018}.
 
-\subsection{Traffic router}
+\subsection{Model resolution}
 
-Given a segment \texttt{(kind, seed\_type\_id)}, the router decides which model
-runs. It first reads the active \texttt{traffic\_splits} rows for the segment, cached
-in Redis for sixty seconds \cite{redisinaction}. If splits exist it routes by a
-sticky bucket, \texttt{hash(user\_id) \% 100}, against the cumulative weights, so the
-same user always lands on the same model. That stickiness is what makes an A/B test
-stable: a user does not flip between models on consecutive scans, yet traffic is
-spread uniformly across the user base. If no splits are configured the router falls
-back to the production model for that seed type, and then to the global,
-seed-type-agnostic production model. This fallback makes per-type promotion
-optional: a deployment can promote one global model and every scan routes to it,
-including the mobile point-and-shoot flow, which sends no seed type at all. If
-nothing is routable the router raises \texttt{ModelNotReadyError}, which becomes the
-clear failure message the clients show.
+Given a segment \texttt{(kind, seed\_type\_id)}, the \texttt{ModelResolver} decides
+which model runs. It resolves the \texttt{production} model promoted for that exact
+segment; if none is promoted and a seed type was supplied, it falls back to the
+global, seed-type-agnostic \texttt{production} model for that kind. This fallback
+makes per-type promotion optional: a deployment can promote a single global model and
+every scan routes to it, including the mobile point-and-shoot flow, which sends no
+seed type at all. If nothing is routable the resolver raises
+\texttt{ModelNotReadyError}, which becomes the clear failure message the clients show.
+Resolution is deterministic and stateless: there is no weighted routing and no
+per-user bucket. A developer or admin may override the choice with an explicit
+\texttt{model\_id} at analyze time, provided it is in \texttt{staging} or
+\texttt{production} and matches the requested kind (Figure~\ref{fig:model-resolution}).
 
-A developer or administrator can override the router with an explicit
+\figslot{16-model-resolution.pdf}{Model-resolution activity: the per-request override check, the per-segment production lookup, the global fallback, and the ModelNotReadyError path.}{fig:model-resolution}
+
+A developer or administrator can override the resolver with an explicit
 \texttt{model\_id} at analyze time. The override must name a \texttt{staging} or
 \texttt{production} model of the requested kind, and an end user attempting it is
 rejected with \texttt{ForbiddenError}. This override is the platform's escape hatch
 for trying one model on one image without touching production traffic, and the
 inference row still records the overridden \texttt{model\_id}, so the result remains
-traceable. \autoref{fig:ml-platform} shows the lifecycle, the router's decision
+traceable. \autoref{fig:ml-platform} shows the lifecycle, the resolver's decision
 tree, and the override path.
 
-\figslot{09-ml-platform.pdf}{Model lifecycle, weighted traffic splits, and the per-request developer override.}{fig:ml-platform}
+\figslot{09-ml-platform.pdf}{Model lifecycle, production-model resolution with a global fallback, and the per-request developer override.}{fig:ml-platform}
 
 \subsection{Model manager}
 
@@ -399,7 +409,7 @@ inserted after the last residual stage, then hybrid average-and-max pooling into
 single-logit head \cite{cbam2018}. There is one classifier per crop type, which is
 why detections are grouped by seed type before classification. Because a detector
 and a classifier are recorded as separate inference rows over the same image, each
-can be versioned, swapped, and A/B-tested independently.
+can be versioned and swapped independently.
 
 \section{MultiSeedGen Design}
 
@@ -538,7 +548,7 @@ form is a hash, so a database leak does not expose a usable key.
 Authorization is role-based across three roles. An \texttt{end\_user} can analyze
 and see only their own history; an \texttt{ai\_developer} adds model, dataset, and
 experiment access and the per-request model override; and an \texttt{admin} adds
-traffic splits and user management. Roles are checked at the API through a
+user management. Roles are checked at the API through a
 \texttt{require\_role} dependency and again in the clients' routing, and the model
 override is the most heavily tested authorization boundary in the system because it
 is the one place a non-admin role gains a privileged capability. Each route also

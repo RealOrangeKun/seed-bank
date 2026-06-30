@@ -252,6 +252,28 @@
         }
       }
     },
+    "/api/v1/auth/oauth/providers": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Oauth Providers",
+        "description": "List the OAuth providers that are configured (have credentials).\n\nThe SPA renders one sign-in button per returned provider, so a provider\nwithout credentials (e.g. GitHub when only Google is set) simply never\nappears \u2014 disabling it is a matter of leaving its credentials unset.",
+        "operationId": "oauth_providers_api_v1_auth_oauth_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_str__"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/oauth/{provider}/login": {
       "get": {
         "tags": [
@@ -298,6 +320,7 @@
           "auth"
         ],
         "summary": "Oauth Callback",
+        "description": "Complete the OAuth round-trip and bounce the browser back to the SPA.\n\nThe provider redirects the *browser* here, so we answer with a 302 to the\nfrontend callback route rather than a JSON body. Tokens ride in the URL\n**fragment** (never sent to a server, scrubbed by the SPA once read) \u2014 the\nsame memory-access / localStorage-refresh model the password login uses. A\nfailed exchange bounces to the same route with ``?error`` so the SPA shows a\ntoast instead of a raw problem document.",
         "operationId": "oauth_callback_api_v1_auth_oauth__provider__callback_get",
         "parameters": [
           {
@@ -315,9 +338,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_TokenPair_"
-                }
+                "schema": {}
               }
             }
           },
@@ -1228,178 +1249,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Envelope_ModelPerformanceOut_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/traffic-splits": {
-      "get": {
-        "tags": [
-          "traffic-splits"
-        ],
-        "summary": "List Splits",
-        "operationId": "list_splits_api_v1_traffic_splits_get",
-        "parameters": [
-          {
-            "name": "kind",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/ModelKind"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Kind"
-            }
-          },
-          {
-            "name": "seed_type_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Seed Type Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "X-API-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_list_TrafficSplitOut__"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "traffic-splits"
-        ],
-        "summary": "Replace Splits",
-        "description": "Atomically replace the traffic splits for one segment.",
-        "operationId": "replace_splits_api_v1_traffic_splits_patch",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "X-API-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrafficSplitReplaceIn"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_list_TrafficSplitOut__"
                 }
               }
             }
@@ -4958,11 +4807,11 @@
         ],
         "title": "Envelope[list[SupplierOut]]"
       },
-      "Envelope_list_TrafficSplitOut__": {
+      "Envelope_list_str__": {
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/TrafficSplitOut"
+              "type": "string"
             },
             "type": "array",
             "title": "Data"
@@ -4972,7 +4821,7 @@
         "required": [
           "data"
         ],
-        "title": "Envelope[list[TrafficSplitOut]]"
+        "title": "Envelope[list[str]]"
       },
       "ExperimentCreateIn": {
         "properties": {
@@ -5073,17 +4922,6 @@
               }
             ],
             "title": "Summary Metrics"
-          },
-          "mlflow_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mlflow Run Id"
           },
           "created_at": {
             "type": "string",
@@ -5200,17 +5038,6 @@
               }
             ],
             "title": "Summary Metrics"
-          },
-          "mlflow_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mlflow Run Id"
           },
           "created_at": {
             "type": "string",
@@ -5548,17 +5375,6 @@
             ],
             "title": "Training Metadata"
           },
-          "mlflow_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mlflow Run Id"
-          },
           "status": {
             "$ref": "#/components/schemas/ModelStatus"
           },
@@ -5713,18 +5529,6 @@
               }
             ],
             "title": "Training Metadata"
-          },
-          "mlflow_run_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 64
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mlflow Run Id"
           }
         },
         "additionalProperties": false,
@@ -6580,181 +6384,6 @@
           "expires_in"
         ],
         "title": "TokenPair"
-      },
-      "TrafficSplitEntryIn": {
-        "properties": {
-          "model_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Model Id"
-          },
-          "weight": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Weight"
-          },
-          "valid_from": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Valid From"
-          },
-          "valid_until": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Valid Until"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "model_id",
-          "weight"
-        ],
-        "title": "TrafficSplitEntryIn"
-      },
-      "TrafficSplitOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/ModelKind"
-          },
-          "seed_type_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed Type Id"
-          },
-          "model_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Model Id"
-          },
-          "weight": {
-            "type": "integer",
-            "title": "Weight"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
-          "valid_from": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Valid From"
-          },
-          "valid_until": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Valid Until"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "kind",
-          "model_id",
-          "weight",
-          "is_active"
-        ],
-        "title": "TrafficSplitOut"
-      },
-      "TrafficSplitReplaceIn": {
-        "properties": {
-          "kind": {
-            "$ref": "#/components/schemas/ModelKind"
-          },
-          "seed_type_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed Type Id"
-          },
-          "entries": {
-            "items": {
-              "$ref": "#/components/schemas/TrafficSplitEntryIn"
-            },
-            "type": "array",
-            "maxItems": 16,
-            "title": "Entries"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "kind",
-          "entries"
-        ],
-        "title": "TrafficSplitReplaceIn",
-        "description": "Atomic replacement of all active splits for ``(kind, seed_type_id)``."
       },
       "UserListOut": {
         "properties": {

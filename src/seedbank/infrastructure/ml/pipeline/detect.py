@@ -1,6 +1,6 @@
 """DetectPipeline — service-facing entry point for object detection.
 
-Pipelines are deliberately thin: pick a model via the traffic router, ask
+Pipelines are deliberately thin: pick a model via the model resolver, ask
 the matching backend to detect, return the detections + the metadata
 (``model_id``, ``backend``, ``latency_ms``) the calling service needs to
 write the ``inferences`` row.

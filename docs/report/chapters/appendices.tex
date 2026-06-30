@@ -62,10 +62,6 @@ GET    & \texttt{/models/\{model\_id\}}         & Fetch metadata for a specific 
 PATCH  & \texttt{/models/\{model\_id\}}         & Advance lifecycle status (staging/production/archived). \\
 GET    & \texttt{/models/\{model\_id\}/performance} & Per-model offline metrics and ClickHouse analytics. \\
 \addlinespace
-\multicolumn{3}{@{}l}{\textbf{traffic}}\\
-GET    & \texttt{/traffic-splits}       & Admin: list active splits. \\
-PATCH  & \texttt{/traffic-splits}       & Admin: atomically replace splits for a segment. \\
-\addlinespace
 \multicolumn{3}{@{}l}{\textbf{analyze}}\\
 POST   & \texttt{/analyze}              & Multipart image upload that starts an inference batch. \\
 \addlinespace
@@ -122,8 +118,8 @@ not reprinted here.
 
 For grading and review, the mapping from requirement to implementation is direct.
 Each FR resolves to one router in Appendix~A: the analyze and batch requirements
-map to the \texttt{analyze} and \texttt{batches} routers, the model-management and
-A/B requirements map to the \texttt{models} and \texttt{traffic} routers, and the
+map to the \texttt{analyze} and \texttt{batches} routers, the model-management
+requirements map to the \texttt{models} router, and the
 identity requirements map to \texttt{auth}, \texttt{users}, and \texttt{api\_keys}.
 The data-traceability requirement maps to the four-table inference chain
 (\texttt{scan\_batches} $\rightarrow$ \texttt{scan\_images} $\rightarrow$ 

@@ -2,7 +2,7 @@
 
 A production-grade React SPA for the Seed-Bank API: upload seed images for
 detection + quality classification, review results with bounding-box overlays,
-and operate the ML platform (model registry, datasets, experiments, A/B traffic)
+and operate the ML platform (model registry, datasets, experiments)
 and admin (users) — all gated by role.
 
 > Replaces the archived vanilla-JS prototype in `legacy/frontend/` (not reused).
@@ -101,6 +101,6 @@ The image is a multi-stage build (Node build → nginx static serve).
 ## Known API gaps (surfaced in the UI)
 
 - No `seed-types` or `suppliers` listing endpoint exists, so those IDs are shown
-  as short UUIDs and entered as optional UUID fields (analyze, traffic).
+  as short UUIDs and entered as optional UUID fields (analyze).
 - Images are fetched via the presigned-URL endpoint added for this UI:
   `GET /api/v1/batches/{id}/image-urls`.

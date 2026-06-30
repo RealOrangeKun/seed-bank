@@ -28,7 +28,6 @@ choice, healthcheck, ports, volumes, env (via `Settings`), `depends_on`,
 | redis | `redis:7-alpine` | broker + cache + rate-limit store. |
 | minio | `minio/minio:RELEASE.2024-11-07T00-52-20Z` | dev creds via env; console on a separate port. |
 | clickhouse | `clickhouse/clickhouse-server:24.10-alpine` | single node, no ZooKeeper. |
-| mlflow | `seedbank/mlflow:0.1.0`, target `mlflow` | first-party image; backend store=Postgres, artifacts=MinIO. |
 | adminer | `adminer:4.8.1` | dev profile only. |
 
 ## Hard rules
@@ -82,8 +81,8 @@ Four workflows, each mirroring a make target so local and CI agree:
   gate is temporarily relaxed** (`pytest --cov-fail-under=0`); the real target
   (`fail_under = 80` in `pyproject.toml`) ratchets back as worker/ML/storage/
   OAuth holes fill. DWH dual-write tests are `xfail` pending #51.
-- **`build.yml`** (master) = the image-split guard above, plus builds of
-  `worker-inference` (`runtime-inference-cpu`) and `mlflow`.
+- **`build.yml`** (master) = the image-split guard above, plus a build of
+  `worker-inference` (`runtime-inference-cpu`).
 - **`smoke.yml`** (master + manual) = full compose e2e:
   `make env → up → migrate → seed → provision-smoke-model → smoke`, then
   `make down-volumes`. The provision step exists because real weights live in

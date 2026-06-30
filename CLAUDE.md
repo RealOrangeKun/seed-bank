@@ -11,7 +11,7 @@ in `docs/` and in the skills. Nested `CLAUDE.md` files under `frontend/` and
 
 Seed quality analysis platform: point a camera at a batch of seeds and get a
 good/bad breakdown, powered by an ML pipeline (detection + quality
-classification, model registry, A/B traffic splits, experiments). Four active
+classification, model registry, experiments). Four active
 surfaces — all in scope:
 
 | Surface | Path | What it is |
@@ -61,7 +61,7 @@ src/seedbank/
     middleware.py      # request_id + structured logging, CORS
     errors.py          # DomainError → RFC 9457 Problem Details
     rate_limit.py
-    v1/<feature>.py    # one router per feature, prefix /api/v1 (12 routers)
+    v1/<feature>.py    # one router per feature, prefix /api/v1 (11 routers)
   core/                # config, ids, exceptions, logging, metrics, security, sentry, tracing
   domain/              # framework-free entities & value objects
   services/            # <feature>_service.py — use cases owning the transaction
@@ -69,7 +69,6 @@ src/seedbank/
     db/                # session, models.py, repositories/
     storage/           # minio_client.py (miniopy-async)
     analytics/         # clickhouse_client.py
-    mlflow/            # MLflow client
     ml/                # registry, manager, builders/, backends/, pipeline/
   workers/             # celery_app.py, runtime.py, tasks/{analyze,dwh,experiment}.py
   schemas/             # Pydantic v2 DTOs (common.py: Envelope[T], Page[T])
@@ -83,7 +82,7 @@ frontend/  mobile/      # web + mobile clients (own CLAUDE.md each)
 models/                # only the .pth files — uploaded to MinIO at bootstrap
 ```
 
-The 12 v1 routers: `auth, users, api_keys, models, traffic, analyze, batches,
+The 11 v1 routers: `auth, users, api_keys, models, analyze, batches,
 analytics, shared, catalog, datasets, experiments`.
 
 ---

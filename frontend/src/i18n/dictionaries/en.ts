@@ -42,7 +42,6 @@ export const en = {
   "nav.models": "Models",
   "nav.datasets": "Datasets",
   "nav.experiments": "Experiments",
-  "nav.traffic": "Traffic splits",
   "nav.users": "Users",
   "nav.apiKeys": "API keys",
 
@@ -90,6 +89,11 @@ export const en = {
   "auth.passwordRequired": "Password is required",
   "auth.passwordMin": "At least 12 characters",
   "auth.passwordMax": "At most 128 characters",
+  "auth.orContinueWith": "or",
+  "auth.continueWithGoogle": "Continue with Google",
+  "auth.signingIn": "Signing you in…",
+  "auth.oauthInProgress": "Completing sign-in…",
+  "auth.oauthFailed": "Sign-in failed. Please try again.",
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   "dashboard.welcome": "Welcome",
@@ -388,7 +392,6 @@ export const en = {
   "common.run": "Run",
   "common.update": "Update",
   "common.allStatuses": "All statuses",
-  "common.mlflowRun": "MLflow run",
 
   // ── Shared field / column labels ──────────────────────────────────────────
   "field.name": "Name",
@@ -489,37 +492,6 @@ export const en = {
   "models.colComputed": "Computed",
   "models.colCount": "Count",
   "models.colAvgLatency": "Avg latency",
-
-  // ── Traffic splits ────────────────────────────────────────────────────────
-  "traffic.title": "Traffic splits",
-  "traffic.description": "Route inference traffic across model versions per segment.",
-  "traffic.segment": "Segment",
-  "traffic.segmentDesc":
-    "Choose the model kind and an optional seed type, then load its current splits.",
-  "traffic.seedTypeHint": "Leave as default to route all seed types",
-  "traffic.currentSplits": "Current splits",
-  "traffic.default": "default",
-  "traffic.noSplits": "No active splits",
-  "traffic.noSplitsDesc": "This segment has no traffic splits configured yet.",
-  "traffic.colState": "State",
-  "traffic.colValidFrom": "Valid from",
-  "traffic.colValidUntil": "Valid until",
-  "traffic.copyModelId": "Copy model id",
-  "traffic.editSplit": "Edit split",
-  "traffic.editSplitDesc":
-    "Replace the active splits for the loaded segment. Weights must sum to 100 or less.",
-  "traffic.removeEntry": "Remove entry",
-  "traffic.addModel": "Add model",
-  "traffic.totalWeight": "Total weight: {total} / 100",
-  "traffic.saveSplit": "Save split",
-  "traffic.loadFirst": "Load a segment first.",
-  "traffic.updated": "Traffic split updated.",
-  "traffic.selectModel": "Select a model",
-  "traffic.weightRequired": "Weight is required",
-  "traffic.wholeNumber": "Whole number",
-  "traffic.range": "0–100",
-  "traffic.maxEntries": "At most 16 entries",
-  "traffic.sumMax": "Weights must sum to 100 or less",
 
   // ── Experiments ───────────────────────────────────────────────────────────
   "experiments.title": "Experiments",
