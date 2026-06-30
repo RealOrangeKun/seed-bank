@@ -25,8 +25,17 @@ export const en = {
   // Tabs
   "tab.home": "Home",
   "tab.capture": "Check",
+  "tab.realtime": "Live",
   "tab.history": "History",
   "tab.settings": "Settings",
+
+  // Realtime (live video analysis)
+  "realtime.live": "Live · analyzing",
+  "realtime.idle": "Paused",
+  "realtime.start": "Start live",
+  "realtime.stop": "Stop",
+  "realtime.frames": "Frames",
+  "realtime.frameError": "A frame couldn't be analyzed. Still going…",
 
   // Home
   "home.greeting": "Welcome back",

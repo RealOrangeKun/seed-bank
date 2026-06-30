@@ -30,12 +30,53 @@ async function toUploadPart(photo: CapturedPhoto, index: number): Promise<Blob> 
 /**
  * Upload captured photos for analysis as `multipart/form-data` (field `files`).
  * The runtime sets the multipart boundary itself.
+ *
+ * ``source`` tags the scan's origin so history stays split per app: "mobile"
+ * shows up in the mobile history; "mobile_realtime" (live-video frames) is
+ * persisted but hidden from the history list server-side, so the realtime
+ * scanner never floods it with per-frame trash.
  */
-export async function analyzePhotos(photos: CapturedPhoto[]): Promise<BatchOut> {
+export async function analyzePhotos(
+  photos: CapturedPhoto[],
+  source: "mobile" | "mobile_realtime" = "mobile",
+): Promise<BatchOut> {
   const form = new FormData();
   const parts = await Promise.all(photos.map(toUploadPart));
   parts.forEach((part) => form.append("files", part));
+  form.append("source", source);
+  // Phones always run the fast YOLO one-shot pipeline — both the capture flow
+  // and the realtime scanner favour quick scanning over the slower two-stage
+  // Faster R-CNN accuracy. The backend resolves mode=fast → YOLO detector.
+  form.append("mode", "fast");
   return apiData<BatchOut>("/api/v1/analyze", { method: "POST", form });
+}
+
+/** Submit a single live frame for analysis (realtime mode, hidden from history). */
+export async function analyzeFrame(frame: CapturedPhoto): Promise<BatchOut> {
+  return analyzePhotos([frame], "mobile_realtime");
+}
+
+/**
+ * Poll a batch until it reaches a terminal status (or times out). Used by the
+ * realtime screen to await each frame's result before grabbing the next one.
+ * Aborting via `signal` throws an `AbortError` so the caller's loop can exit.
+ */
+export async function waitForBatch(
+  id: string,
+  opts: { intervalMs?: number; timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<BatchDetailOut> {
+  const { intervalMs = 700, timeoutMs = 20000, signal } = opts;
+  const start = Date.now();
+  for (;;) {
+    if (signal?.aborted) {
+      const err = new Error("aborted");
+      err.name = "AbortError";
+      throw err;
+    }
+    const batch = await getBatch(id);
+    if (isTerminal(batch.status) || Date.now() - start > timeoutMs) return batch;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 }
 
 export async function listBatches(page = 1, pageSize = 20): Promise<Page<BatchOut>> {
