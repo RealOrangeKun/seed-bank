@@ -20,7 +20,7 @@ from __future__ import annotations
 from seedbank.infrastructure.ml.quality_keywords import quality_from_label
 
 # YOLO class name → catalog ``seed_types.code`` for the 40 classes the
-# YOLOv11M/v8 seed detector was trained on (mirrors YOLO_CLASSES in
+# YOLOv8 seed detector was trained on (mirrors YOLO_CLASSES in
 # seed-bank-app/config.py). Quality is derived from the class name via
 # ``quality_from_label`` — not stored here — so the two never drift.
 _CODE_OF: dict[str, str] = {
