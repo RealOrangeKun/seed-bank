@@ -10,6 +10,13 @@ it is. In most of the supply chain that judgement is still made by a human grade
 who pours out a sample, spreads it on a tray, and sorts the seeds by hand into
 good and bad piles, counting as they go.
 
+Industrial optical sorting machines exist to automate that judgement, but they
+are not a general solution. They require a large capital outlay that puts them
+out of reach for smaller laboratories, independent researchers, and individual
+farmers. Once installed they demand continuous specialist maintenance to hold
+grading accuracy, and despite their scale they remain labour-intensive to
+operate and configure for new crop types.
+
 Manual inspection has two problems that are hard to fix by training people better.
 It is slow: a careful grader works through a few hundred seeds before fatigue sets
 in, which is a tiny sample of a multi-tonne lot. It is also subjective. Two graders
@@ -45,10 +52,9 @@ every seed in the photographed sample, and produces the same answer twice for th
 same image.
 
 This project, \textit{Seed Bank}, builds that automated grader as a working
-prototype rather than a notebook demo. It targets two crops, coffee and maize,
-which are visually distinct enough to exercise the two-crop routing in the pipeline.
-A user photographs a batch of seeds; the system locates each seed, scores its
-quality, and reports the aggregate good-rate, seed count, and a per-crop breakdown.
+prototype rather than a notebook demo. A user photographs a batch of seeds; the system
+locates each seed, scores its quality, and reports the aggregate good-rate, seed count,
+and a per-crop breakdown.
 
 \section{Problem Definition}
 
@@ -56,60 +62,62 @@ Two linked problems sit at the centre of this project. The first is the shape of
 the machine-learning task itself. The second is a data problem that the first one
 exposes, and it is the harder of the two.
 
-\subsection{Reading a tray photo takes two steps, not one}
+\subsection{Morphological and Environmental Variability in Seeds}
 
-A photo of a tray holds many seeds at once, so the computer cannot judge the whole
-picture in a single look. The work splits into two steps that run one after the
-other.
-
-The first step is to find the seeds: look at the whole photo, mark where each seed
-is, and note which crop it belongs to, coffee or maize, since one tray can hold
-both. This turns a single photo into a set of located seeds.
-
-The second step is to grade them: take each seed the first step found, look at it on
-its own, and decide whether it is good or bad. Coffee seeds are graded by the part
-of the system trained on coffee and maize seeds by the part trained on maize,
-because the two crops look nothing alike. One photo therefore becomes many seeds,
-and many seeds become many good-or-bad verdicts that add up to the final report.
-
-The two steps are kept separate on purpose. Finding seeds and grading seeds are
-different jobs that learn from different examples, so keeping them apart lets either
-one be improved or replaced without disturbing the other. It also means they need
-different training data, which is where the second problem appears.
+Evaluating seed quality is difficult partly because of the biological material
+itself. Seeds of the same species and quality class vary in shape, aspect ratio,
+surface area, and texture, and these differences interact with factors outside the
+seed: the angle at which it lies, the lighting at the moment the photograph is
+taken, and the visual character of the surface beneath it. Coat pigmentation
+shifts under different illumination, and natural shading or surface sheen can
+produce patterns that resemble defects without indicating any real damage. The
+result is that the visual boundary between a safe biological deviation and a true
+physical defect is often subtle and context-dependent. A classifier that cannot
+account for this overlap will either reject sound seeds as damaged or pass
+defective ones as acceptable, and neither error is acceptable in a quality-control
+setting.
 
 \subsection{The dataset gap}
 
-The two steps do not need the same kind of data, and that mismatch is the problem
-this project had to solve before anything else could work.
+The first problem is volume. Seed quality assessment is a fine-grained visual
+task: the meaningful signal is often a hairline crack, a patch of discolouration,
+or a slight surface irregularity that separates a good seed from a damaged one.
+Models trained on fine-grained distinctions of this kind require substantially
+more labelled examples per category than coarse classifiers do, with datasets in
+the range of one hundred thousand images per seed type providing a reasonable
+foundation for generalisation. The best openly available datasets for any given
+seed type fall well short of twenty thousand images, a gap wide enough that
+hand-collection alone is not a practical remedy.
 
-The grading step is easy to train. It learns from pictures of one seed at a time,
-each labelled good or bad, and pictures like that are everywhere: a single seed on a
-plain background is cheap to photograph and quick to label. Coffee and maize both
-have plenty of them.
+The second problem is annotation bias. The public datasets that do exist were
+built for one purpose and annotated accordingly. Datasets assembled for quality
+grading carry per-image labels indicating whether a seed is acceptable or
+defective, but they provide no spatial information about seed location or extent.
+Datasets assembled for detection and counting annotate each seed with a bounding
+box, but they treat all seeds as a single undifferentiated class and record
+nothing about quality. No publicly available resource provides both spatial
+annotations and quality labels on the same images, which forces any work that
+needs both to either discard one annotation type or invest in a fresh labelling
+campaign.
 
-The finding step is the hard one. To learn where seeds are, it needs photos of many
-seeds together, with every seed in the photo already marked. That kind of data
-barely exists. Almost every public seed dataset shows one seed at a time, which
-teaches nothing about finding seeds in a crowd, where they touch and overlap. Making
-such a set by hand means photographing trays of scattered seeds and marking every
-grain in every photo, hundreds of marks per photo across thousands of photos. That
-marking effort is the bottleneck, and it is slow and costly enough to stop most
-teams before they start.
-
-So the situation is lopsided. The data needed to train the grading step is
-plentiful, while the data needed to train the finding step is scarce and expensive
-to produce. Closing that gap is what motivated the second half of this project,
-\textit{MultiSeedGen}: a tool that takes the single-seed pictures we already have
-and builds marked many-seed photos from them, so the finding step can be trained
-without hand-marking thousands of trays.
+The third problem is domain mismatch. Existing datasets were collected under
+controlled imaging conditions: uniform backgrounds, stable and diffuse lighting,
+and seeds placed individually or in sparse arrangements that minimise overlap.
+A model trained on such data learns the recording conditions alongside the seed
+appearance. When deployed against images taken in less controlled settings, with
+varying illumination, textured surfaces, and seeds that touch or partially occlude
+one another, accuracy falls because those conditions were absent from training.
+The controlled-environment bias reflects the practical difficulty of annotating
+cluttered scenes at scale, but the consequence is that published benchmark figures
+tend to overstate the accuracy a model will achieve in realistic use.
 
 \section{Project Objectives and Proposed Solution}
 
 The objectives follow directly from the two problems above:
 
 \begin{itemize}
-  \item Build a complete grader that takes a photo of a seed batch and returns a
-        grading report for coffee and maize.
+  \item Build a complete grader that takes a photo or video of a seed batch and returns a
+        grading report for seeds.
   \item Keep a record of which trained model produced each result, so any verdict
         can be traced back later.
   \item Deliver the grader as a web app that a farmer can actually use.
@@ -121,7 +129,7 @@ The objectives follow directly from the two problems above:
 
 The solution has two parts that match the two groups of objectives.
 
-Seed Bank is the platform and prototype. A user uploads photos through a web page;
+Seed Bank is the platform and prototype. A user uploads photos or videos through a web page;
 behind it the system finds the seeds, grades each one, stores the results together
 with a note of which trained model produced them, and sends back the report. A small
 amount of model management sits around this, enough to keep track of model versions
@@ -139,21 +147,21 @@ knows exactly where each one is, so the labels come for free.
 
 \section{Project Scope and Limitations}
 
-\paragraph{In scope.} The grader covers two crops, coffee and maize, and is built so
-a third crop is added by registering a new detector class and a matching classifier
+\paragraph{In scope.} The grader covers multiple crops and is built so
+a new crop can be added by registering a new detector class and a matching classifier
 rather than by rewriting the pipeline. It is delivered as a working prototype with a
 web interface, and it supports offline evaluation of a trained model against a
-labelled dataset. MultiSeedGen covers the full path from single-seed crops to
-annotated multi-seed images.
+labelled dataset.
 
 \paragraph{Limitations.} Seed Bank is a prototype rather than a commercial product;
 the goal was to show the pipeline works end to end, not to ship a hardened
-deployment. Capture assumes a top-down photo from a single camera, so the system has
+deployment. Capture assumes a top-down photo or video from a single camera, so the system has
 not been validated against angled shots or varied capture rigs. The largest open
 risk is the synthetic-to-real domain gap: a detector trained only on MultiSeedGen
 output learns the statistics of synthetic scenes, which never match real trays
 perfectly. Narrowing that gap with augmentation and realistic degradation is the
-tool's central design concern, but it cannot be assumed closed.
+tool's central design concern, the limitation can be overcome by training the model on real data with
+real data which is time consuming and expensive.
 
 \section{Development Methodology}
 
@@ -168,12 +176,8 @@ The machine-learning side ran as a tighter experiment loop. The first step was
 curating and cleaning the datasets, since raw public corpora carry mislabelled and
 duplicated images that would otherwise leak between splits. From there the team
 trained a sequence of model variants and measured each one on validation data and on
-a held-out test set before deciding what to change next. The classifier went through
-four versions: V1 was the baseline backbone, V2 added a CBAM attention
-module~\cite{cbam2018}, V3 added hybrid pooling, and V4 changed a stride in the
-backbone to keep more spatial detail. Each change was kept only if it improved the
-held-out numbers, and the full set of results is reported in the evaluation in
-Chapter 6.
+a held-out test set before deciding what to change next.
+
 
 \section{Tools and Technologies Used (Software and Hardware)}
 
@@ -212,8 +216,7 @@ Docker~\cite{merkel2014docker}. Table~\ref{tab:ch1-tools} groups the set by area
 \end{longtable}
 \end{singlespace}
 
-On the hardware side, the models were trained on a workstation with an NVIDIA RTX
-3060 GPU.
+On the hardware side, the models were trained using cloud based gpus and CPUs.
 
 \section{Project Timeline / Gantt Chart}
 
@@ -231,10 +234,9 @@ this report. Figure~\ref{fig:gantt} shows the schedule.
 The rest of this report is organised as follows.
 
 \textbf{Chapter 2, Related Work}, reviews the background this project builds on:
-object detectors such as Faster R-CNN and YOLO and the feature-pyramid and attention
-ideas behind them, image classifiers from the ResNet family, the synthetic-data and
-augmentation literature that justifies MultiSeedGen, and prior applications of
-computer vision in agriculture.
+object detectors such as Faster R-CNN and YOLO, image classifiers, 
+the synthetic-data andaugmentation literature that justifies MultiSeedGen,
+and prior applications of computer vision in agriculture.
 
 \textbf{Chapter 3, System Analysis}, sets out the requirements. It defines the user
 roles, the functional and non-functional requirements, and the use cases the grader

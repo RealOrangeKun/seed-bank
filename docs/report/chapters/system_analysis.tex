@@ -25,6 +25,17 @@ report with a seed count and a good-rate, plus a history they can return to.
 Farmers often work on a phone and in Arabic, so the interface language and text
 direction matter as much as the result itself.
 
+Seed quality assurance companies form a second category of institutional
+stakeholder. These organisations currently run mechanical sorting lines sieves,
+gravity tables, and weight-based separators that are expensive to procure,
+require continuous specialist calibration, and cannot detect surface defects on
+seeds that fall within the acceptable mass range. Seed Bank offers these
+operators a different approach: a conveyor-mounted high-resolution capture system
+feeds images into the pipeline, which grades each seed visually in real time and
+logs the results. The mechanical infrastructure is replaced by a camera rig and
+the hosted service, maintenance is reduced to software updates, and the grading
+record is stored and auditable rather than lost on the sorting floor.
+
 The AI developer keeps the product accurate over time. They train the detection
 and classification models, register the resulting weights, and run offline
 evaluations against labelled datasets to decide whether a new model is actually
@@ -37,6 +48,8 @@ serves traffic, manage users and their roles, and review the record of sensitive
 actions. An administrator can do everything an AI developer can, plus the
 settings that change behaviour for everyone, so those actions are gated tightly
 and logged.
+
+
 
 Table~\ref{tab:ch3-stakeholders} summarises each stakeholder, their main goal,
 and the capabilities they lean on.
@@ -53,6 +66,7 @@ and the capabilities they lean on.
 Farmer / end user & Check the quality of a seed batch in the field and review past results & Web/mobile capture, batch analysis, history, English/Arabic UI \\
 AI developer & Train and validate models, then choose the right one & Model registry, datasets, offline evaluation, per-request model choice \\
 Administrator & Control which model serves traffic and manage access & Model selection, user/role management, action log \\
+QA company & Replace mechanical sorting lines with a conveyor vision system and retain an auditable grading record & Batch analysis, real-time throughput, grading history, model registry \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -243,16 +257,16 @@ behaviour for everyone else, so they sit with the most-privileged actor.
 
 Technical feasibility. The whole stack runs on commodity hardware. The backend,
 the inference worker, the database, the object store, and the supporting services
-come up together on a single developer machine, with demo data seeded in. A GPU
-is optional: routine development, the demo, and offline evaluation all run on CPU,
-and a GPU mainly helps when training new models. Every major component is a mature
+come up together on a single developer machine, with demo data seeded in. the demo,
+and offline evaluation all run on CPU,and a GPU mainly helps when training new models.
+Every major component is a mature
 open-source project with good documentation, so the build does not rest on any
 unproven technology.
 
 Economic feasibility. The cost case rests on open-source software and ordinary
 hardware. There are no licensing fees for any part of the stack, and the
 development and demo setup runs on one machine. A GPU is needed only for training
-or for heavy inference at scale; everything else runs on CPU. The object store and
+or for heavy inference at scale. The object store and
 the model-tracking service are self-hosted alongside the rest, so there is no
 recurring spend on managed cloud services to run or evaluate the system.
 
