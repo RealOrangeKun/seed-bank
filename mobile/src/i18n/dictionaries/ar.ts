@@ -26,8 +26,17 @@ export const ar: Record<TranslationKey, string> = {
   // Tabs
   "tab.home": "الرئيسية",
   "tab.capture": "فحص",
+  "tab.realtime": "مباشر",
   "tab.history": "السجل",
   "tab.settings": "الإعدادات",
+
+  // Realtime (live video analysis)
+  "realtime.live": "مباشر · جارٍ التحليل",
+  "realtime.idle": "متوقّف مؤقتًا",
+  "realtime.start": "بدء البث المباشر",
+  "realtime.stop": "إيقاف",
+  "realtime.frames": "الإطارات",
+  "realtime.frameError": "تعذّر تحليل أحد الإطارات. المتابعة جارية…",
 
   // Home
   "home.greeting": "مرحبًا بعودتك",
