@@ -229,8 +229,16 @@ def dataset_service(
     session: DbSession,
     datasets: DatasetRepoDep,
     items: DatasetItemRepoDep,
+    storage: StorageDep,
+    settings: SettingsDep,
 ) -> DatasetService:
-    return DatasetService(session=session, datasets=datasets, items=items)
+    return DatasetService(
+        session=session,
+        datasets=datasets,
+        items=items,
+        storage=storage,
+        settings=settings,
+    )
 
 
 def experiment_service(

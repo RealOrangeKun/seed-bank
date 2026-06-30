@@ -148,6 +148,11 @@ class BatchDetailOut(BatchOut):
     geo_city: str | None = None
     geo_country_code: str | None = None
     images: list[ScanImageOut] = Field(default_factory=list)
+    # Good-seed-share cutoff for the per-image good/bad verdict. Overridden by
+    # the router from ``Settings.good_batch_threshold`` (same pattern as
+    # ``image_count``); the default keeps the schema valid on a bare
+    # ``model_validate`` of the ORM row.
+    good_batch_threshold: float = 0.65
 
 
 class ImageUrlOut(BaseModel):
@@ -240,6 +245,9 @@ class SharedBatchOut(BaseModel):
     duration_ms: int | None = None
     image_count: int = 0
     images: list[ScanImageOut] = Field(default_factory=list)
+    # Per-image verdict cutoff, overridden by the router from Settings (see
+    # ``BatchDetailOut``) so the public report uses the same configured value.
+    good_batch_threshold: float = 0.65
 
 
 __all__ = [

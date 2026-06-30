@@ -93,11 +93,14 @@ export const modelKeys = {
   performance: (id: string) => ["models", "performance", id] as const,
 };
 
-export function useModels(params: ModelListParams) {
+export function useModels(params: ModelListParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: modelKeys.list(params),
     queryFn: () => listModels(params),
     placeholderData: (prev) => prev,
+    // `GET /models` is gated to ai_developer/admin; callers on an end-user
+    // surface pass `enabled: false` so the query never fires a 403.
+    enabled: options?.enabled ?? true,
   });
 }
 

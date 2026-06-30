@@ -115,10 +115,16 @@ class MinioStorage:
         ttl: timedelta,
         content_type: str | None = None,  # noqa: ARG002
     ) -> str:
+        # Signed against the public endpoint (like ``presigned_get_url``) so the
+        # URL is reachable from a browser, not just from inside the compose
+        # network — the client does the PUT directly to object storage.
         # `content_type` is enforced by the client headers when uploading; the
         # presign just authorizes the operation.
-        url: str = await self._client.presigned_put_object(bucket, key, expires=ttl)
-        return url
+        try:
+            url: str = await self._presign_client.presigned_put_object(bucket, key, expires=ttl)
+            return url
+        except S3Error as exc:
+            raise ExternalServiceError(f"minio: presign put {bucket}/{key}: {exc}") from exc
 
     async def presigned_get_url(self, bucket: str, key: str, ttl: timedelta) -> str:
         # Signed against the public endpoint so the resulting URL is reachable

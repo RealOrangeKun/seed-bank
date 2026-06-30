@@ -674,6 +674,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Upload Url
+         * @description Mint a presigned PUT URL so the browser can upload an image directly to
+         *     MinIO, then register it via ``POST /datasets/{id}/items`` with the returned
+         *     ``storage_key``. Keeps image bytes off the API process.
+         */
+        post: operations["create_upload_url_api_v1_datasets__dataset_id__upload_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/experiments": {
         parameters: {
             query?: never;
@@ -939,6 +961,11 @@ export interface components {
             geo_country_code?: string | null;
             /** Images */
             images?: components["schemas"]["ScanImageOut"][];
+            /**
+             * Good Batch Threshold
+             * @default 0.65
+             */
+            good_batch_threshold: number;
         };
         /**
          * BatchOut
@@ -1142,6 +1169,34 @@ export interface components {
              */
             item_count: number;
         };
+        /**
+         * DatasetUploadUrlIn
+         * @description Request body for ``POST /datasets/{id}/upload-url``.
+         *
+         *     The browser asks the API to mint a short-lived presigned PUT URL, then
+         *     uploads the image bytes straight to MinIO (the bytes never traverse the
+         *     API). ``filename`` is used only to preserve the file extension on the
+         *     generated object key; the storage key itself is server-chosen.
+         */
+        DatasetUploadUrlIn: {
+            /** Filename */
+            filename: string;
+            /** Content Type */
+            content_type: string;
+        };
+        /**
+         * DatasetUploadUrlOut
+         * @description A presigned PUT URL plus the storage key the client should record.
+         *
+         *     After PUT-ing the bytes to ``upload_url``, the client calls
+         *     ``POST /datasets/{id}/items`` with ``storage_key`` to register the item.
+         */
+        DatasetUploadUrlOut: {
+            /** Upload Url */
+            upload_url: string;
+            /** Storage Key */
+            storage_key: string;
+        };
         /** Envelope[AnalyticsOut] */
         Envelope_AnalyticsOut_: {
             data: components["schemas"]["AnalyticsOut"];
@@ -1169,6 +1224,10 @@ export interface components {
         /** Envelope[DatasetOut] */
         Envelope_DatasetOut_: {
             data: components["schemas"]["DatasetOut"];
+        };
+        /** Envelope[DatasetUploadUrlOut] */
+        Envelope_DatasetUploadUrlOut_: {
+            data: components["schemas"]["DatasetUploadUrlOut"];
         };
         /** Envelope[ExperimentDetailOut] */
         Envelope_ExperimentDetailOut_: {
@@ -1785,6 +1844,11 @@ export interface components {
             image_count: number;
             /** Images */
             images?: components["schemas"]["ScanImageOut"][];
+            /**
+             * Good Batch Threshold
+             * @default 0.65
+             */
+            good_batch_threshold: number;
         };
         /**
          * SupplierCreateIn
@@ -3265,6 +3329,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_DatasetItemsAddedOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_upload_url_api_v1_datasets__dataset_id__upload_url_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetUploadUrlIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DatasetUploadUrlOut_"];
                 };
             };
             /** @description Validation Error */

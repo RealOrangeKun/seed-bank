@@ -27,6 +27,7 @@ export type TokenPair = S["TokenPair"];
 // ── Analyze / batches ────────────────────────────────────────────────────────
 export type BatchOut = S["BatchOut"];
 export type BatchDetailOut = S["BatchDetailOut"];
+export type SharedBatchOut = S["SharedBatchOut"];
 export type ScanImageOut = S["ScanImageOut"];
 export type InferenceOut = S["InferenceOut"];
 export type SeedDetectionOut = S["SeedDetectionOut"];
@@ -38,6 +39,7 @@ export type ModelPerformanceOut = S["ModelPerformanceOut"];
 export type OfflineMetricOut = S["OfflineMetricOut"];
 export type DatasetOut = S["DatasetOut"];
 export type DatasetItemOut = S["DatasetItemOut"];
+export type DatasetUploadUrlOut = S["DatasetUploadUrlOut"];
 export type ExperimentSummaryOut = S["ExperimentSummaryOut"];
 export type ExperimentDetailOut = S["ExperimentDetailOut"];
 

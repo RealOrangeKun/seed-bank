@@ -193,11 +193,11 @@ client is generated from this — see §5.3).
 | `users` | `GET /users/me`, admin user list & role management. |
 | `models` | Register model artifacts, list/get, promote lifecycle, `GET /models/{id}/performance`. |
 | `analyze` | `POST /analyze` — multipart image upload that starts a batch. |
-| `batches` | List/get batches, `GET /batches/{id}` (poll for results), delete, bulk-delete, CSV/JSON export, annotated PNG, **share-link** create/revoke. |
+| `batches` | List/get batches, `GET /batches/{id}` (poll for results; carries `good_batch_threshold` for the per-image good/bad verdict), delete, bulk-delete, CSV/JSON detection export (**ai_developer/admin** — end users use the client-side PDF report), annotated PNG, **share-link** create/revoke. |
 | `analytics` | Aggregated detection/quality metrics over a time window. |
 | `shared` | `GET /shared/{token}` — public, unauthenticated read-only batch report. |
 | `catalog` | Reference data: seed types, suppliers. |
-| `datasets` | Labelled datasets + items for offline evaluation. |
+| `datasets` | Labelled datasets + items for offline evaluation; `POST /datasets/{id}/upload-url` mints a presigned PUT so the browser uploads images straight to MinIO, then registers them via `POST /datasets/{id}/items`. |
 | `experiments` | Create/list/get experiments; offline-eval runs. |
 
 **Conventions used everywhere:**

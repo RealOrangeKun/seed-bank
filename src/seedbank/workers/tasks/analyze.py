@@ -595,10 +595,12 @@ async def _classify_all_detections(
 ) -> bool:
     """Classify every detection, routing each seed-type group to its own model.
 
-    Returns ``True`` if any group's classification failed (so the caller can
-    degrade the batch to ``partial``). A seed type with no registered
-    classifier is skipped (its detections stay unclassified) — that's an
-    expected state, not a failure.
+    Returns ``True`` if any group's classification *failed* (so the caller can
+    degrade the batch to ``partial``). A detection that is simply never graded —
+    no seed type, or no registered classifier for its type — is **not** a
+    failure: per the canonical rule a detected seed that isn't flagged bad counts
+    as good, so those are defaulted to ``good`` here. Only a genuine crash leaves
+    quality NULL.
     """
     stmt = select(SeedDetection).where(SeedDetection.inference_id == detect_inference.id)
     detections = list((await session.execute(stmt)).scalars().all())
@@ -606,11 +608,14 @@ async def _classify_all_detections(
         log.info("analyze.classify_skipped", reason="no_detections", image_id=str(image.id))
         return False
 
-    # Group detections by their resolved seed type. ``None`` (unrecognized
-    # class) can't be classified — there's no per-type model to route to.
+    # Group detections by their resolved seed type. ``None`` (unrecognized class)
+    # has no per-type model to route to — it's detected without a quality, so it
+    # defaults to ``good`` rather than being routed.
+    ungraded: list[UUID] = []
     groups: dict[UUID, list[SeedDetection]] = {}
     for det in detections:
         if det.seed_type_id is None:
+            ungraded.append(det.id)
             continue
         groups.setdefault(det.seed_type_id, []).append(det)
 
@@ -620,7 +625,6 @@ async def _classify_all_detections(
             reason="no_typed_detections",
             image_id=str(image.id),
         )
-        return False
 
     any_failed = False
     for type_id, group in groups.items():
@@ -642,7 +646,10 @@ async def _classify_all_detections(
             continue
 
         if classify_model is None:
-            continue  # no classifier for this seed type — leave unclassified
+            # No classifier for this seed type — detected without a quality, so
+            # it counts as good (not a failure).
+            ungraded.extend(det.id for det in group)
+            continue
 
         try:
             await _run_classify_for_detections(
@@ -662,6 +669,16 @@ async def _classify_all_detections(
                 error=repr(exc),
             )
             any_failed = True
+
+    if ungraded:
+        await repos.detections.update_quality_many([(did, "good") for did in ungraded])
+        await session.commit()
+        log.info(
+            "analyze.classify_defaulted_good",
+            image_id=str(image.id),
+            n_defaulted=len(ungraded),
+        )
+        dispatch_after_commit(SYNC_DETECTIONS, str(detect_inference.id))
 
     return any_failed
 
@@ -716,14 +733,23 @@ async def _run_classify_for_detections(
         for det, outcome in zip(detections, outcomes, strict=True):
             label = outcome.classification.label
             if label not in valid_labels:
-                # Defensive: a misconfigured model returning class names
-                # like "ok"/"reject" would otherwise blow up the enum
-                # cast. Skip the row rather than fail the batch.
-                log.warning(
-                    "analyze.classify_unknown_label",
-                    detection_id=str(det.id),
-                    label=label,
-                )
+                # "uncertain" (multi-label or no-label per the trainer's rule) is
+                # expected — the model's "can't tell" signal. Per the canonical
+                # rule a detected seed that isn't flagged bad counts as good, so
+                # store ``good`` (keep the log for observability of the uncertain
+                # rate). A truly unexpected label (e.g. a misconfigured model
+                # emitting "ok"/"reject") would blow up the enum cast, so skip it
+                # but flag it loudly and leave it NULL.
+                if label == "uncertain":
+                    log.info("analyze.classify_uncertain", detection_id=str(det.id))
+                    updates.append((det.id, "good"))
+                    total_latency_ms += outcome.latency_ms
+                else:
+                    log.warning(
+                        "analyze.classify_unknown_label",
+                        detection_id=str(det.id),
+                        label=label,
+                    )
                 continue
             updates.append((det.id, label))
             total_latency_ms += outcome.latency_ms

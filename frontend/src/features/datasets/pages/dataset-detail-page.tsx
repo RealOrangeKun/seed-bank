@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { CopyButton } from "@/components/shared/copy-button";
-import { Field } from "@/components/shared/field";
+import { FileDropzone } from "@/components/shared/file-dropzone";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
@@ -33,7 +33,7 @@ import { useI18n } from "@/i18n";
 import { usePagination } from "@/hooks/use-pagination";
 import { formatDateTime, shortId } from "@/lib/format";
 
-import { useAddDatasetItems, useDataset, useDatasetItems } from "../api";
+import { useDataset, useDatasetItems, useUploadDatasetImages } from "../api";
 
 function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -47,24 +47,28 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
 function AddItemsDialog({ datasetId }: { datasetId: string }) {
   const { t, tn } = useI18n();
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
-  const add = useAddDatasetItems(datasetId);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const upload = useUploadDatasetImages(datasetId);
 
-  const keys = text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+  const reset = () => {
+    setFiles([]);
+    setProgress(null);
+  };
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (keys.length === 0) {
-      toast.error(t("datasets.pasteAtLeastOne"));
+    if (files.length === 0) {
+      toast.error(t("datasets.selectAtLeastOne"));
       return;
     }
     try {
-      const result = await add.mutateAsync(keys);
+      const result = await upload.mutateAsync({
+        files,
+        onProgress: (done, total) => setProgress({ done, total }),
+      });
       toast.success(tn("datasetItemsAdded", result.added));
-      setText("");
+      reset();
       setOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("datasets.addFailed"));
@@ -76,7 +80,7 @@ function AddItemsDialog({ datasetId }: { datasetId: string }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setText("");
+        if (!next) reset();
       }}
     >
       <DialogTrigger asChild>
@@ -90,24 +94,15 @@ function AddItemsDialog({ datasetId }: { datasetId: string }) {
           <DialogDescription>{t("datasets.addItemsDesc")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
-          <Field
-            id="storageKeys"
-            label={t("datasets.storageKeysLabel")}
-            hint={keys.length > 0 ? tn("datasetKeys", keys.length) : t("datasets.onePerLine")}
-          >
-            <textarea
-              id="storageKeys"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={8}
-              placeholder={"datasets/maize/0001.jpg\ndatasets/maize/0002.jpg"}
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </Field>
+          <FileDropzone files={files} onChange={setFiles} disabled={upload.isPending} />
           <DialogFooter>
-            <Button type="submit" disabled={add.isPending}>
-              {add.isPending ? <Spinner /> : null}
-              {keys.length > 0 ? tn("datasetAddBtn", keys.length) : t("datasets.addItems")}
+            <Button type="submit" disabled={upload.isPending || files.length === 0}>
+              {upload.isPending ? <Spinner /> : null}
+              {upload.isPending && progress
+                ? t("datasets.uploading", { done: progress.done, total: progress.total })
+                : files.length > 0
+                  ? tn("datasetAddBtn", files.length)
+                  : t("datasets.addItems")}
             </Button>
           </DialogFooter>
         </form>

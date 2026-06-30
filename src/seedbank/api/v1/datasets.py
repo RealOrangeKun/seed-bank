@@ -30,6 +30,8 @@ from seedbank.schemas.dataset import (
     DatasetItemsAddedOut,
     DatasetItemsBulkIn,
     DatasetOut,
+    DatasetUploadUrlIn,
+    DatasetUploadUrlOut,
 )
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -94,6 +96,28 @@ async def add_items(
 ) -> Envelope[DatasetItemsAddedOut]:
     n = await service.add_items(dataset_id=dataset_id, items=body.items)
     return Envelope[DatasetItemsAddedOut](data=DatasetItemsAddedOut(added=n))
+
+
+@router.post(
+    "/{dataset_id}/upload-url",
+    response_model=Envelope[DatasetUploadUrlOut],
+    status_code=201,
+    dependencies=[_AI_GATE],
+)
+async def create_upload_url(
+    dataset_id: UUID,
+    body: DatasetUploadUrlIn,
+    service: DatasetServiceDep,
+) -> Envelope[DatasetUploadUrlOut]:
+    """Mint a presigned PUT URL so the browser can upload an image directly to
+    MinIO, then register it via ``POST /datasets/{id}/items`` with the returned
+    ``storage_key``. Keeps image bytes off the API process."""
+    url, key = await service.create_upload_url(
+        dataset_id=dataset_id,
+        filename=body.filename,
+        content_type=body.content_type,
+    )
+    return Envelope[DatasetUploadUrlOut](data=DatasetUploadUrlOut(upload_url=url, storage_key=key))
 
 
 @router.get(
