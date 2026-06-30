@@ -10,7 +10,7 @@ Covers:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -67,10 +67,15 @@ def _build_service() -> tuple[DatasetService, _FakeSession, MagicMock, MagicMock
     items.add_many = AsyncMock(return_value=None)
     items.list_for_dataset = AsyncMock(return_value=[])
     items.count_for_dataset = AsyncMock(return_value=0)
+    storage = MagicMock()
+    storage.presigned_put_url = AsyncMock(return_value="https://minio.test/put?sig=abc")
+    settings = MagicMock(minio_bucket_datasets="seedbank-datasets", minio_presign_ttl_seconds=300)
     svc = DatasetService(
         session=session,  # type: ignore[arg-type]
         datasets=datasets,
         items=items,
+        storage=storage,
+        settings=settings,
     )
     return svc, session, datasets, items
 
@@ -168,3 +173,40 @@ async def test_add_items_happy_path_commits_and_returns_count() -> None:
     )
     assert n == 3
     assert session.commits == 1
+
+
+# ── create_upload_url ──────────────────────────────────────────────────────
+
+
+async def test_create_upload_url_raises_not_found_when_dataset_missing() -> None:
+    svc, _session, datasets, _items = _build_service()
+    datasets.get_active = AsyncMock(return_value=None)
+
+    with pytest.raises(NotFoundError):
+        await svc.create_upload_url(
+            dataset_id=uuid4(),
+            filename="seed.jpg",
+            content_type="image/jpeg",
+        )
+
+
+async def test_create_upload_url_mints_presigned_put_and_server_chosen_key() -> None:
+    svc, _session, datasets, _items = _build_service()
+    ds_id = uuid4()
+    datasets.get_active = AsyncMock(return_value=MagicMock(id=ds_id))
+
+    url, key = await svc.create_upload_url(
+        dataset_id=ds_id,
+        filename="My Photo.JPG",
+        content_type="image/jpeg",
+    )
+
+    assert url == "https://minio.test/put?sig=abc"
+    # Server-chosen key under the dataset prefix; extension preserved + lowercased.
+    assert key.startswith(f"datasets/{ds_id}/")
+    assert key.endswith(".jpg")
+    # ``svc.storage`` is a MagicMock at runtime but typed ``MinioStorage``; cast
+    # so mypy lets us assert on the mock's call record.
+    storage = cast("Any", svc.storage)
+    storage.presigned_put_url.assert_awaited_once()
+    assert storage.presigned_put_url.await_args.args[0] == "seedbank-datasets"

@@ -14,25 +14,31 @@ admins implicitly satisfy the check. The service raises domain errors only.
 
 from __future__ import annotations
 
+from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import IntegrityError
 
+from seedbank.core.config import get_settings
 from seedbank.core.exceptions import ConflictError, NotFoundError
 from seedbank.core.ids import uuid7
 from seedbank.core.logging import get_logger
 from seedbank.infrastructure.db.models import Dataset, DatasetItem
+from seedbank.infrastructure.storage import get_storage
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from seedbank.core.config import Settings
     from seedbank.domain.user import AuthenticatedUser
     from seedbank.infrastructure.db.repositories import (
         DatasetItemRepository,
         DatasetRepository,
     )
+    from seedbank.infrastructure.storage import MinioStorage
     from seedbank.schemas.dataset import DatasetItemCreateIn
 
 log = get_logger(__name__)
@@ -47,10 +53,17 @@ class DatasetService:
         session: AsyncSession,
         datasets: DatasetRepository,
         items: DatasetItemRepository,
+        storage: MinioStorage | None = None,
+        settings: Settings | None = None,
     ) -> None:
         self.session = session
         self.datasets = datasets
         self.items = items
+        # Storage + settings are only needed to mint presigned upload URLs;
+        # they default to the singletons so existing callers (and the unit
+        # tests that build the service with mocked repos) keep working.
+        self.storage = storage or get_storage()
+        self.settings = settings or get_settings()
 
     async def create(
         self,
@@ -116,6 +129,39 @@ class DatasetService:
         ds = await self.get(dataset_id)
         cnt = await self.items.count_for_dataset(ds.id)
         return ds, cnt
+
+    async def create_upload_url(
+        self,
+        *,
+        dataset_id: UUID,
+        filename: str,
+        content_type: str,
+    ) -> tuple[str, str]:
+        """Mint a short-lived presigned PUT URL for one dataset image.
+
+        Returns ``(upload_url, storage_key)``. The browser PUTs the bytes
+        straight to MinIO (they never traverse the API), then registers the
+        item via ``POST /datasets/{id}/items`` with the returned key. The key
+        is server-chosen (``datasets/{dataset_id}/{uuid7}{ext}``) so two
+        uploads of the same filename never collide; only the extension is
+        taken from ``filename``. Raises :class:`NotFoundError` if the dataset
+        isn't active.
+        """
+        ds = await self.datasets.get_active(dataset_id)
+        if ds is None:
+            raise NotFoundError("Dataset not found.")
+
+        suffix = Path(filename).suffix.lower()
+        key = f"datasets/{ds.id}/{uuid7()}{suffix}"
+        ttl = timedelta(seconds=self.settings.minio_presign_ttl_seconds)
+        url = await self.storage.presigned_put_url(
+            self.settings.minio_bucket_datasets,
+            key,
+            ttl,
+            content_type=content_type,
+        )
+        log.info("dataset.upload_url_minted", dataset_id=str(ds.id), storage_key=key)
+        return url, key
 
     async def add_items(
         self,
