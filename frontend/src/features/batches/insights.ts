@@ -8,7 +8,7 @@
  * `toNumber` so the math is float-safe at the edge only.
  */
 import { toNumber } from "@/lib/format";
-import type { BatchDetailOut, SeedDetectionOut } from "@/lib/api/types";
+import type { BatchDetailOut, ScanImageOut, SeedDetectionOut } from "@/lib/api/types";
 
 export interface ConfidenceBin {
   /** Lower bound of the bin, e.g. 0.8 for the 80–90% bucket. */
@@ -109,4 +109,47 @@ export function computeInsights(batch: BatchDetailOut): BatchInsights {
     confidenceBins: bins,
     bySeedType: [...byType.values()].sort((a, b) => b.total - a.total),
   };
+}
+
+/** Good/bad verdict for a single image (or null when nothing was classified). */
+export type ImageVerdict = "good" | "bad" | null;
+
+export interface ImageInsights {
+  total: number;
+  good: number;
+  bad: number;
+  unclassified: number;
+  /** Good as a fraction of *classified* seeds (good + bad); null when none. */
+  goodRate: number | null;
+}
+
+/** Tally one image's detections into good/bad/unclassified counts + good-rate. */
+export function computeImageInsights(image: ScanImageOut): ImageInsights {
+  const dets = (image.inferences ?? []).flatMap((inf) => inf.detections ?? []);
+  let good = 0;
+  let bad = 0;
+  let unclassified = 0;
+  for (const d of dets) {
+    if (d.quality === "good") good += 1;
+    else if (d.quality === "bad") bad += 1;
+    else unclassified += 1;
+  }
+  const classified = good + bad;
+  return {
+    total: dets.length,
+    good,
+    bad,
+    unclassified,
+    goodRate: classified > 0 ? good / classified : null,
+  };
+}
+
+/**
+ * Classify an image as a good/bad batch from its good-seed share and the
+ * configured threshold. Returns null when no seed was classified (the verdict
+ * is undefined, not "bad").
+ */
+export function verdictFor(goodRate: number | null, threshold: number): ImageVerdict {
+  if (goodRate === null) return null;
+  return goodRate >= threshold ? "good" : "bad";
 }

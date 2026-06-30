@@ -29,6 +29,8 @@
     "@tanstack/react-query": "^5.59.16",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.454.0",
     "openapi-fetch": "^0.13.0",
     "react": "^18.3.1",

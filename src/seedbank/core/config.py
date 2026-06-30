@@ -162,6 +162,11 @@ class Settings(BaseSettings):
     # dominant cost of "accurate" mode without a GPU. Set false to disable
     # globally regardless of a model's per-artifact ``segment`` config.
     inference_segmentation_enabled: bool = True
+    # Per-image good/bad verdict: an image is a "good batch" when its share of
+    # good seeds (good / (good + bad)) is >= this threshold; below it is a "bad
+    # batch". Surfaced to clients on the batch-detail / shared responses so the
+    # web verdict and the PDF report read from one configured value.
+    good_batch_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
 
     # ── Analyze endpoint ─────────────────────────────────────────────────────
     rate_limit_analyze_per_minute: int = 30

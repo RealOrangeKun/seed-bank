@@ -68,10 +68,12 @@ def _build_app(detections: list[SimpleNamespace]) -> FastAPI:
     service_stub = SimpleNamespace(detections_for_export=_fake_detections_for_export)
 
     app.dependency_overrides[batch_service] = lambda: service_stub
+    # Detection-level export is gated to ai_developer/admin (end users get the
+    # PDF report instead), so the stub actor must satisfy that role.
     app.dependency_overrides[current_user] = lambda: AuthenticatedUser(
         id=uuid4(),
         email="x@y.com",
-        role=Role.END_USER,
+        role=Role.AI_DEVELOPER,
         is_active=True,
         is_verified=True,
         auth_method="jwt",
