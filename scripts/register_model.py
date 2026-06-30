@@ -62,6 +62,15 @@ def _parse_args() -> argparse.Namespace:
     )
     up.add_argument("--threshold", type=float, default=0.5)
     up.add_argument("--image-size", type=int, default=None)
+    up.add_argument(
+        "--config",
+        default=None,
+        help=(
+            "JSON object merged into the model config (e.g. class_map, "
+            "confidence_threshold, iou_threshold, two_stage). Overrides the "
+            "defaults built from --threshold/--image-size."
+        ),
+    )
     up.add_argument("--metadata", default=None, help="JSON string with extra training metadata.")
     up.add_argument(
         "--actor-id",
@@ -125,6 +134,8 @@ async def _cmd_upload(args: argparse.Namespace) -> int:
             config: dict[str, object] = {"builder_key": args.key, "threshold": args.threshold}
             if args.image_size is not None:
                 config["image_size"] = args.image_size
+            if args.config:
+                config.update(json.loads(args.config))
 
             svc = ModelRegistryService(
                 session=session,
