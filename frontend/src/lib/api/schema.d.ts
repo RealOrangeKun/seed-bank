@@ -121,8 +121,8 @@ export interface paths {
          * @description List the OAuth providers that are configured (have credentials).
          *
          *     The SPA renders one sign-in button per returned provider, so a provider
-         *     without credentials (e.g. GitHub when only Google is set) simply never
-         *     appears — disabling it is a matter of leaving its credentials unset.
+         *     without credentials simply never appears — disabling it is a matter of
+         *     leaving its credentials unset.
          */
         get: operations["oauth_providers_api_v1_auth_oauth_providers_get"];
         put?: never;
@@ -226,41 +226,6 @@ export interface paths {
         head?: never;
         /** Update Role */
         patch: operations["update_role_api_v1_users__user_id__role_patch"];
-        trace?: never;
-    };
-    "/api/v1/api-keys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Keys */
-        get: operations["list_keys_api_v1_api_keys_get"];
-        put?: never;
-        /** Create Key */
-        post: operations["create_key_api_v1_api_keys_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/api-keys/{key_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Revoke Key */
-        delete: operations["revoke_key_api_v1_api_keys__key_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/models": {
@@ -858,46 +823,6 @@ export interface components {
             /** Good Rate */
             good_rate: number;
         };
-        /** ApiKeyCreateIn */
-        ApiKeyCreateIn: {
-            /** Name */
-            name: string;
-            /** Scopes */
-            scopes?: string[];
-            /** Expires At */
-            expires_at?: string | null;
-        };
-        /**
-         * ApiKeyOut
-         * @description Returned on **creation only**. The plaintext `key` is included exactly
-         *     once and never retrievable again.
-         */
-        ApiKeyOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Prefix */
-            prefix: string;
-            /** Scopes */
-            scopes: string[];
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Expires At */
-            expires_at?: string | null;
-            /** Last Used At */
-            last_used_at?: string | null;
-            /** Revoked At */
-            revoked_at?: string | null;
-            /** Key */
-            key?: string | null;
-        };
         /**
          * BatchBulkDeleteIn
          * @description Request body for ``POST /batches/delete`` — bulk soft-delete.
@@ -1220,10 +1145,6 @@ export interface components {
         /** Envelope[AnalyticsOut] */
         Envelope_AnalyticsOut_: {
             data: components["schemas"]["AnalyticsOut"];
-        };
-        /** Envelope[ApiKeyOut] */
-        Envelope_ApiKeyOut_: {
-            data: components["schemas"]["ApiKeyOut"];
         };
         /** Envelope[BatchCompareOut] */
         Envelope_BatchCompareOut_: {
@@ -1656,12 +1577,6 @@ export interface components {
             total: number;
             /** Has More */
             has_more: boolean;
-        };
-        /** Page[ApiKeyOut] */
-        Page_ApiKeyOut_: {
-            /** Data */
-            data: components["schemas"]["ApiKeyOut"][];
-            meta: components["schemas"]["PageMeta"];
         };
         /** Page[BatchOut] */
         Page_BatchOut_: {
@@ -2283,7 +2198,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2318,7 +2232,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2350,7 +2263,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 user_id: string;
@@ -2383,109 +2295,6 @@ export interface operations {
             };
         };
     };
-    list_keys_api_v1_api_keys_get: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-            };
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_ApiKeyOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_key_api_v1_api_keys_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApiKeyCreateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ApiKeyOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    revoke_key_api_v1_api_keys__key_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path: {
-                key_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_models_api_v1_models_get: {
         parameters: {
             query?: {
@@ -2497,7 +2306,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2529,7 +2337,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2565,7 +2372,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 model_id: string;
@@ -2599,7 +2405,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 model_id: string;
@@ -2637,7 +2442,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 model_id: string;
@@ -2671,7 +2475,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2714,7 +2517,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2746,7 +2548,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2780,7 +2581,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2812,7 +2612,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2846,7 +2645,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2882,7 +2680,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2918,7 +2715,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2952,7 +2748,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2986,7 +2781,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3021,7 +2815,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3055,7 +2848,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3089,7 +2881,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3152,7 +2943,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3184,7 +2974,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3216,7 +3005,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3252,7 +3040,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 supplier_id: string;
@@ -3284,7 +3071,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 supplier_id: string;
@@ -3325,7 +3111,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3357,7 +3142,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3393,7 +3177,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 dataset_id: string;
@@ -3430,7 +3213,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 dataset_id: string;
@@ -3464,7 +3246,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 dataset_id: string;
@@ -3508,7 +3289,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3540,7 +3320,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3576,7 +3355,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 experiment_id: string;

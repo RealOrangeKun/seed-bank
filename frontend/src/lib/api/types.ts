@@ -23,7 +23,6 @@ export type LocationSource = S["LocationSource"];
 export type MeOut = S["MeOut"];
 export type UserListOut = S["UserListOut"];
 export type TokenPair = S["TokenPair"];
-export type ApiKeyOut = S["ApiKeyOut"];
 
 // ── Analyze / batches ────────────────────────────────────────────────────────
 export type BatchOut = S["BatchOut"];

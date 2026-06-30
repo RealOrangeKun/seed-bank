@@ -67,9 +67,8 @@ service, so they can be traced into the design and checked against it.
 \subsection{Accounts and access}
 
 A user can register with an email and password, confirm their address, and sign
-in. They can also sign in through Google or GitHub. Once signed in, a user can
-manage their own account and, for programmatic access, create and revoke personal
-API keys. Access is split across three roles (end user, AI developer,
+in. They can also sign in through Google. Once signed in, a user can
+manage their own account. Access is split across three roles (end user, AI developer,
 administrator), and each requirement below records the role allowed to perform it.
 
 \subsection{Analysis and history}
@@ -120,24 +119,23 @@ role permitted to perform it.
 \endlastfoot
 FR-1 & Register with email/password and confirm the address & Public \\
 FR-2 & Log in and stay signed in across sessions & Public \\
-FR-3 & Sign in with Google or GitHub & Public \\
-FR-4 & Create and revoke personal API keys & Authenticated \\
-FR-5 & Submit a batch of images for analysis & End user \\
-FR-6 & Use the faster analysis mode for large batches & End user \\
-FR-7 & Analyse a single image on its own & End user \\
-FR-8 & List own batches and open one for detail & End user (own) \\
-FR-9 & View batch detail: scans, detections, statistics, and images & End user (own) \\
-FR-10 & Export a batch's results & End user (own) \\
-FR-11 & Download an annotated image with detection boxes & End user (own) \\
-FR-12 & Delete a batch & End user (own) \\
-FR-13 & Check service health and read runtime configuration & Public \\
-FR-14 & Register a model's weights and metadata; list and fetch models & AI developer \\
-FR-15 & Read per-model performance & AI developer \\
-FR-16 & Manage labelled datasets and run offline evaluations & AI developer \\
-FR-17 & Choose which model runs for a given analysis & AI developer \\
-FR-18 & Choose which model serves normal traffic & Administrator \\
-FR-19 & List users and change a user's role & Administrator \\
-FR-20 & Read the log of sensitive actions & Administrator \\
+FR-3 & Sign in with Google & Public \\
+FR-4 & Submit a batch of images for analysis & End user \\
+FR-5 & Use the faster analysis mode for large batches & End user \\
+FR-6 & Analyse a single image on its own & End user \\
+FR-7 & List own batches and open one for detail & End user (own) \\
+FR-8 & View batch detail: scans, detections, statistics, and images & End user (own) \\
+FR-9 & Export a batch's results & End user (own) \\
+FR-10 & Download an annotated image with detection boxes & End user (own) \\
+FR-11 & Delete a batch & End user (own) \\
+FR-12 & Check service health and read runtime configuration & Public \\
+FR-13 & Register a model's weights and metadata; list and fetch models & AI developer \\
+FR-14 & Read per-model performance & AI developer \\
+FR-15 & Manage labelled datasets and run offline evaluations & AI developer \\
+FR-16 & Choose which model runs for a given analysis & AI developer \\
+FR-17 & Choose which model serves normal traffic & Administrator \\
+FR-18 & List users and change a user's role & Administrator \\
+FR-19 & Read the log of sensitive actions & Administrator \\
 \end{longtable}
 \end{singlespace}
 
@@ -166,8 +164,8 @@ pages are English-only, since farmers never reach them.
 
 Security. Sign-in keeps users in their own data, and the three roles decide what
 each user can do, enforced on the server rather than just hidden in the
-interface. API keys are stored hashed rather than in plain text, and sensitive
-actions are written to a log that can be reviewed but not edited after the fact.
+interface. Sensitive actions are written to a log that can be reviewed but not
+edited after the fact.
 
 Reliability. A batch moves through a clear set of states as it is processed.
 Several workers can handle the images of one batch at the same time without
@@ -204,7 +202,7 @@ NFR-1 & Performance & Analysis runs in the background; the images in a batch are
 NFR-2 & Performance & A faster analysis mode is available for large batches. \\
 NFR-3 & Usability & The result is readable at a glance on a phone in the field. \\
 NFR-4 & Internationalisation & Full English/Arabic interface with right-to-left layout. \\
-NFR-5 & Security & Three roles enforced on the server; API keys stored hashed; sensitive actions logged. \\
+NFR-5 & Security & Three roles enforced on the server; sensitive actions logged. \\
 NFR-6 & Reliability & Clear batch state flow; concurrent workers cannot corrupt a batch; partial results are kept on classification failure. \\
 NFR-7 & Maintainability & Layered backend; inference in a separate worker; model swap is a selection step, not a code change. \\
 \end{longtable}

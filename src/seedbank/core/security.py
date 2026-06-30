@@ -1,12 +1,12 @@
-"""Security primitives — password hashing, JWT, API-key generation.
+"""Security primitives — password hashing, JWT, token generation.
 
 Pure functions over crypto libraries. Holds no I/O state and no DB references,
 so it's freely importable from services and tests.
 
 - bcrypt via passlib for password hashes (rounds from `Settings.bcrypt_rounds`).
 - python-jose for JWT signing / decoding (HS256, secret from `Settings`).
-- secrets + hashlib for refresh-token / API-key generation; we never store
-  the raw value — only its SHA-256 hash.
+- secrets + hashlib for refresh-token / verification-token generation; we never
+  store the raw value — only its SHA-256 hash.
 """
 
 from __future__ import annotations

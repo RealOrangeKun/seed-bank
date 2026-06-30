@@ -12,7 +12,6 @@ with `ON DELETE CASCADE`.
 erDiagram
     USERS ||--o{ OAUTH_ACCOUNTS : "has"
     USERS ||--o{ REFRESH_TOKENS : "issues"
-    USERS ||--o{ API_KEYS : "owns"
     USERS ||--o{ AUDIT_LOG : "actor"
     USERS ||--o{ SCAN_BATCHES : "submits"
     USERS ||--o{ SUPPLIERS : "creates"
@@ -53,7 +52,7 @@ erDiagram
     OAUTH_ACCOUNTS {
         uuid id PK
         uuid user_id FK
-        string provider "google/github"
+        string provider "google"
         string provider_subject
         text access_token_encrypted
     }
@@ -66,16 +65,6 @@ erDiagram
         timestamptz revoked_at
         uuid replaced_by_id FK "rotation chain"
         inet ip
-    }
-
-    API_KEYS {
-        uuid id PK
-        uuid user_id FK
-        string key_hash UK
-        string prefix
-        text_array scopes
-        timestamptz expires_at
-        timestamptz revoked_at
     }
 
     AUDIT_LOG {

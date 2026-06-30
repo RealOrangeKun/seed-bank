@@ -1,4 +1,4 @@
-"""Pydantic v2 DTOs for the auth + user + api-key endpoints."""
+"""Pydantic v2 DTOs for the auth + user endpoints."""
 
 from __future__ import annotations
 

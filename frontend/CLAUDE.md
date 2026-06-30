@@ -89,7 +89,7 @@ Feature modules under `src/features/<name>/`:
 Shared UI: `components/ui/` (shadcn primitives), `components/shared/`
 (`bbox-overlay`, `confidence-badge`, `pagination`, `states`, `status-badge`,
 …), `components/layout/` (`app-shell`, `sidebar`, `topbar`, `nav.ts`). Existing
-feature modules: analytics, analyze, api-keys, auth, batches, catalog, compare,
+feature modules: analytics, analyze, auth, batches, catalog, compare,
 dashboard, datasets, experiments, models, profile, users.
 
 ---

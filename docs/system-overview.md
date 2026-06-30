@@ -64,7 +64,7 @@ and weights that generated it.
                              │         │         │         │
                    Postgres ◀┘  Redis ◀┘  MinIO ◀┘ ClickHouse
                    (OLTP)      (cache/   (objects:  (analytics
-                   17 tables    broker)   images,    star
+                   16 tables    broker)   images,    star
                    UUIDv7       Celery)    weights)   schema)
                                                      │
                          ┌───────────────────────────┴──────────────────┐
@@ -169,8 +169,7 @@ groups:
   JSON array), `trusted_hosts`.
 - **Auth**: `jwt_secret`, `jwt_algorithm` (HS256), `jwt_access_ttl_seconds`
   (15 min), `jwt_refresh_ttl_seconds` (7 days), `bcrypt_rounds`,
-  `api_key_prefix` (`seedbank_`), Google/GitHub OAuth client id/secret,
-  `bootstrap_token` (first-admin tripwire).
+  Google OAuth client id/secret, `bootstrap_token` (first-admin tripwire).
 - **Datastores**: `postgres_dsn` (+ pool tuning), `redis_dsn`, Celery broker/result
   URLs, MinIO endpoint/keys/buckets (+ a separate `minio_public_endpoint` used
   **only** to sign browser-facing presigned GET URLs), ClickHouse host/creds.
@@ -190,9 +189,8 @@ client is generated from this — see §5.3).
 
 | Router | Responsibility (representative endpoints) |
 |---|---|
-| `auth` | `register`, `verify-email`, `login`, `refresh`, `logout`, OAuth start/callback (Google/GitHub), one-shot `bootstrap-admin`. |
+| `auth` | `register`, `verify-email`, `login`, `refresh`, `logout`, OAuth start/callback (Google), one-shot `bootstrap-admin`. |
 | `users` | `GET /users/me`, admin user list & role management. |
-| `api_keys` | Create/list/revoke personal API keys (hashed at rest, scopes, expiry). |
 | `models` | Register model artifacts, list/get, promote lifecycle, `GET /models/{id}/performance`. |
 | `analyze` | `POST /analyze` — multipart image upload that starts a batch. |
 | `batches` | List/get batches, `GET /batches/{id}` (poll for results), delete, bulk-delete, CSV/JSON export, annotated PNG, **share-link** create/revoke. |
@@ -220,11 +218,8 @@ client is generated from this — see §5.3).
   Refresh tokens **rotate** on use with **replay detection** (a reused old token
   invalidates the chain). Clients store tokens and transparently refresh once on
   a `401`, then retry the original request.
-- **OAuth** — Google and GitHub social login (authlib; `SessionMiddleware`
+- **OAuth** — Google social login (authlib; `SessionMiddleware`
   carries the `state` across the redirect).
-- **API keys** — personal programmatic tokens, **hashed at rest**, prefixed
-  (`seedbank_`), with optional scopes and expiry; shown in plaintext exactly once
-  at creation.
 - **RBAC** — three roles: **`end_user`** (farmer; analyze + own history),
   **`ai_developer`** (+ models/datasets/experiments, model override at analyze
   time), **`admin`** (+ user management). Role gates exist on
@@ -238,13 +233,13 @@ client is generated from this — see §5.3).
 
 ### 4.6 Data model (Postgres OLTP)
 
-Async SQLAlchemy over Postgres, **all 17 tables**, **UUIDv7 primary keys** (time-
+Async SQLAlchemy over Postgres, **all 16 tables**, **UUIDv7 primary keys** (time-
 ordered, index-friendly), Alembic-managed. Repositories
 ([`infrastructure/db/repositories/`](../src/seedbank/infrastructure/db/repositories/))
 are the only code that touches the ORM. The complete set (grouped):
 
-- **Identity & auth** (5): `users`, `refresh_tokens`, `oauth_accounts`,
-  `api_keys`, `audit_log`.
+- **Identity & auth** (4): `users`, `refresh_tokens`, `oauth_accounts`,
+  `audit_log`.
 - **Reference / catalog** (2): `seed_types`, `suppliers`.
 - **Inference graph** (4 — the traceability chain):
   - `scan_batches` — one per `POST /analyze`; carries the **state machine**
@@ -629,7 +624,7 @@ src/
 │   └── guards/         # ProtectedRoute, RoleRoute
 ├── features/<name>/    # api.ts + pages/ + components/ per feature
 │   (auth, dashboard, analyze, batches, analytics, compare, profile,
-│    api-keys, models, datasets, experiments, users, catalog)
+│    models, datasets, experiments, users, catalog)
 ├── i18n/               # localization system (see §5.4) — NEW
 └── lib/                # api client, env, format, query-client, auth/token-store
 ```
@@ -667,7 +662,7 @@ A **dependency-free, fully-typed** i18n system under `frontend/src/i18n/`:
   consistency; dates are formatted with the active locale.
 - **Switcher** — a language picker in the topbar and on the auth/share pages.
 - **Coverage** — the **entire end-user surface** is translated (auth, dashboard,
-  analyze, batches, batch detail, analytics, compare, profile, api-keys, the
+  analyze, batches, batch detail, analytics, compare, profile, the
   public shared report, the shell, and all shared components). The admin/ML
   pages (models, datasets, experiments, users) are intentionally
   English — they are role-gated to developers/admins and never reached by
@@ -695,7 +690,7 @@ A **dependency-free, fully-typed** i18n system under `frontend/src/i18n/`:
   by seed type, from the ClickHouse warehouse.
 - **Compare** — pick 2–10 scans, see metrics side-by-side with the best column
   highlighted.
-- **Profile / API keys** — account details; create/reveal-once/revoke API keys.
+- **Profile** — account details.
 - **Public shared report** (`/shared/:token`) — unauthenticated, read-only batch
   summary, also localized with its own language/theme toggles.
 - **ML-platform pages** (role-gated) — models, datasets, experiments, users.
@@ -1085,9 +1080,9 @@ nothing is a mystery when you meet it in the code or the compose file.
 
 **Auth & security**
 - **bcrypt/passlib** (password hashing) · **PyJWT** (access/refresh tokens) ·
-  **authlib** (Google/GitHub OAuth) · **slowapi** (rate limiting) · **gitleaks**
+  **authlib** (Google OAuth) · **slowapi** (rate limiting) · **gitleaks**
   (secret scanning in pre-commit). Conventions: RFC 9457 problem-details,
-  hashed-at-rest API keys, refresh-token rotation with replay detection.
+  refresh-token rotation with replay detection.
 
 **Observability**
 - **structlog** (structured JSON/console logs) · **prometheus-client** (metrics)

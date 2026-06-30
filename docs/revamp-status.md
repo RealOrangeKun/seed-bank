@@ -18,7 +18,7 @@ in-repo replacement for the working plan file that drove the revamp and was lost
 | 1 — Scaffold | FastAPI app factory; prototype archived to `legacy/` | ✅ done |
 | 2 — Schema | 18-table async SQLAlchemy + Alembic baseline; UUIDv7 PKs (now **17** — `traffic_splits` dropped in `0004_drop_traffic_mlflow`) | ✅ done |
 | 3 — Infra | repositories + clients + lifespan + `/readyz` | ✅ done |
-| 4 — Auth | email/pw + OAuth + API keys + RBAC + rate limiting | ✅ done |
+| 4 — Auth | email/pw + OAuth + RBAC + rate limiting | ✅ done |
 | 5 — ML platform | registry, 3 backends, model manager, `ModelResolver`, `/models` | ✅ done (weighted-A/B traffic-splits **removed**; `TrafficRouter` replaced by `ModelResolver` — production-model resolution with a global fallback, no A/B) |
 | 6 — Inference path | unified `POST /analyze` + Celery batch + detect/classify | ✅ done¹ |
 | 7 — Experiments | datasets, experiment runner | ✅ done² (runs **without MLflow** — MLflow tracking removed; metrics live in Postgres + a MinIO Markdown report) |
@@ -43,7 +43,7 @@ not exist.
 All of the following work on `master`:
 
 - **Auth** — register/verify/login/refresh/logout, refresh-token rotation with
-  replay detection, Google/GitHub OAuth, API keys (hash-at-rest, scopes, expiry),
+  replay detection, Google OAuth,
   RBAC (`admin`/`ai_developer`/`end_user`), per-route rate limiting, append-only
   audit log, one-shot bootstrap-admin.
 - **Model lifecycle** — register weights to MinIO + `model_artifacts`
@@ -107,8 +107,7 @@ stub/TODO scan over ~13.6k LOC found 3 benign documented TODOs and zero
 **P2 — hardening / correctness / docs**
 - Validate `builder_key` at model-register time (else opaque 503 at inference).
 - Roboflow `classify` fallback fragile; OAuth provider tokens fetched then
-  discarded (encrypted columns unused); API-key `scopes` defined but
-  `require_scope()` never wired.
+  discarded (encrypted columns unused).
 - Workers don't propagate `request_id`/`user_id` → logs lack request correlation.
 - OTel SQLAlchemy/Redis statement sanitization pending a library upgrade.
 - Stale docs: this used to be only the README §Status; `CLAUDE.md`'s "Where to

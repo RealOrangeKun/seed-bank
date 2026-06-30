@@ -61,7 +61,7 @@ src/seedbank/
     middleware.py      # request_id + structured logging, CORS
     errors.py          # DomainError → RFC 9457 Problem Details
     rate_limit.py
-    v1/<feature>.py    # one router per feature, prefix /api/v1 (11 routers)
+    v1/<feature>.py    # one router per feature, prefix /api/v1 (10 routers)
   core/                # config, ids, exceptions, logging, metrics, security, sentry, tracing
   domain/              # framework-free entities & value objects
   services/            # <feature>_service.py — use cases owning the transaction
@@ -82,7 +82,7 @@ frontend/  mobile/      # web + mobile clients (own CLAUDE.md each)
 models/                # only the .pth files — uploaded to MinIO at bootstrap
 ```
 
-The 11 v1 routers: `auth, users, api_keys, models, analyze, batches,
+The 10 v1 routers: `auth, users, models, analyze, batches,
 analytics, shared, catalog, datasets, experiments`.
 
 ---

@@ -24,7 +24,6 @@ flowchart TB
         subgraph V1["Routers — src/seedbank/api/v1/"]
             R_AUTH["auth.py<br/>POST /auth/login<br/>POST /auth/refresh<br/>POST /auth/oauth/{provider}"]
             R_USERS["users.py"]
-            R_KEYS["api_keys.py"]
             R_MODELS["models.py"]
             R_ANALYZE["analyze.py<br/>POST /analyze"]
             R_BATCH["batches.py<br/>GET /batches<br/>GET /batches/{id}"]
@@ -34,7 +33,6 @@ flowchart TB
 
         subgraph SVC["Services — src/seedbank/services/"]
             S_AUTH["AuthService"]
-            S_KEY["ApiKeyService"]
             S_REG["ModelRegistryService"]
             S_TR["ModelResolver"]
             S_AN["AnalysisService"]
@@ -45,7 +43,6 @@ flowchart TB
             R_USER["UserRepository"]
             R_OAUTH["OAuthAccountRepository"]
             R_RT["RefreshTokenRepository"]
-            R_AK["ApiKeyRepository"]
             R_MA["ModelArtifactRepository"]
             R_SUP["SupplierRepository"]
             R_SB["ScanBatchRepository"]
@@ -58,7 +55,7 @@ flowchart TB
             ML["infrastructure/ml<br/>(see view 04)"]
             STO["storage/MinioStorage"]
             CACHE["cache/Redis"]
-            OAUTH["oauth/google.py<br/>oauth/github.py"]
+            OAUTH["oauth/google.py"]
             ANA["analytics/clickhouse"]
         end
 
@@ -72,7 +69,6 @@ flowchart TB
 
     R_AUTH --> S_AUTH
     R_USERS --> S_AUTH
-    R_KEYS --> S_KEY
     R_MODELS --> S_REG
     R_ANALYZE --> S_AN
     R_BATCH --> S_BAT
@@ -82,7 +78,6 @@ flowchart TB
     S_AUTH --> R_RT
     S_AUTH --> OAUTH
 
-    S_KEY --> R_AK
     S_REG --> R_MA
     S_TR --> R_MA
     S_AN --> R_SB
@@ -95,7 +90,6 @@ flowchart TB
     R_USER --> ORM
     R_OAUTH --> ORM
     R_RT --> ORM
-    R_AK --> ORM
     R_MA --> ORM
     R_SUP --> ORM
     R_SB --> ORM

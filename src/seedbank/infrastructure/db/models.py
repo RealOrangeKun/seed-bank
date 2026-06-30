@@ -116,7 +116,7 @@ class OAuthAccount(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("provider", "provider_subject", name="uq_oauth_provider_subject"),
         CheckConstraint(
-            "provider IN ('google', 'github')",
+            "provider IN ('google')",
             name="provider_supported",
         ),
         Index("ix_oauth_accounts_user_id", "user_id"),
