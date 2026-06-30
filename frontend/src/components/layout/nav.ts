@@ -1,6 +1,5 @@
 import {
   FlaskConical,
-  KeyRound,
   LayoutDashboard,
   ScanLine,
   Boxes,
@@ -66,7 +65,6 @@ export const NAV_SECTIONS: NavSection[] = [
     headingKey: "nav.section.account",
     items: [
       { to: "/users", labelKey: "nav.users", icon: Users, roles: ["admin"] },
-      { to: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound },
     ],
   },
 ];

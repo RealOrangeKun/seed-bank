@@ -166,46 +166,16 @@ def issue_refresh_token(*, subject: str, settings: Settings | None = None) -> tu
     return token, expires_at
 
 
-# ── Hashing helpers (refresh tokens, API keys, generic SHA-256) ──────────────
+# ── Hashing helpers (refresh tokens, generic SHA-256) ────────────────────────
 
 
 def sha256_hex(value: str) -> str:
-    """Return the hex digest of `value`. Used for refresh-token and API-key
-    storage hashes."""
+    """Return the hex digest of `value`. Used for refresh-token storage hashes."""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def constant_time_eq(a: str, b: str) -> bool:
     return hmac.compare_digest(a, b)
-
-
-# ── API keys ─────────────────────────────────────────────────────────────────
-
-API_KEY_RANDOM_LEN: Final[int] = 32
-"""Number of random URL-safe characters in the key body (after the prefix)."""
-
-
-def generate_api_key(settings: Settings | None = None) -> tuple[str, str, str]:
-    """Generate a new API key.
-
-    Returns `(plaintext_key, prefix, key_hash)`:
-
-    - `plaintext_key` — `"seedbank_<random>"`. Shown to the user **once**.
-    - `prefix` — first 8 chars of the random portion. Stored as a non-secret
-      identifier so users can tell their keys apart in the UI.
-    - `key_hash` — SHA-256 hex digest of `plaintext_key`. Stored as the only
-      authoritative copy.
-    """
-    s = settings or get_settings()
-    random_part = secrets.token_urlsafe(API_KEY_RANDOM_LEN)[:API_KEY_RANDOM_LEN]
-    plaintext = f"{s.api_key_prefix}{random_part}"
-    return plaintext, random_part[:8], sha256_hex(plaintext)
-
-
-def looks_like_api_key(value: str, settings: Settings | None = None) -> bool:
-    """Cheap structural check — useful before hitting the DB on every request."""
-    s = settings or get_settings()
-    return value.startswith(s.api_key_prefix) and len(value) >= len(s.api_key_prefix) + 16
 
 
 # ── Email-verification tokens ────────────────────────────────────────────────
@@ -219,7 +189,6 @@ def generate_verification_token() -> tuple[str, str]:
 
 
 __all__ = [
-    "API_KEY_RANDOM_LEN",
     "JWT_TYPE_ACCESS",
     "JWT_TYPE_REFRESH",
     "PASSWORD_MIN_LENGTH",
@@ -227,12 +196,10 @@ __all__ = [
     "decode_jwt",
     "encode_jwt",
     "enforce_password_policy",
-    "generate_api_key",
     "generate_verification_token",
     "hash_password",
     "issue_access_token",
     "issue_refresh_token",
-    "looks_like_api_key",
     "sha256_hex",
     "verify_password",
 ]

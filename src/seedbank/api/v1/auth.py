@@ -24,7 +24,7 @@ from seedbank.api.rate_limit import limiter
 from seedbank.core.config import get_settings
 from seedbank.core.exceptions import AuthError, ExternalServiceError
 from seedbank.core.logging import get_logger
-from seedbank.infrastructure.oauth import get_oauth, github, google
+from seedbank.infrastructure.oauth import get_oauth, google
 from seedbank.schemas.auth import (
     BootstrapAdminIn,
     LoginIn,
@@ -160,8 +160,6 @@ async def logout(payload: LogoutIn, service: AuthServiceDep) -> Envelope[Message
 def _provider_module(provider: str) -> ModuleType | None:
     if provider == google.PROVIDER_NAME:
         return google
-    if provider == github.PROVIDER_NAME:
-        return github
     return None
 
 
@@ -170,10 +168,10 @@ async def oauth_providers(settings: SettingsDep) -> Envelope[list[str]]:
     """List the OAuth providers that are configured (have credentials).
 
     The SPA renders one sign-in button per returned provider, so a provider
-    without credentials (e.g. GitHub when only Google is set) simply never
-    appears — disabling it is a matter of leaving its credentials unset.
+    without credentials simply never appears — disabling it is a matter of
+    leaving its credentials unset.
     """
-    enabled = [mod.PROVIDER_NAME for mod in (google, github) if mod.is_configured(settings)]
+    enabled = [mod.PROVIDER_NAME for mod in (google,) if mod.is_configured(settings)]
     return Envelope[list[str]](data=enabled)
 
 

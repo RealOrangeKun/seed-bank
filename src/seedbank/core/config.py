@@ -66,13 +66,10 @@ class Settings(BaseSettings):
     jwt_access_ttl_seconds: int = 60 * 15  # 15 min
     jwt_refresh_ttl_seconds: int = 60 * 60 * 24 * 7  # 7 days
     bcrypt_rounds: int = 12
-    api_key_prefix: str = "seedbank_"
 
     # OAuth (filled in via env in prod)
     oauth_google_client_id: SecretStr | None = None
     oauth_google_client_secret: SecretStr | None = None
-    oauth_github_client_id: SecretStr | None = None
-    oauth_github_client_secret: SecretStr | None = None
     oauth_redirect_base_url: str = "http://localhost:8000"
     # Where the OAuth callback bounces the browser after minting tokens — the
     # SPA route that reads them from the URL fragment and completes login.

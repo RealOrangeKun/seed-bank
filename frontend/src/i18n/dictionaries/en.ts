@@ -43,7 +43,6 @@ export const en = {
   "nav.datasets": "Datasets",
   "nav.experiments": "Experiments",
   "nav.users": "Users",
-  "nav.apiKeys": "API keys",
 
   // ── Roles ─────────────────────────────────────────────────────────────────
   "role.end_user": "Farmer",
@@ -314,45 +313,6 @@ export const en = {
   "profile.lastLogin": "Last login",
   "profile.userId": "User ID",
   "profile.copyUserId": "Copy user ID",
-  "profile.access": "Access",
-  "profile.accessDesc": "Create personal API keys for programmatic access to the API.",
-  "profile.manageApiKeys": "Manage API keys",
-
-  // ── API keys ──────────────────────────────────────────────────────────────
-  "apiKeys.title": "API keys",
-  "apiKeys.description": "Programmatic access tokens for the Seed Bank API.",
-  "apiKeys.createKey": "Create key",
-  "apiKeys.noKeysTitle": "No API keys yet",
-  "apiKeys.noKeysDesc": "Create a key to authenticate programmatic requests to the API.",
-  "apiKeys.colName": "Name",
-  "apiKeys.colPrefix": "Prefix",
-  "apiKeys.colScopes": "Scopes",
-  "apiKeys.colCreated": "Created",
-  "apiKeys.colLastUsed": "Last used",
-  "apiKeys.colStatus": "Status",
-  "apiKeys.colActions": "Actions",
-  "apiKeys.revoke": "Revoke",
-  "apiKeys.revoked": "revoked",
-  "apiKeys.active": "active",
-  "apiKeys.createDialogTitle": "Create API key",
-  "apiKeys.createDialogDesc": "The plaintext key is shown only once after creation.",
-  "apiKeys.name": "Name",
-  "apiKeys.nameRequired": "Name is required",
-  "apiKeys.namePlaceholder": "CI pipeline",
-  "apiKeys.scopes": "Scopes",
-  "apiKeys.scopesHint": "Comma-separated, e.g. analyze:write, models:read",
-  "apiKeys.scopesPlaceholder": "analyze:write, models:read",
-  "apiKeys.expiresAt": "Expires at",
-  "apiKeys.expiresHint": "Optional; leave blank for a non-expiring key",
-  "apiKeys.keyCreated": "Key created",
-  "apiKeys.keyCreatedDesc":
-    "Copy this key now — it is shown once and can never be retrieved again.",
-  "apiKeys.storeSecurely":
-    "Store this key securely. Once you close this dialog it will not be shown again.",
-  "apiKeys.copyApiKey": "Copy API key",
-  "apiKeys.revokeDialogTitle": "Revoke API key",
-  "apiKeys.revokeDialogDesc":
-    'Revoking "{name}" immediately invalidates it. This cannot be undone.',
 
   // ── Resource selects ──────────────────────────────────────────────────────
   "select.placeholder": "Select…",

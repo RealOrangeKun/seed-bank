@@ -85,12 +85,6 @@ const ExperimentDetailPage = lazy(() =>
 const UsersPage = lazy(() =>
   import("@/features/users/pages/users-page").then((m) => ({ default: m.UsersPage })),
 );
-const ApiKeysPage = lazy(() =>
-  import("@/features/api-keys/pages/api-keys-page").then((m) => ({
-    default: m.ApiKeysPage,
-  })),
-);
-
 function lazyEl(node: ReactNode): ReactNode {
   return <Suspense fallback={<LoadingState />}>{node}</Suspense>;
 }
@@ -130,7 +124,6 @@ export const router = createBrowserRouter([
           { path: "analytics", element: lazyEl(<AnalyticsPage />) },
           { path: "compare", element: lazyEl(<ComparePage />) },
           { path: "profile", element: lazyEl(<ProfilePage />) },
-          { path: "api-keys", element: lazyEl(<ApiKeysPage />) },
           {
             element: <RoleRoute allow={["ai_developer", "admin"]} />,
             children: [

@@ -34,7 +34,6 @@ def _actor(role: Role = Role.END_USER) -> AuthenticatedUser:
         role=role,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
 

@@ -42,7 +42,6 @@ export const ar: Record<TranslationKey, string> = {
   "nav.datasets": "مجموعات البيانات",
   "nav.experiments": "التجارب",
   "nav.users": "المستخدمون",
-  "nav.apiKeys": "مفاتيح الواجهة البرمجية",
 
   // ── Roles ─────────────────────────────────────────────────────────────────
   "role.end_user": "مزارع",
@@ -313,44 +312,6 @@ export const ar: Record<TranslationKey, string> = {
   "profile.lastLogin": "آخر تسجيل دخول",
   "profile.userId": "معرّف المستخدم",
   "profile.copyUserId": "نسخ معرّف المستخدم",
-  "profile.access": "الوصول",
-  "profile.accessDesc": "أنشئ مفاتيح واجهة برمجية شخصية للوصول البرمجي إلى الـ API.",
-  "profile.manageApiKeys": "إدارة مفاتيح الواجهة البرمجية",
-
-  // ── API keys ──────────────────────────────────────────────────────────────
-  "apiKeys.title": "مفاتيح الواجهة البرمجية",
-  "apiKeys.description": "رموز وصول برمجية لواجهة بنك البذور.",
-  "apiKeys.createKey": "إنشاء مفتاح",
-  "apiKeys.noKeysTitle": "لا توجد مفاتيح بعد",
-  "apiKeys.noKeysDesc": "أنشئ مفتاحًا لمصادقة الطلبات البرمجية على الـ API.",
-  "apiKeys.colName": "الاسم",
-  "apiKeys.colPrefix": "البادئة",
-  "apiKeys.colScopes": "النطاقات",
-  "apiKeys.colCreated": "أُنشئ في",
-  "apiKeys.colLastUsed": "آخر استخدام",
-  "apiKeys.colStatus": "الحالة",
-  "apiKeys.colActions": "إجراءات",
-  "apiKeys.revoke": "إلغاء",
-  "apiKeys.revoked": "مُلغى",
-  "apiKeys.active": "نشط",
-  "apiKeys.createDialogTitle": "إنشاء مفتاح واجهة برمجية",
-  "apiKeys.createDialogDesc": "يُعرض المفتاح النصي مرة واحدة فقط بعد الإنشاء.",
-  "apiKeys.name": "الاسم",
-  "apiKeys.nameRequired": "الاسم مطلوب",
-  "apiKeys.namePlaceholder": "CI pipeline",
-  "apiKeys.scopes": "النطاقات",
-  "apiKeys.scopesHint": "مفصولة بفواصل، مثل analyze:write, models:read",
-  "apiKeys.scopesPlaceholder": "analyze:write, models:read",
-  "apiKeys.expiresAt": "تاريخ الانتهاء",
-  "apiKeys.expiresHint": "اختياري؛ اتركه فارغًا لمفتاح بلا انتهاء",
-  "apiKeys.keyCreated": "تم إنشاء المفتاح",
-  "apiKeys.keyCreatedDesc":
-    "انسخ هذا المفتاح الآن — يُعرض مرة واحدة ولا يمكن استرجاعه أبدًا.",
-  "apiKeys.storeSecurely":
-    "احفظ هذا المفتاح بأمان. بمجرد إغلاق هذه النافذة لن يُعرض مرة أخرى.",
-  "apiKeys.copyApiKey": "نسخ المفتاح",
-  "apiKeys.revokeDialogTitle": "إلغاء مفتاح الواجهة البرمجية",
-  "apiKeys.revokeDialogDesc": 'إلغاء "{name}" يُبطله فورًا. لا يمكن التراجع عن هذا.',
 
   // ── Resource selects ──────────────────────────────────────────────────────
   "select.placeholder": "اختر…",

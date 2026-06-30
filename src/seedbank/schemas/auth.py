@@ -113,37 +113,7 @@ class RoleUpdateIn(BaseModel):
     role: Role
 
 
-# ── API keys ─────────────────────────────────────────────────────────────────
-
-
-class ApiKeyCreateIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: Annotated[str, Field(min_length=1, max_length=120)]
-    scopes: Annotated[list[str], Field(default_factory=list, max_length=32)]
-    expires_at: datetime | None = None
-
-
-class ApiKeyOut(BaseModel):
-    """Returned on **creation only**. The plaintext `key` is included exactly
-    once and never retrievable again."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    name: str
-    prefix: str
-    scopes: list[str]
-    created_at: datetime
-    expires_at: datetime | None = None
-    last_used_at: datetime | None = None
-    revoked_at: datetime | None = None
-    key: str | None = None
-
-
 __all__ = [
-    "ApiKeyCreateIn",
-    "ApiKeyOut",
     "LoginIn",
     "LogoutIn",
     "MeOut",

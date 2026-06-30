@@ -1,9 +1,8 @@
 """Unit tests for OAuth provider gating.
 
 A provider is *enabled* iff both its client id and secret are present in
-``Settings`` — this is the mechanism behind enabling Google while leaving
-GitHub disabled (just don't set GitHub's credentials). The ``/auth/oauth/
-providers`` endpoint renders one button per configured provider.
+``Settings``. The ``/auth/oauth/providers`` endpoint renders one button per
+configured provider, so leaving a provider's credentials unset hides it.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ import pytest
 from pydantic import SecretStr
 
 from seedbank.core.config import Settings
-from seedbank.infrastructure.oauth import github, google
+from seedbank.infrastructure.oauth import google
 
 pytestmark = pytest.mark.unit
 
@@ -35,11 +34,5 @@ def test_google_disabled_when_secret_missing() -> None:
     assert google.is_configured(s) is False
 
 
-def test_github_disabled_when_credentials_unset() -> None:
-    # GitHub stays off purely by leaving its credentials unset, even when
-    # Google is fully configured.
-    s = _settings(
-        oauth_google_client_id=SecretStr("client-id"),
-        oauth_google_client_secret=SecretStr("client-secret"),
-    )
-    assert github.is_configured(s) is False
+def test_google_disabled_when_credentials_unset() -> None:
+    assert google.is_configured(_settings()) is False

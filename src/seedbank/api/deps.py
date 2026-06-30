@@ -1,8 +1,8 @@
 """FastAPI dependencies — the only place routers reach into infrastructure.
 
 Routers depend on these getters; they never instantiate engines, clients, or
-services themselves. The `current_user` / `require_role` / `require_scope`
-dependencies live here too so RBAC is one decoration away on any route.
+services themselves. The `current_user` / `require_role` dependencies live
+here too so RBAC is one decoration away on any route.
 """
 
 from __future__ import annotations
@@ -18,18 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from seedbank.core.config import Settings, get_settings
 from seedbank.core.exceptions import AuthError, ForbiddenError
-from seedbank.core.security import (
-    JWT_TYPE_ACCESS,
-    decode_jwt,
-    looks_like_api_key,
-    sha256_hex,
-)
+from seedbank.core.security import JWT_TYPE_ACCESS, decode_jwt
 from seedbank.domain.user import AuthenticatedUser, Role
 from seedbank.infrastructure.analytics import ClickHouseClient, get_clickhouse
 from seedbank.infrastructure.cache import get_redis
 from seedbank.infrastructure.db.repositories import (
     AnalyticsRepository,
-    ApiKeyRepository,
     DatasetItemRepository,
     DatasetRepository,
     ExperimentRepository,
@@ -48,7 +42,6 @@ from seedbank.infrastructure.db.session import get_db as _get_db
 from seedbank.infrastructure.storage import MinioStorage, get_storage
 from seedbank.services.analysis_service import AnalysisService
 from seedbank.services.analytics_service import AnalyticsService
-from seedbank.services.api_key_service import ApiKeyService
 from seedbank.services.auth_service import AuthService
 from seedbank.services.batch_service import BatchService
 from seedbank.services.catalog_service import CatalogService
@@ -103,10 +96,6 @@ def oauth_account_repo(session: DbSession) -> OAuthAccountRepository:
     return OAuthAccountRepository(session)
 
 
-def api_key_repo(session: DbSession) -> ApiKeyRepository:
-    return ApiKeyRepository(session)
-
-
 def scan_batch_repo(session: DbSession) -> ScanBatchRepository:
     return ScanBatchRepository(session)
 
@@ -154,7 +143,6 @@ def model_metric_repo(session: DbSession) -> ModelMetricRepository:
 UserRepoDep = Annotated[UserRepository, Depends(user_repo)]
 RefreshTokenRepoDep = Annotated[RefreshTokenRepository, Depends(refresh_token_repo)]
 OAuthAccountRepoDep = Annotated[OAuthAccountRepository, Depends(oauth_account_repo)]
-ApiKeyRepoDep = Annotated[ApiKeyRepository, Depends(api_key_repo)]
 ScanBatchRepoDep = Annotated[ScanBatchRepository, Depends(scan_batch_repo)]
 AnalyticsRepoDep = Annotated[AnalyticsRepository, Depends(analytics_repo)]
 ScanImageRepoDep = Annotated[ScanImageRepository, Depends(scan_image_repo)]
@@ -187,14 +175,6 @@ def auth_service(
         redis=redis,
         settings=settings,
     )
-
-
-def api_key_service(
-    session: DbSession,
-    api_keys: ApiKeyRepoDep,
-    settings: SettingsDep,
-) -> ApiKeyService:
-    return ApiKeyService(session=session, api_keys=api_keys, settings=settings)
 
 
 def analysis_service(
@@ -270,7 +250,6 @@ def experiment_service(
 
 
 AuthServiceDep = Annotated[AuthService, Depends(auth_service)]
-ApiKeyServiceDep = Annotated[ApiKeyService, Depends(api_key_service)]
 AnalysisServiceDep = Annotated[AnalysisService, Depends(analysis_service)]
 BatchServiceDep = Annotated[BatchService, Depends(batch_service)]
 AnalyticsServiceDep = Annotated[AnalyticsService, Depends(analytics_service)]
@@ -311,56 +290,23 @@ async def _resolve_via_jwt(
         role=Role(user.role),
         is_active=user.is_active,
         is_verified=user.is_verified,
-        scopes=frozenset(),
         auth_method="jwt",
-    )
-
-
-async def _resolve_via_api_key(
-    raw_key: str,
-    api_keys: ApiKeyRepository,
-    users: UserRepository,
-    settings: Settings,
-) -> AuthenticatedUser:
-    if not looks_like_api_key(raw_key, settings):
-        raise AuthError("Invalid API key.")
-    record = await api_keys.get_active_by_hash(sha256_hex(raw_key))
-    if record is None:
-        raise AuthError("Invalid API key.")
-    user = await users.get_by_id_active(record.user_id)
-    if user is None:
-        raise AuthError("API key owner is inactive.")
-    await api_keys.touch_last_used(record.id)
-    return AuthenticatedUser(
-        id=user.id,
-        email=user.email,
-        role=Role(user.role),
-        is_active=user.is_active,
-        is_verified=user.is_verified,
-        scopes=frozenset(record.scopes or ()),
-        auth_method="api_key",
     )
 
 
 async def current_user(
     request: Request,
     users: UserRepoDep,
-    api_keys: ApiKeyRepoDep,
     settings: SettingsDep,
     authorization: Annotated[str | None, Header()] = None,
-    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
 ) -> AuthenticatedUser:
-    """Resolve the calling actor from `Authorization: Bearer ...` or
-    `X-API-Key`. Raises `AuthError` (→ 401) on any failure.
+    """Resolve the calling actor from `Authorization: Bearer ...`.
 
-    JWT takes precedence if both headers are sent; we never silently fall
-    back from a malformed JWT to an API key — that's a phishing vector.
+    Raises `AuthError` (→ 401) on any failure.
     """
     bearer = _bearer_token(authorization)
     if bearer is not None:
         actor = await _resolve_via_jwt(bearer, users, settings)
-    elif x_api_key:
-        actor = await _resolve_via_api_key(x_api_key, api_keys, users, settings)
     else:
         raise AuthError("Authentication required.")
 
@@ -392,21 +338,5 @@ def require_role(*roles: Role) -> Callable[..., Awaitable[AuthenticatedUser]]:
         if actor.is_admin or actor.role in role_set:
             return actor
         raise ForbiddenError(_msg)
-
-    return _checker
-
-
-def require_scope(*scopes: str) -> Callable[..., Awaitable[AuthenticatedUser]]:
-    """Dependency factory: require all `scopes` on an API-key actor (JWT
-    actors are gated by `require_role`)."""
-    required = frozenset(scopes)
-
-    async def _checker(actor: CurrentUser) -> AuthenticatedUser:
-        if actor.auth_method == "jwt":
-            return actor
-        missing = required - actor.scopes
-        if missing:
-            raise ForbiddenError(f"API key is missing scopes: {', '.join(sorted(missing))}.")
-        return actor
 
     return _checker

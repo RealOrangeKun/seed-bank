@@ -24,7 +24,6 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
-    ARRAY,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -88,9 +87,6 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
         back_populates="user", cascade="all, delete-orphan"
     )
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
-    api_keys: Mapped[list[ApiKey]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -160,33 +156,6 @@ class RefreshToken(Base, TimestampMixin):
             unique=True,
             postgresql_where=text("revoked_at IS NULL"),
         ),
-    )
-
-
-class ApiKey(Base, TimestampMixin):
-    __tablename__ = "api_keys"
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
-    key_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    prefix: Mapped[str] = mapped_column(String(16), nullable=False)
-    scopes: Mapped[list[str]] = mapped_column(
-        ARRAY(String(64)), nullable=False, server_default=text("'{}'::varchar[]")
-    )
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    user: Mapped[User] = relationship(back_populates="api_keys")
-
-    __table_args__ = (
-        Index("ix_api_keys_user_id", "user_id"),
-        Index("ix_api_keys_prefix", "prefix"),
     )
 
 
@@ -688,7 +657,6 @@ class SeedDetection(Base):
 
 
 __all__ = [
-    "ApiKey",
     "AuditLog",
     "Dataset",
     "DatasetItem",

@@ -35,7 +35,6 @@ def _make_actor(role: Role = Role.AI_DEVELOPER, *, user_id: Any = None) -> Authe
         role=role,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
 
