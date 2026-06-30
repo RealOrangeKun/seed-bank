@@ -28,6 +28,11 @@ export function AppShell() {
 
       <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
         <DialogContent
+          // No exit animation: closing the drawer happens in the same commit as
+          // the nav click's route change, which can fire a lazy-route Suspense
+          // fallback that orphans the overlay's `animationend` and leaves it
+          // stuck dimming the screen. Synchronous unmount sidesteps that race.
+          animateClose={false}
           className={cn(
             "!top-0 h-full max-w-64 !translate-x-0 !translate-y-0 rounded-none p-0 sm:rounded-none",
             drawerSide,
