@@ -21,6 +21,7 @@ What it does (all by editing word/document.xml + word/settings.xml in the zip):
 import re
 import sys
 import zipfile
+from pathlib import Path
 
 DOC = "word/document.xml"
 SETTINGS = "word/settings.xml"
@@ -44,7 +45,7 @@ def _seq_runs(label: str, ident: str) -> str:
 def number_captions(doc: str) -> str:
     """Insert a SEQ field at the start of each figure/table caption paragraph."""
 
-    def repl(m: re.Match) -> str:
+    def repl(m: re.Match[str]) -> str:
         p = m.group(0)
         if 'w:val="ImageCaption"' in p:
             runs = _seq_runs("Figure", "Figure")
@@ -67,7 +68,8 @@ def _toc_block(heading: str, instr: str) -> str:
         '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
         f'<w:r><w:instrText xml:space="preserve">{instr}</w:instrText></w:r>'
         '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
-        '<w:r><w:t xml:space="preserve">Right-click and choose "Update field" to build this list.</w:t></w:r>'
+        '<w:r><w:t xml:space="preserve">Right-click and choose "Update '
+        'field" to build this list.</w:t></w:r>'
         '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
         "</w:p>"
     )
@@ -94,7 +96,7 @@ def center_title_page(doc: str, cut: int) -> str:
     """Centre every paragraph before `cut` (the title-page content)."""
     head, tail = doc[:cut], doc[cut:]
 
-    def center(m: re.Match) -> str:
+    def center(m: re.Match[str]) -> str:
         p = m.group(0)
         if "<w:jc " in p:
             return re.sub(r'<w:jc w:val="[^"]*"\s*/>', '<w:jc w:val="center"/>', p, count=1)
@@ -120,7 +122,7 @@ _NIL_BORDERS = (
 def _borderless_tables(xml: str) -> str:
     """Override table borders to none on every table in the given fragment."""
 
-    def repl(m: re.Match) -> str:
+    def repl(m: re.Match[str]) -> str:
         tbl = m.group(0)
         if "<w:tblBorders>" in tbl:
             return re.sub(
@@ -134,7 +136,7 @@ def _borderless_tables(xml: str) -> str:
 def rtl_arabic(doc: str) -> str:
     """Mark paragraphs that contain Arabic letters as RTL, and their runs rtl."""
 
-    def repl(m: re.Match) -> str:
+    def repl(m: re.Match[str]) -> str:
         p = m.group(0)
         if not ARABIC.search(p):
             return p
@@ -146,7 +148,7 @@ def rtl_arabic(doc: str) -> str:
             p = re.sub(r"(<w:p\b[^>]*>)", r"\1<w:pPr><w:bidi/></w:pPr>", p, count=1)
 
         # run direction: add <w:rtl/> to every run's rPr (create rPr if missing)
-        def run(rm: re.Match) -> str:
+        def run(rm: re.Match[str]) -> str:
             r = rm.group(0)
             if "<w:rtl" in r:
                 return r
@@ -192,9 +194,7 @@ def main() -> None:
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zo:
         for n, d in data.items():
             zo.writestr(n, d)
-    import os
-
-    os.replace(tmp, path)
+    Path(tmp).replace(path)
     print("polished", path)
 
 
