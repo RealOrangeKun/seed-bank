@@ -29,6 +29,3 @@ jobs:
 
       - name: Build inference worker image (runtime-inference-cpu)
         run: docker build --target runtime-inference-cpu -t seedbank/worker-inference:ci .
-
-      - name: Build mlflow image
-        run: docker build --target mlflow -t seedbank/mlflow:ci .

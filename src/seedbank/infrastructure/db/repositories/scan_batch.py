@@ -11,6 +11,7 @@ from sqlalchemy import desc, func, select, update
 from sqlalchemy.orm import selectinload
 
 from seedbank.core.logging import get_logger
+from seedbank.infrastructure.db.enums import BatchSource
 from seedbank.infrastructure.db.models import (
     Inference,
     ScanBatch,
@@ -26,6 +27,12 @@ if TYPE_CHECKING:
     from seedbank.infrastructure.db.enums import BatchStatus
 
 log = get_logger(__name__)
+
+# Sources never shown in the history list: the mobile realtime scanner emits one
+# batch per live-video frame, so they'd swamp the list and bury real scans. They
+# stay in the DB (the realtime screen polls each by id) but are filtered out of
+# list/count unless a caller asks for that exact source.
+_HISTORY_HIDDEN_SOURCES: tuple[str, ...] = (BatchSource.MOBILE_REALTIME.value,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +70,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
         offset: int = 0,
         supplier_id: UUID | None = None,
         country_code: str | None = None,
+        source: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> list[ScanBatch]:
@@ -74,6 +82,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             stmt = stmt.where(ScanBatch.supplier_id == supplier_id)
         if country_code is not None:
             stmt = stmt.where(ScanBatch.geo_country_code == country_code)
+        stmt = self._apply_source_filter(stmt, source)
         if since is not None:
             stmt = stmt.where(ScanBatch.submitted_at >= since)
         if until is not None:
@@ -81,6 +90,17 @@ class ScanBatchRepository(Repository[ScanBatch]):
 
         stmt = stmt.order_by(desc(ScanBatch.submitted_at)).limit(limit).offset(offset)
         return list((await self.session.execute(stmt)).scalars().all())
+
+    @staticmethod
+    def _apply_source_filter(stmt, source: str | None):  # type: ignore[no-untyped-def]
+        """Restrict to one ``source`` if given, else hide the history-excluded
+        sources (mobile realtime frames). Shared by list + count so the page and
+        its total agree."""
+        if source is not None:
+            return stmt.where(ScanBatch.source == source)
+        if _HISTORY_HIDDEN_SOURCES:
+            return stmt.where(ScanBatch.source.notin_(_HISTORY_HIDDEN_SOURCES))
+        return stmt
 
     async def list_for_user_with_counts(
         self,
@@ -90,6 +110,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
         offset: int = 0,
         supplier_id: UUID | None = None,
         country_code: str | None = None,
+        source: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> list[tuple[ScanBatch, int]]:
@@ -115,6 +136,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             stmt = stmt.where(ScanBatch.supplier_id == supplier_id)
         if country_code is not None:
             stmt = stmt.where(ScanBatch.geo_country_code == country_code)
+        stmt = self._apply_source_filter(stmt, source)
         if since is not None:
             stmt = stmt.where(ScanBatch.submitted_at >= since)
         if until is not None:
@@ -135,6 +157,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
         *,
         supplier_id: UUID | None = None,
         country_code: str | None = None,
+        source: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> int:
@@ -152,6 +175,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             stmt = stmt.where(ScanBatch.supplier_id == supplier_id)
         if country_code is not None:
             stmt = stmt.where(ScanBatch.geo_country_code == country_code)
+        stmt = self._apply_source_filter(stmt, source)
         if since is not None:
             stmt = stmt.where(ScanBatch.submitted_at >= since)
         if until is not None:
@@ -288,7 +312,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        won = (result.rowcount or 0) > 0
+        won = (result.rowcount or 0) > 0  # type: ignore[attr-defined]
         log.info("scan_batch.soft_delete", batch_id=str(batch_id), deleted=won)
         return won
 
@@ -313,7 +337,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        deleted = result.rowcount or 0
+        deleted = result.rowcount or 0  # type: ignore[attr-defined]
         log.info(
             "scan_batch.soft_delete_many",
             requested=len(batch_ids),
@@ -340,7 +364,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        deleted = result.rowcount or 0
+        deleted = result.rowcount or 0  # type: ignore[attr-defined]
         log.info(
             "scan_batch.soft_delete_many_any_owner",
             requested=len(batch_ids),
@@ -366,7 +390,7 @@ class ScanBatchRepository(Repository[ScanBatch]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        won = (result.rowcount or 0) > 0
+        won = (result.rowcount or 0) > 0  # type: ignore[attr-defined]
         log.info(
             "scan_batch.set_share_token",
             batch_id=str(batch_id),

@@ -97,7 +97,6 @@ async def register_model(
             seed_type_id=payload.seed_type_id,
             config=payload.config,
             training_metadata=payload.training_metadata,
-            mlflow_run_id=payload.mlflow_run_id,
         ),
         ip=request.client.host if request.client else None,
     )

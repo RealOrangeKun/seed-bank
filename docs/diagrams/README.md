@@ -21,9 +21,15 @@ behind a profile, e.g. the GPU worker).
 | 05 | [Database ERD](05-db-erd.md) | What tables exist and how do they reference each other? |
 | 06 | [Analyze request sequence](06-analyze-sequence.md) | End-to-end timing for `POST /analyze` → polled completion. |
 | 07 | [Batch state machine](07-batch-state-machine.md) | What states does `scan_batch.status` transition through, and why? |
-| 08 | [Auth sequences](08-auth-sequence.md) | Local login, refresh-token rotation, OAuth, API-key. |
+| 08 | [Auth sequences](08-auth-sequence.md) | Local login, refresh-token rotation, OAuth. |
 | 09 | [ML platform](09-ml-platform.md) | Model lifecycle (registered → staging → production → archived) + traffic router + per-request override. |
 | 10 | [Deployment](10-deployment.md) | The runtime topology: which container holds what, network, volumes, the GPU profile boundary. |
+| 11 | [Project timeline (Gantt)](11-gantt.mmd) | When did each revamp phase land across the academic year? |
+| 12 | [Use cases](12-usecase.mmd) | Which actors (farmer, AI developer, admin) reach which capabilities? |
+| 13 | [Domain class diagram](13-class.mmd) | How do the core entities relate as classes and attributes? |
+| 14 | [Multi-seed generation pipeline](14-multiseedgen-pipeline.mmd) | How are synthetic multi-seed training images composited from single-seed sources? |
+| 15 | [Analyze activity](15-analyze-activity.mmd) | Activity diagram: the analyze pipeline across client, API, and worker — validate, store, dispatch, detect, classify, and the batch state transitions. |
+| 16 | [Model resolution activity](16-model-resolution.mmd) | Activity diagram: the `ModelResolver` decision flow — explicit override, per-segment production lookup, global fallback, and `ModelNotReadyError`. |
 
 ## Conventions
 

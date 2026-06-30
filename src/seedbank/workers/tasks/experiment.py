@@ -7,16 +7,17 @@ task
 1. opens a fresh ``AsyncSession`` (workers must NOT share the API engine),
 2. flips the experiment from ``pending`` → ``running`` via CAS,
 3. loads the model + dataset + every dataset item,
-4. starts an MLflow run (best-effort; absence does not fail the run),
-5. iterates each item: pulls bytes from MinIO ``seedbank-datasets``,
+4. iterates each item: pulls bytes from MinIO ``seedbank-datasets``,
    runs the appropriate pipeline (detect or classify), records a
    per-item ``experiment_results`` row,
-6. aggregates summary metrics, upserts ``model_metrics``, renders a
+5. aggregates summary metrics, upserts ``model_metrics``, renders a
    Markdown report and uploads it to MinIO ``seedbank-experiments``,
-7. logs to MLflow,
-8. flips ``running`` → ``succeeded`` (or ``failed`` on any uncaught
-   exception) with ``finished_at``, ``duration_ms``, ``summary_metrics``,
-   ``mlflow_run_id`` set in the same UPDATE.
+6. flips ``running`` → ``succeeded`` (or ``failed`` on any uncaught
+   exception) with ``finished_at``, ``duration_ms``, ``summary_metrics``
+   set in the same UPDATE.
+
+The source of truth for metrics is Postgres (``summary_metrics`` /
+``model_metrics``) plus the Markdown report in MinIO.
 
 A failed item (bad ground-truth schema, decode error, backend exception)
 is recorded on its row's ``error`` column and does NOT abort the run —
@@ -62,7 +63,6 @@ from seedbank.infrastructure.ml.pipeline.factory import (
     build_classify_pipeline,
     build_detect_pipeline,
 )
-from seedbank.infrastructure.mlflow import experiments as mlflow_runs
 from seedbank.infrastructure.storage import get_storage
 from seedbank.services.eval import (
     DetectionItemMetrics,
@@ -167,16 +167,7 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
         # MVP cap — datasets larger than this should land later via paging.
         items = await repos.items.list_for_dataset(experiment.dataset_id, limit=10_000, offset=0)
 
-        # 4. Start MLflow run (best-effort).
-        run_id = mlflow_runs.start_run(
-            experiment_id=experiment.id,
-            experiment_name=experiment.name,
-            model_id=model.id,
-            dataset_id=dataset.id,
-            kind=model.kind,
-        )
-
-        # 5. Run the appropriate eval flow.
+        # 4. Run the appropriate eval flow.
         try:
             if model.kind == ModelKind.DETECTION.value:
                 summary, metrics, items_evaluated, items_failed = await _run_detection_eval(
@@ -203,17 +194,15 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
                 "experiment.eval_failed",
                 experiment_id=str(experiment.id),
             )
-            await _mark_failed(repos, experiment.id, mlflow_run_id=run_id)
+            await _mark_failed(repos, experiment.id)
             await session.commit()
-            if run_id:
-                mlflow_runs.terminate(run_id, status="FAILED")
             raise
 
-        # 6. Compute duration.
+        # 5. Compute duration.
         finished_at = datetime.now(UTC)
         duration_ms = int((finished_at - started_at).total_seconds() * 1000)
 
-        # 7. Render markdown report and upload to MinIO.
+        # 6. Render markdown report and upload to MinIO.
         report_text = render_report(
             experiment_id=experiment.id,
             experiment_name=experiment.name,
@@ -229,7 +218,6 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
             duration_ms=duration_ms,
             items_evaluated=items_evaluated,
             items_failed=items_failed,
-            mlflow_run_id=run_id,
         )
         report_key = f"experiments/{experiment.id}/report.md"
         try:
@@ -246,34 +234,14 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
                 error=repr(exc),
             )
 
-        # 8. MLflow log_run (best-effort).
-        if run_id:
-            mlflow_runs.log_run(
-                run_id=run_id,
-                params={
-                    "model_id": str(model.id),
-                    "model_name": model.name,
-                    "model_version": model.version,
-                    "dataset_id": str(dataset.id),
-                    "dataset_name": dataset.name,
-                    "kind": model.kind,
-                },
-                metrics={
-                    name: float(value)
-                    for name, value in summary.items()
-                    if isinstance(value, (int, float))
-                },
-                report_markdown=report_text,
-            )
-
-        # 9. Upsert ModelMetric rows.
+        # 7. Upsert ModelMetric rows.
         await repos.metrics.upsert_for_experiment(
             model_id=model.id,
             dataset_id=dataset.id,
             metrics=metrics,
         )
 
-        # 10. CAS running → succeeded with full payload.
+        # 8. CAS running → succeeded with full payload.
         await repos.experiments.cas_status(
             experiment.id,
             expected=ExperimentStatus.RUNNING,
@@ -281,11 +249,8 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
             set_finished_at=True,
             duration_ms=duration_ms,
             summary_metrics=_jsonable_summary(summary),
-            mlflow_run_id=run_id,
         )
         await session.commit()
-        if run_id:
-            mlflow_runs.terminate(run_id, status="FINISHED")
 
         log.info(
             "experiment.succeeded",
@@ -297,7 +262,8 @@ async def _async_run_experiment(*, experiment_id: UUID) -> None:
             duration_ms=duration_ms,
         )
         # DWH dual-write — fan out per-result fact rows + the model dim.
-        from seedbank.workers.tasks.dwh import (  # local import keeps the module discoverable lazily
+        # local import keeps the module discoverable lazily
+        from seedbank.workers.tasks.dwh import (
             SYNC_EXPERIMENT_RESULTS,
             dispatch_after_commit,
         )
@@ -537,8 +503,6 @@ def _jsonable_summary(summary: dict[str, Any]) -> dict[str, Any]:
 async def _mark_failed(
     repos: _Repos,
     experiment_id: UUID,
-    *,
-    mlflow_run_id: str | None = None,
 ) -> None:
     """Try ``running → failed``; if that loses, the row is already in a
     terminal state. Either way, no exception escapes the helper."""
@@ -547,7 +511,6 @@ async def _mark_failed(
         expected=ExperimentStatus.RUNNING,
         new=ExperimentStatus.FAILED,
         set_finished_at=True,
-        mlflow_run_id=mlflow_run_id,
     )
 
 

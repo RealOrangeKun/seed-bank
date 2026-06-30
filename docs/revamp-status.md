@@ -16,12 +16,12 @@ in-repo replacement for the working plan file that drove the revamp and was lost
 | Phase | Scope | Status |
 |---|---|---|
 | 1 — Scaffold | FastAPI app factory; prototype archived to `legacy/` | ✅ done |
-| 2 — Schema | 18-table async SQLAlchemy + Alembic baseline; UUIDv7 PKs | ✅ done |
+| 2 — Schema | 18-table async SQLAlchemy + Alembic baseline; UUIDv7 PKs (now **17** — `traffic_splits` dropped in `0004_drop_traffic_mlflow`) | ✅ done |
 | 3 — Infra | repositories + clients + lifespan + `/readyz` | ✅ done |
-| 4 — Auth | email/pw + OAuth + API keys + RBAC + rate limiting | ✅ done |
-| 5 — ML platform | registry, 3 backends, model manager, traffic router, `/models` | ✅ done |
+| 4 — Auth | email/pw + OAuth + RBAC + rate limiting | ✅ done |
+| 5 — ML platform | registry, 3 backends, model manager, `ModelResolver`, `/models` | ✅ done (weighted-A/B traffic-splits **removed**; `TrafficRouter` replaced by `ModelResolver` — production-model resolution with a global fallback, no A/B) |
 | 6 — Inference path | unified `POST /analyze` + Celery batch + detect/classify | ✅ done¹ |
-| 7 — Experiments | datasets, experiment runner, MLflow | ✅ done² |
+| 7 — Experiments | datasets, experiment runner | ✅ done² (runs **without MLflow** — MLflow tracking removed; metrics live in Postgres + a MinIO Markdown report) |
 | 8 — DWH | OLTP → ClickHouse | ✅ done as **app-level dual-write** (true logical-replication CDC deferred; `wal_level=logical` set but unused) |
 | 9 — Observability | `/metrics` + OTel + Sentry | ✅ wired, **opt-in** (not default-on) |
 | 10 — Load tests / full e2e / docs polish | the original Phase-10 deliverables | ❌ **not done** |
@@ -43,20 +43,23 @@ not exist.
 All of the following work on `master`:
 
 - **Auth** — register/verify/login/refresh/logout, refresh-token rotation with
-  replay detection, Google/GitHub OAuth, API keys (hash-at-rest, scopes, expiry),
+  replay detection, Google OAuth,
   RBAC (`admin`/`ai_developer`/`end_user`), per-route rate limiting, append-only
   audit log, one-shot bootstrap-admin.
 - **Model lifecycle** — register weights to MinIO + `model_artifacts`
   (`scripts/register_model.py` + `POST /models`), promote
-  `registered→staging→production→archived`, weighted A/B via `traffic_splits`,
-  per-request `model_id` override for `ai_developer`/`admin`.
+  `registered→staging→production→archived`; `ModelResolver` resolves the
+  `production` model for a `(kind, seed_type_id)` segment with a global fallback
+  (no A/B / traffic-splits), per-request `model_id` override for
+  `ai_developer`/`admin`.
 - **Inference** — `POST /analyze` → MinIO + Postgres → Celery `analyze_image` →
-  traffic-router model pick → detect → classify-per-crop → persist `inferences`
-  + `seed_detections` with full `detection→inference→model` traceability → CAS
-  batch state machine (`pending→running→succeeded/partial/failed`) → poll
-  `GET /batches/{id}`.
+  production-model resolve (`ModelResolver`) → detect → classify-per-crop →
+  persist `inferences` + `seed_detections` with full `detection→inference→model`
+  traceability → CAS batch state machine
+  (`pending→running→succeeded/partial/failed`) → poll `GET /batches/{id}`.
 - **Experiments** — datasets + items, `POST /experiments` → offline-eval runner →
-  MLflow params/metrics/artifacts → Markdown report to MinIO →
+  metrics persisted to Postgres (`summary_metrics` / `experiment_results` /
+  `model_metrics`) + Markdown report to MinIO (no MLflow) →
   `GET /models/{id}/performance`.
 - **DWH** — Celery dual-write to ClickHouse star schema (3 `dim_*` + 4 `fact_*`,
   `ReplacingMergeTree`, partition-by-month).
@@ -88,8 +91,10 @@ stub/TODO scan over ~13.6k LOC found 3 benign documented TODOs and zero
   full OAuth callback mocked everywhere.
 - `housekeeping` queue declared but has no task (no retention/cleanup, no Celery
   beat).
-- No `TrafficSplitRepository` — split queries are ad-hoc inside `TrafficRouter`
-  (only layer skipping the repository pattern).
+- ~~No `TrafficSplitRepository`~~ — **moot:** the traffic-splits A/B feature was
+  removed (`TrafficRouter` deleted, replaced by `ModelResolver`; `traffic_splits`
+  dropped in `0004_drop_traffic_mlflow`), so there is no split query to push
+  behind a repository.
 - Endpoints whose service/schema already exist but no route: password change
   (`PATCH /users/me/password`), `GET /experiments/{id}/results`, presigned upload.
 - **Test suite not hermetic** (confirmed 2026-06-20): app-booting integration
@@ -102,8 +107,7 @@ stub/TODO scan over ~13.6k LOC found 3 benign documented TODOs and zero
 **P2 — hardening / correctness / docs**
 - Validate `builder_key` at model-register time (else opaque 503 at inference).
 - Roboflow `classify` fallback fragile; OAuth provider tokens fetched then
-  discarded (encrypted columns unused); API-key `scopes` defined but
-  `require_scope()` never wired.
+  discarded (encrypted columns unused).
 - Workers don't propagate `request_id`/`user_id` → logs lack request correlation.
 - OTel SQLAlchemy/Redis statement sanitization pending a library upgrade.
 - Stale docs: this used to be only the README §Status; `CLAUDE.md`'s "Where to
@@ -156,9 +160,8 @@ Sequenced **original-Phase-10 first** (the agreed first track):
 5. **Docs polish** — create the four missing `docs/*.md` (or repoint to
    diagrams); document the dual-write-vs-CDC decision.
 
-Then fold in the near-term P0/P1: `scripts/run_experiment.py`,
-`TrafficSplitRepository`, the `housekeeping` task + Celery beat, and the three
-already-backed endpoints.
+Then fold in the near-term P0/P1: `scripts/run_experiment.py`, the
+`housekeeping` task + Celery beat, and the three already-backed endpoints.
 
 ## Open questions to confirm
 - Was the `git filter-branch` rewrite the `.pth` purge, and are `models/*.pth`

@@ -11,6 +11,7 @@ Ownership scoping and ``submitted_at desc`` ordering match
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,7 @@ async def _seed_user(db_session: AsyncSession, email: str) -> User:
     return user
 
 
-def _batch(user_id, *, submitted_at: datetime) -> ScanBatch:
+def _batch(user_id: UUID, *, submitted_at: datetime) -> ScanBatch:
     return ScanBatch(
         user_id=user_id,
         status="pending",
@@ -42,7 +43,7 @@ def _batch(user_id, *, submitted_at: datetime) -> ScanBatch:
     )
 
 
-def _image(batch_id, key: str) -> ScanImage:
+def _image(batch_id: UUID, key: str) -> ScanImage:
     return ScanImage(
         batch_id=batch_id,
         storage_key=key,

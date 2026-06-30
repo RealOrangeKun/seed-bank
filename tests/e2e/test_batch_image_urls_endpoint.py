@@ -17,6 +17,7 @@ S3 signature.
 from __future__ import annotations
 
 import io
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
@@ -51,6 +52,12 @@ class _StubStorage:
     produces (a browser-reachable string).
     """
 
+    async def put_object(self, bucket: str, key: str, data: bytes, content_type: str) -> None:
+        # The submit step (`POST /analyze`) writes image bytes server-side; this
+        # stub stands in for the whole ObjectStorage, so it must accept the
+        # upload as well as presign the read.
+        return None
+
     async def presigned_get_url(self, bucket: str, key: str, ttl: timedelta) -> str:
         return f"{_STUB_URL}?bucket={bucket}&key={key}"
 
@@ -60,20 +67,16 @@ def _short_circuit_minio_and_celery(monkeypatch: pytest.MonkeyPatch) -> None:
     from seedbank.infrastructure.storage.minio_client import MinioStorage
     from seedbank.workers import celery_app as celery_module
 
-    monkeypatch.setattr(
-        MinioStorage, "put_object", AsyncMock(return_value=None)
-    )
+    monkeypatch.setattr(MinioStorage, "put_object", AsyncMock(return_value=None))
 
     def _fake_send_task(*args: Any, **kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr(
-        celery_module.celery_app, "send_task", _fake_send_task
-    )
+    monkeypatch.setattr(celery_module.celery_app, "send_task", _fake_send_task)
 
 
 @pytest.fixture
-def _stub_storage(app_client: AsyncClient) -> None:
+def _stub_storage(app_client: AsyncClient) -> Iterator[None]:
     """Override ``storage_dep`` so ``BatchService`` presigns through the
     stub rather than dialing the (absent) MinIO endpoint.
 
@@ -82,7 +85,7 @@ def _stub_storage(app_client: AsyncClient) -> None:
     up so the override doesn't leak into other tests.
     """
     app = app_client._transport.app  # type: ignore[attr-defined]
-    app.dependency_overrides[storage_dep] = lambda: _StubStorage()
+    app.dependency_overrides[storage_dep] = _StubStorage
     yield
     app.dependency_overrides.pop(storage_dep, None)
 
@@ -96,7 +99,8 @@ async def _submit(client: AsyncClient, token: str, *, n: int = 1) -> str:
         files=files,
     )
     assert r.status_code == 202, r.text
-    return r.json()["data"]["id"]
+    batch_id: str = r.json()["data"]["id"]
+    return batch_id
 
 
 # ── Happy path ─────────────────────────────────────────────────────────────
@@ -161,9 +165,7 @@ async def test_image_urls_for_nonexistent_batch_returns_404_problem(
         headers=auth_header(end_user.token),
     )
     assert r.status_code == 404
-    assert r.headers.get("content-type", "").startswith(
-        "application/problem+json"
-    )
+    assert r.headers.get("content-type", "").startswith("application/problem+json")
     assert r.json()["code"] == "not_found"
 
 

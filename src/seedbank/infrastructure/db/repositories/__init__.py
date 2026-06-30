@@ -6,7 +6,6 @@ themselves.
 """
 
 from .analytics import AnalyticsRepository
-from .api_key import ApiKeyRepository
 from .base import Repository
 from .dataset import DatasetItemRepository, DatasetRepository
 from .experiment import (
@@ -27,7 +26,6 @@ from .user import UserRepository
 
 __all__ = [
     "AnalyticsRepository",
-    "ApiKeyRepository",
     "CasResult",
     "DatasetItemRepository",
     "DatasetRepository",

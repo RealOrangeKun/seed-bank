@@ -21,17 +21,15 @@ flowchart LR
 
     %% External systems
     GOO[Google OAuth]
-    GH[GitHub OAuth]
     RB[Roboflow Inference API<br/>optional backend]
     SE[Sentry<br/>error tracking, optional]
 
     %% Edges
     EU -- "POST /analyze<br/>GET /batches/{id}" --> API
     AID -- "POST /models, PATCH /models/{id}<br/>POST /experiments" --> API
-    AD  -- "PATCH /users/{id}, /traffic, /api-keys" --> API
+    AD  -- "PATCH /users/{id}" --> API
 
     API -- "OIDC code flow" --> GOO
-    API -- "OIDC code flow" --> GH
     API -. "POST inference (per image)" .-> RB
     API -. "events, errors" .-> SE
 ```

@@ -60,13 +60,25 @@ uploads/
 # Reference only; never re-add (also excluded from build context in .dockerignore).
 legacy/
 
+# Standalone desktop inference app + its shipped archive — source of the new
+# model weights, but far too large (1.2 GB .rar, ~1.2 GB weights) to ever track.
+# The weights are imported into MinIO via scripts/register_model.py, not git.
+seed-bank-app/
+seed-bank-app.rar
+
 # Frontend
 node_modules/
 compose.override.yaml
 
-# Claude Code harness — local working aids, never committed.
-.claude/
-CLAUDE.md
+# Claude Code — the team config IS shared (committed): CLAUDE.md (root + nested
+# frontend/ and mobile/), and .claude/{agents,skills,commands,hooks,memory,settings.json}.
+# (.claude/memory/ is the committed TEAM memory; a developer's personal auto-memory
+# lives under ~/.claude/ and is never in this repo.) Keep personal / machine-local
+# bits out of git:
+.claude/settings.local.json
+.claude/.fuse_hidden*
+.claude/launch.json
+CLAUDE.local.md
 
 # Graduation requirements documents
 docs/*.pdf

@@ -18,10 +18,10 @@ upstream image directly.
 
 | File | Consumed by | How |
 |---|---|---|
-| `postgres_password` | postgres, api/workers, mlflow | postgres reads `POSTGRES_PASSWORD_FILE`; api/workers/mlflow read it inside an entrypoint shim |
+| `postgres_password` | postgres, api/workers | postgres reads `POSTGRES_PASSWORD_FILE`; api/workers read it inside an entrypoint shim |
 | `jwt_secret` | api, workers | Pydantic `secrets_dir` → `Settings.jwt_secret` |
-| `minio_access_key` | api, workers, minio, mlflow | Pydantic + entrypoint shim (minio + mlflow) |
-| `minio_secret_key` | api, workers, minio, mlflow | Pydantic + entrypoint shim (minio + mlflow) |
+| `minio_access_key` | api, workers, minio | Pydantic + entrypoint shim (minio) |
+| `minio_secret_key` | api, workers, minio | Pydantic + entrypoint shim (minio) |
 | `clickhouse_password` | api, workers, clickhouse | Pydantic + entrypoint shim (clickhouse) |
 | `roboflow_api_key` | api, workers | Pydantic `secrets_dir` (optional — file may be empty) |
 | `sentry_dsn` | api, workers | Pydantic `secrets_dir` (optional — omit file to disable Sentry) |

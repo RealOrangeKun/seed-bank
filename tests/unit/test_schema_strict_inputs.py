@@ -24,19 +24,19 @@ from seedbank.schemas.experiment import ExperimentCreateIn
 def test_dataset_create_rejects_unknown_field() -> None:
     DatasetCreateIn(name="set")  # valid baseline
     with pytest.raises(ValidationError):
-        DatasetCreateIn(name="set", descrption="typo")  # type: ignore[call-arg]
+        DatasetCreateIn(name="set", descrption="typo")
 
 
 def test_dataset_item_rejects_unknown_field() -> None:
     with pytest.raises(ValidationError):
-        DatasetItemCreateIn(image_storage_key="k", labl="typo")  # type: ignore[call-arg]
+        DatasetItemCreateIn(image_storage_key="k", labl="typo")
 
 
 def test_dataset_bulk_rejects_unknown_field() -> None:
     with pytest.raises(ValidationError):
         DatasetItemsBulkIn(
             items=[DatasetItemCreateIn(image_storage_key="k")],
-            extra=1,  # type: ignore[call-arg]
+            extra=1,
         )
 
 
@@ -44,6 +44,4 @@ def test_experiment_create_rejects_unknown_field_but_keeps_model_prefix() -> Non
     # ``model_id`` must still be accepted (protected-namespace opt-out survives).
     ExperimentCreateIn(name="x", model_id=uuid4(), dataset_id=uuid4())
     with pytest.raises(ValidationError):
-        ExperimentCreateIn(  # type: ignore[call-arg]
-            name="x", model_id=uuid4(), dataset_id=uuid4(), typo=1
-        )
+        ExperimentCreateIn(name="x", model_id=uuid4(), dataset_id=uuid4(), typo=1)

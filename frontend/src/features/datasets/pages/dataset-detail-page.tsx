@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { usePagination } from "@/hooks/use-pagination";
 import { formatDateTime, shortId } from "@/lib/format";
 
@@ -44,6 +45,7 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function AddItemsDialog({ datasetId }: { datasetId: string }) {
+  const { t, tn } = useI18n();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const add = useAddDatasetItems(datasetId);
@@ -56,16 +58,16 @@ function AddItemsDialog({ datasetId }: { datasetId: string }) {
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (keys.length === 0) {
-      toast.error("Paste at least one image storage key.");
+      toast.error(t("datasets.pasteAtLeastOne"));
       return;
     }
     try {
       const result = await add.mutateAsync(keys);
-      toast.success(`Added ${result.added} item${result.added === 1 ? "" : "s"}.`);
+      toast.success(tn("datasetItemsAdded", result.added));
       setText("");
       setOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add items.");
+      toast.error(err instanceof Error ? err.message : t("datasets.addFailed"));
     }
   };
 
@@ -79,22 +81,19 @@ function AddItemsDialog({ datasetId }: { datasetId: string }) {
     >
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4" /> Add items
+          <Plus className="h-4 w-4" /> {t("datasets.addItems")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add items</DialogTitle>
-          <DialogDescription>
-            Paste one image storage key per line. Keys reference objects already
-            uploaded to MinIO.
-          </DialogDescription>
+          <DialogTitle>{t("datasets.addItems")}</DialogTitle>
+          <DialogDescription>{t("datasets.addItemsDesc")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <Field
             id="storageKeys"
-            label="Image storage keys"
-            hint={keys.length > 0 ? `${keys.length} key${keys.length === 1 ? "" : "s"}` : "One per line"}
+            label={t("datasets.storageKeysLabel")}
+            hint={keys.length > 0 ? tn("datasetKeys", keys.length) : t("datasets.onePerLine")}
           >
             <textarea
               id="storageKeys"
@@ -108,7 +107,7 @@ function AddItemsDialog({ datasetId }: { datasetId: string }) {
           <DialogFooter>
             <Button type="submit" disabled={add.isPending}>
               {add.isPending ? <Spinner /> : null}
-              Add {keys.length > 0 ? `${keys.length} item${keys.length === 1 ? "" : "s"}` : "items"}
+              {keys.length > 0 ? tn("datasetAddBtn", keys.length) : t("datasets.addItems")}
             </Button>
           </DialogFooter>
         </form>
@@ -118,6 +117,7 @@ function AddItemsDialog({ datasetId }: { datasetId: string }) {
 }
 
 export function DatasetDetailPage() {
+  const { t } = useI18n();
   const { datasetId = "" } = useParams();
   const pagination = usePagination(20);
   const dataset = useDataset(datasetId);
@@ -129,14 +129,18 @@ export function DatasetDetailPage() {
   return (
     <>
       <PageHeader
-        title={dataset.data ? dataset.data.name : `Dataset ${shortId(datasetId)}`}
-        description="Images and ground truth used for offline evaluation."
+        title={
+          dataset.data
+            ? dataset.data.name
+            : t("datasets.detailFallback", { id: shortId(datasetId) })
+        }
+        description={t("datasets.detailDescription")}
         actions={
           <div className="flex items-center gap-2">
             <AddItemsDialog datasetId={datasetId} />
             <Button variant="outline" asChild>
               <Link to="/datasets">
-                <ArrowLeft className="h-4 w-4" /> Back
+                <ArrowLeft className="h-4 w-4" /> {t("common.back")}
               </Link>
             </Button>
           </div>
@@ -151,20 +155,20 @@ export function DatasetDetailPage() {
         <Card>
           <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
             <MetaRow
-              label="ID"
+              label={t("field.id")}
               value={
                 <span className="inline-flex items-center gap-1 font-mono text-xs">
                   {shortId(dataset.data.id)}
-                  <CopyButton value={dataset.data.id} label="Copy dataset id" />
+                  <CopyButton value={dataset.data.id} label={t("datasets.copyId")} />
                 </span>
               }
             />
-            <MetaRow label="Items" value={dataset.data.item_count} />
-            <MetaRow label="Created" value={formatDateTime(dataset.data.created_at)} />
-            <MetaRow label="Updated" value={formatDateTime(dataset.data.updated_at)} />
+            <MetaRow label={t("field.items")} value={dataset.data.item_count} />
+            <MetaRow label={t("field.created")} value={formatDateTime(dataset.data.created_at)} />
+            <MetaRow label={t("field.updated")} value={formatDateTime(dataset.data.updated_at)} />
             {dataset.data.description ? (
               <MetaRow
-                label="Description"
+                label={t("field.description")}
                 value={<span className="font-normal">{dataset.data.description}</span>}
               />
             ) : null}
@@ -178,8 +182,8 @@ export function DatasetDetailPage() {
         <ErrorState error={items.error} />
       ) : items.data.data.length === 0 ? (
         <EmptyState
-          title="No items yet"
-          description="Add image storage keys to populate this dataset."
+          title={t("datasets.itemsEmpty")}
+          description={t("datasets.itemsEmptyDesc")}
           action={<AddItemsDialog datasetId={datasetId} />}
         />
       ) : (
@@ -188,9 +192,9 @@ export function DatasetDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Image storage key</TableHead>
-                  <TableHead>Checksum</TableHead>
-                  <TableHead>Ground truth</TableHead>
+                  <TableHead>{t("datasets.colStorageKey")}</TableHead>
+                  <TableHead>{t("datasets.colChecksum")}</TableHead>
+                  <TableHead>{t("datasets.colGroundTruth")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

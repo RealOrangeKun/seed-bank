@@ -62,7 +62,6 @@ def _parse_args() -> argparse.Namespace:
     )
     up.add_argument("--threshold", type=float, default=0.5)
     up.add_argument("--image-size", type=int, default=None)
-    up.add_argument("--mlflow-run-id", default=None)
     up.add_argument("--metadata", default=None, help="JSON string with extra training metadata.")
     up.add_argument(
         "--actor-id",
@@ -133,7 +132,7 @@ async def _cmd_upload(args: argparse.Namespace) -> int:
                 storage=storage,
                 settings=settings,
             )
-            actor_id = args.actor_id and UUID(args.actor_id) or uuid4()  # best-effort
+            actor_id = (args.actor_id and UUID(args.actor_id)) or uuid4()  # best-effort
             row = await svc.register(
                 actor_id=actor_id,
                 payload=RegisterModelInput(
@@ -145,7 +144,6 @@ async def _cmd_upload(args: argparse.Namespace) -> int:
                     seed_type_id=seed_type_id,
                     config=config,
                     training_metadata=extra or None,
-                    mlflow_run_id=args.mlflow_run_id,
                 ),
             )
             print(f"registered model {row.id} ({row.name}:{row.version})")
@@ -167,7 +165,7 @@ async def _cmd_promote(args: argparse.Namespace) -> int:
                 storage=storage,
                 settings=settings,
             )
-            actor_id = args.actor_id and UUID(args.actor_id) or uuid4()
+            actor_id = (args.actor_id and UUID(args.actor_id)) or uuid4()
             row = await svc.change_status(
                 actor_id=actor_id,
                 model_id=args.model_id,

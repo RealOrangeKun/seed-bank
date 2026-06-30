@@ -8,7 +8,6 @@
 #   runtime-inference-cpu-full— + [inference-full] (ultralytics + Roboflow).
 #                               Opt-in: only when a YOLO/Roboflow model ships.
 #   runtime-gpu               — CUDA runtime; worker-inference on GPU hosts.
-#   mlflow                    — MLflow server + psycopg2 + boto3.
 #
 # The `api` image must NEVER carry torch — it just orchestrates. Guarded in CI
 # by `.github/workflows/build.yml`; `make image-bloat` prints the largest files.
@@ -151,9 +150,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH=/opt/venv/bin:$PATH \
     PYTHONPATH=/app/src
+# ultralytics pulls non-headless opencv-python, which needs the GL + X11 runtime
+# libs (libgl1 + libxcb/libxext/libxrender/libsm) on top of the headless set.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      libpq5 libmagic1 libgl1 libglib2.0-0 curl tini \
+      libpq5 libmagic1 libgl1 libglib2.0-0 libxcb1 libxext6 libxrender1 libsm6 curl tini \
  && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --shell /bin/bash --uid 10001 seedbank
 COPY --from=builder-inference-cpu-full /opt/venv /opt/venv
@@ -186,7 +187,11 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN uv venv /opt/venv \
  && . /opt/venv/bin/activate \
- && uv pip install --no-cache-dir -e ".[inference]"
+ && uv pip install --no-cache-dir -e ".[inference]" \
+ # Swap rembg's CPU onnxruntime for the CUDA build so U2NET background removal
+ # runs on the GPU (segmentation.py prefers CUDAExecutionProvider). torch's own
+ # CUDA wheels come from the default index used above.
+ && uv pip uninstall onnxruntime 2>/dev/null; uv pip install --no-cache-dir "onnxruntime-gpu>=1.18,<2.0"
 
 # ── runtime (GPU) ─ used by worker-inference only ───────────────────────────
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS runtime-gpu
@@ -210,13 +215,3 @@ COPY --chown=seedbank:seedbank scripts ./scripts
 USER seedbank
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference"]
-
-
-# ── mlflow ──────────────────────────────────────────────────────────────────
-# The official MLflow image ships without `psycopg2` and without `boto3`,
-# but our compose configures Postgres as the backend store and MinIO/S3 as
-# the artifact destination. Add both here so the image runs as configured.
-# Pin versions explicitly so the image is reproducible — bump in lockstep
-# with the upstream MLflow tag.
-FROM ghcr.io/mlflow/mlflow:v2.18.0 AS mlflow
-RUN pip install --no-cache-dir psycopg2-binary==2.9.9 boto3==1.35.36

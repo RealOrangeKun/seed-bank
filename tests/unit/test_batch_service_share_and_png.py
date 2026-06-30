@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -20,6 +21,9 @@ from seedbank.core.exceptions import NotFoundError
 from seedbank.domain.user import AuthenticatedUser, Role
 from seedbank.services.batch_service import BatchService, _draw_boxes
 
+if TYPE_CHECKING:
+    from seedbank.infrastructure.db.models import ScanBatch, SeedDetection
+
 pytestmark = pytest.mark.unit
 
 
@@ -30,7 +34,6 @@ def _actor(role: Role = Role.END_USER) -> AuthenticatedUser:
         role=role,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
 
@@ -44,7 +47,7 @@ def _service() -> tuple[BatchService, MagicMock, MagicMock]:
     batches.set_share_token = AsyncMock(return_value=True)
     batches.get_by_share_token = AsyncMock()
     svc = BatchService(
-        session=session,  # type: ignore[arg-type]
+        session=session,
         batches=batches,
         images=MagicMock(),
         storage=MagicMock(),
@@ -93,7 +96,7 @@ class TestShareLinks:
 
     async def test_get_shared_returns_batch(self) -> None:
         svc, batches, _session = _service()
-        batch = SimpleNamespace(id=uuid4())
+        batch = cast("ScanBatch", SimpleNamespace(id=uuid4()))
         batches.get_by_share_token.return_value = batch
 
         result = await svc.get_shared_batch(token="good-token")
@@ -111,7 +114,7 @@ class TestDrawBoxes:
         det = SimpleNamespace(
             box_x_norm=0.1, box_y_norm=0.2, box_w_norm=0.3, box_h_norm=0.25, quality="good"
         )
-        out = _draw_boxes(self._png(120, 90), [det])
+        out = _draw_boxes(self._png(120, 90), cast("list[SeedDetection]", [det]))
         assert out[:4] == b"\x89PNG"
         img = Image.open(io.BytesIO(out))
         assert img.size == (120, 90)  # original dimensions preserved
@@ -127,5 +130,5 @@ class TestDrawBoxes:
             )
             for q in ("good", "bad", None)
         ]
-        out = _draw_boxes(self._png(), dets)
+        out = _draw_boxes(self._png(), cast("list[SeedDetection]", dets))
         assert out[:4] == b"\x89PNG"

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -131,13 +131,16 @@ class TestCompare:
 
     async def test_duplicate_ids_deduped(self) -> None:
         a = uuid4()
-        repo_calls: list[list] = []
+        repo_calls: list[list[UUID]] = []
         svc = _service(
             totals=Totals(0, 0, 0, 0, 0),
             batch_stats=[BatchStats(a, images=1, detections=0, good=0, bad=0, mean_confidence=0.0)],
         )
-        svc.analytics.batch_stats = AsyncMock(
-            side_effect=lambda ids, uid: repo_calls.append(ids) or [BatchStats(a, 1, 0, 0, 0, 0.0)]
+        svc.analytics.batch_stats = AsyncMock(  # type: ignore[method-assign]
+            side_effect=lambda ids, uid: (
+                repo_calls.append(ids)  # type: ignore[func-returns-value]
+                or [BatchStats(a, 1, 0, 0, 0, 0.0)]
+            )
         )
         await svc.compare(batch_ids=[a, a, a], user_id=uuid4())
         assert repo_calls[0] == [a]  # de-duped before the repo call

@@ -42,7 +42,6 @@ def _make_actor(role: Role = Role.END_USER) -> AuthenticatedUser:
         role=role,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
 
@@ -107,7 +106,7 @@ class TestModelIdOverrideAuthz:
 
     @pytest.mark.asyncio
     async def test_ai_developer_with_override_proceeds(self) -> None:
-        svc, session, batches, images, storage = _build_service()
+        svc, session, _batches, _images, _storage = _build_service()
         with patch("seedbank.services.analysis_service.celery_app.send_task") as send:
             await svc.create_and_dispatch(
                 actor=_make_actor(Role.AI_DEVELOPER),
@@ -130,9 +129,13 @@ class TestModelIdOverrideAuthz:
             await svc.create_and_dispatch(
                 actor=_make_actor(Role.ADMIN),
                 files=[AnalyzeFile(filename="x.png", content_type="image/png", data=_png_bytes())],
-                supplier_id=None, seed_type_id=None,
+                supplier_id=None,
+                seed_type_id=None,
                 model_id_override=uuid4(),
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
 
     @pytest.mark.asyncio
@@ -143,9 +146,13 @@ class TestModelIdOverrideAuthz:
             await svc.create_and_dispatch(
                 actor=_make_actor(Role.END_USER),
                 files=[AnalyzeFile(filename="x.png", content_type="image/png", data=_png_bytes())],
-                supplier_id=None, seed_type_id=None,
+                supplier_id=None,
+                seed_type_id=None,
                 model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
 
 
@@ -160,8 +167,13 @@ class TestFileCountValidation:
             await svc.create_and_dispatch(
                 actor=_make_actor(),
                 files=[],
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
 
     @pytest.mark.asyncio
@@ -176,8 +188,13 @@ class TestFileCountValidation:
             await svc.create_and_dispatch(
                 actor=_make_actor(),
                 files=files,
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
         assert str(max_files) in str(ei.value)
 
@@ -193,8 +210,13 @@ class TestPerFileValidation:
             await svc.create_and_dispatch(
                 actor=_make_actor(),
                 files=[AnalyzeFile(filename="x.bmp", content_type="image/bmp", data=_png_bytes())],
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
 
     @pytest.mark.asyncio
@@ -207,8 +229,13 @@ class TestPerFileValidation:
             await svc.create_and_dispatch(
                 actor=_make_actor(),
                 files=[AnalyzeFile(filename="big.png", content_type="image/png", data=oversized)],
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
         assert "max size" in str(ei.value)
 
@@ -218,9 +245,16 @@ class TestPerFileValidation:
         with pytest.raises(ValidationError):
             await svc.create_and_dispatch(
                 actor=_make_actor(),
-                files=[AnalyzeFile(filename="x.png", content_type="image/png", data=b"not-an-image")],
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                files=[
+                    AnalyzeFile(filename="x.png", content_type="image/png", data=b"not-an-image")
+                ],
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
 
 
@@ -230,13 +264,18 @@ class TestPerFileValidation:
 class TestHappyPath:
     @pytest.mark.asyncio
     async def test_single_file_writes_minio_then_commits_then_dispatches(self) -> None:
-        svc, session, batches, images, storage = _build_service()
+        svc, session, _batches, _images, storage = _build_service()
         with patch("seedbank.services.analysis_service.celery_app.send_task") as send:
             await svc.create_and_dispatch(
                 actor=_make_actor(),
                 files=[AnalyzeFile(filename="a.png", content_type="image/png", data=_png_bytes())],
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip="127.0.0.1",
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip="127.0.0.1",
             )
         # Ordering invariants.
         storage.put_object.assert_awaited_once()
@@ -258,8 +297,13 @@ class TestHappyPath:
                     AnalyzeFile(filename=f"a{i}.png", content_type="image/png", data=_png_bytes())
                     for i in range(3)
                 ],
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip=None,
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
             )
         assert storage.put_object.await_count == 3
         # 3 analyze_image dispatches + 1 sync_scan_batch dispatch
@@ -276,8 +320,13 @@ class TestHappyPath:
             await svc.create_and_dispatch(
                 actor=_make_actor(),
                 files=[AnalyzeFile(filename="a.png", content_type="image/png", data=_png_bytes())],
-                supplier_id=None, seed_type_id=None, model_id_override=None,
-                gps_lat=None, gps_long=None, country_code=None, ip="10.0.0.5",
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip="10.0.0.5",
             )
         # AuditLog row is the only object the service ``add()``s on the
         # session directly (batch + images go through repos).

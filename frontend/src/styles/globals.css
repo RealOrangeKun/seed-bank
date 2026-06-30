@@ -57,53 +57,56 @@
   }
 
   /*
-    Dark "soil-night" palette. Reworked for a real elevation ramp (canvas 9% →
-    surface 12% → card 14% → popover 17%, ≥3pt steps so surfaces separate),
-    AA-legible muted text (68% L ≈ 7:1 on card), a brighter focus ring, and two
-    extra hues (warm amber `warning`, teal `info`) so the UI is not one flat
-    green. `accent` stays a subtle warm-earth *hover* surface — it is the
-    interactive-hover token, not a brand color.
+    Dark palette — clean, modern, low-chroma neutral base (the Linear/Vercel
+    approach) instead of the old muddy mid-saturation green. The surfaces carry
+    only a whisper of green hue (≈4–6% sat) so they read as a refined cool-neutral
+    dark, while the leaf-green is reserved as a *vibrant accent* (primary, ring,
+    success). Real elevation ramp (canvas 8% → surface 11% → card 13% →
+    popover 16%, ≥2.5pt steps so cards separate from the canvas), near-white
+    foreground (≈16:1 on card), AA-legible muted text (66% L ≈ 7:1), and amber
+    `warning` / sky `info` hues so the UI is not one flat colour. `accent` is a
+    neutral interactive-hover surface, not a brand colour.
   */
   .dark {
-    --background: 160 18% 9%;
-    --foreground: 96 14% 93%;
+    --background: 160 9% 8%;
+    --foreground: 150 12% 96%;
 
-    --surface: 158 16% 12%;
-    --surface-foreground: 96 14% 93%;
+    --surface: 158 8% 11%;
+    --surface-foreground: 150 12% 96%;
 
-    --card: 156 15% 14%;
-    --card-foreground: 96 14% 93%;
+    --card: 156 7% 13%;
+    --card-foreground: 150 12% 96%;
 
-    --popover: 154 14% 17%;
-    --popover-foreground: 96 14% 95%;
+    --popover: 154 7% 16%;
+    --popover-foreground: 150 12% 97%;
 
-    --primary: 142 62% 48%;
-    --primary-foreground: 152 45% 7%;
+    --primary: 145 58% 52%;
+    --primary-foreground: 150 45% 7%;
 
-    --secondary: 152 12% 20%;
-    --secondary-foreground: 96 14% 93%;
+    --secondary: 152 6% 19%;
+    --secondary-foreground: 150 10% 94%;
 
-    --muted: 152 12% 19%;
-    --muted-foreground: 140 9% 68%;
+    --muted: 152 6% 18%;
+    --muted-foreground: 150 6% 66%;
 
-    --accent: 40 22% 20%;
-    --accent-foreground: 40 60% 86%;
+    --accent: 152 7% 22%;
+    --accent-foreground: 150 12% 95%;
 
-    --destructive: 4 70% 55%;
+    --destructive: 4 72% 58%;
     --destructive-foreground: 0 0% 98%;
 
-    --success: 142 58% 47%;
-    --success-foreground: 152 45% 8%;
+    --success: 145 56% 50%;
+    --success-foreground: 150 45% 8%;
 
-    --warning: 38 88% 56%;
+    --warning: 38 90% 58%;
     --warning-foreground: 40 65% 10%;
 
-    --info: 196 70% 52%;
-    --info-foreground: 200 60% 9%;
+    --info: 205 80% 58%;
+    --info-foreground: 205 60% 9%;
 
-    --border: 150 10% 26%;
-    --input: 150 11% 20%;
-    --ring: 142 70% 52%;
+    --border: 152 6% 22%;
+    --input: 152 7% 20%;
+    --ring: 145 64% 54%;
   }
 }
 

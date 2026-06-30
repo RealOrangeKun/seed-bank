@@ -16,7 +16,7 @@
 #     Settings field — `postgres_dsn` is a single string. To keep the
 #     password off `docker inspect` we use a small entrypoint shim that
 #     constructs the DSN from `/run/secrets/postgres_password` at boot.
-#     Same shim trick is used for MinIO + ClickHouse + MLflow because
+#     Same shim trick is used for MinIO + ClickHouse because
 #     their upstream images don't honour `_FILE` for the credentials we
 #     care about. Postgres + Grafana DO honour `_FILE`, so they get the
 #     native treatment.
@@ -87,10 +87,17 @@ x-app-env: &app-env
   CLICKHOUSE_PORT: 8123
   CLICKHOUSE_USER: ${CLICKHOUSE_USER:-seedbank}
   CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB:-seedbank}
-  MLFLOW_TRACKING_URI: http://mlflow:5000
   POSTGRES_USER: ${POSTGRES_USER:-seedbank}
   POSTGRES_DB: ${POSTGRES_DB:-seedbank}
   # POSTGRES_DSN is built by the entrypoint shim from the secret file.
+  # OAuth — set per provider via env (a provider is enabled only when both its
+  # id+secret are present). Use real prod URLs, not the localhost dev defaults.
+  OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+  OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-}
+  OAUTH_GITHUB_CLIENT_ID: ${OAUTH_GITHUB_CLIENT_ID:-}
+  OAUTH_GITHUB_CLIENT_SECRET: ${OAUTH_GITHUB_CLIENT_SECRET:-}
+  OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-}
+  OAUTH_POST_LOGIN_REDIRECT_URL: ${OAUTH_POST_LOGIN_REDIRECT_URL:-}
 
 secrets:
   postgres_password:
@@ -300,48 +307,6 @@ services:
     deploy:
       resources:
         limits: {cpus: "2.0", memory: 4G}
-
-  # ── mlflow ─ 0.5 CPU / 512M. Tracking UI + REST; rarely under load.
-  # MLflow's CLI takes the PG password inline in the URI, so we build
-  # the URI in the shim. Same trick supplies AWS_* for the MinIO bucket.
-  mlflow:
-    <<: *prod-hardening
-    logging: *prod-logging
-    environment:
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-    entrypoint:
-      - "/bin/sh"
-      - "-c"
-      - |
-        export AWS_ACCESS_KEY_ID="$$(cat /run/secrets/minio_access_key)"
-        export AWS_SECRET_ACCESS_KEY="$$(cat /run/secrets/minio_secret_key)"
-        PG_PASS="$$(cat /run/secrets/postgres_password)"
-        exec mlflow server \
-          --host 0.0.0.0 \
-          --port 5000 \
-          --backend-store-uri "postgresql://${POSTGRES_USER}:$${PG_PASS}@postgres:5432/mlflow" \
-          --artifacts-destination s3://seedbank-experiments/mlflow
-    command: []
-    secrets:
-      - source: minio_access_key
-        target: minio_access_key
-        mode: 0400
-      - source: minio_secret_key
-        target: minio_secret_key
-        mode: 0400
-      - source: postgres_password
-        target: postgres_password
-        mode: 0400
-    ports: !override []
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    deploy:
-      resources:
-        limits: {cpus: "0.5", memory: 512M}
 
   # ── prometheus ─ 1.0 CPU / 1G. 7-day TSDB retention is set in dev
   # compose; raise via storage.tsdb.retention.size if disk pressure

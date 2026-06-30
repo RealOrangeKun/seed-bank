@@ -35,7 +35,6 @@ def _make_actor(role: Role = Role.AI_DEVELOPER, *, user_id: Any = None) -> Authe
         role=role,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
 
@@ -53,6 +52,12 @@ class _FakeSession:
 
     async def rollback(self) -> None:
         self.rollbacks += 1
+
+    async def refresh(self, instance: object) -> None:
+        # No-op: the fake doesn't model DB-side defaults. The service calls
+        # refresh() after commit so created_at/updated_at load before the
+        # router serialises SupplierOut (see catalog_service).
+        pass
 
 
 def _build_service() -> tuple[CatalogService, _FakeSession, MagicMock, MagicMock]:

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { formatDateTime, humanize } from "@/lib/format";
 import { applyApiError } from "@/lib/form";
 import { MODEL_BACKENDS, MODEL_KINDS, MODEL_STATUSES } from "@/lib/api/types";
@@ -50,19 +51,32 @@ import { useModels, useRegisterModel } from "../api";
 
 const ALL = "all";
 
-const registerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  version: z.string().min(1, "Version is required"),
-  kind: z.enum(MODEL_KINDS),
-  backend: z.enum(MODEL_BACKENDS),
-  artifactUri: z.string().min(1, "Artifact URI is required"),
-  seedTypeId: z.string().uuid("Must be a valid UUID").optional().or(z.literal("")),
-});
-type RegisterValues = z.infer<typeof registerSchema>;
+interface RegisterValues {
+  name: string;
+  version: string;
+  kind: ModelKind;
+  backend: (typeof MODEL_BACKENDS)[number];
+  artifactUri: string;
+  seedTypeId?: string;
+}
 
 function RegisterModelDialog() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const register = useRegisterModel();
+
+  const registerSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("models.nameRequired")),
+        version: z.string().min(1, t("models.versionRequired")),
+        kind: z.enum(MODEL_KINDS),
+        backend: z.enum(MODEL_BACKENDS),
+        artifactUri: z.string().min(1, t("models.artifactUriRequired")),
+        seedTypeId: z.string().uuid(t("models.uuidInvalid")).optional().or(z.literal("")),
+      }),
+    [t],
+  );
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -86,7 +100,7 @@ function RegisterModelDialog() {
         artifactUri: values.artifactUri,
         seedTypeId: values.seedTypeId || undefined,
       });
-      toast.success(`Registered ${model.name} ${model.version}.`);
+      toast.success(t("models.registered", { name: model.name, version: model.version }));
       form.reset();
       setOpen(false);
     } catch (err) {
@@ -97,21 +111,18 @@ function RegisterModelDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" /> Register model
+        <Plus className="h-4 w-4" /> {t("models.register")}
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Register model</DialogTitle>
-          <DialogDescription>
-            Create a model artifact row. It starts in the registered state — promote
-            it from the detail page.
-          </DialogDescription>
+          <DialogTitle>{t("models.register")}</DialogTitle>
+          <DialogDescription>{t("models.registerDesc")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               id="name"
-              label="Name"
+              label={t("field.name")}
               required
               error={form.formState.errors.name?.message}
             >
@@ -119,13 +130,13 @@ function RegisterModelDialog() {
             </Field>
             <Field
               id="version"
-              label="Version"
+              label={t("field.version")}
               required
               error={form.formState.errors.version?.message}
             >
-              <Input id="version" placeholder="v1" {...form.register("version")} />
+              <Input id="version" placeholder={t("models.versionPlaceholder")} {...form.register("version")} />
             </Field>
-            <Field id="kind" label="Kind" required error={form.formState.errors.kind?.message}>
+            <Field id="kind" label={t("field.kind")} required error={form.formState.errors.kind?.message}>
               <Select
                 value={form.watch("kind")}
                 onValueChange={(v) => form.setValue("kind", v as ModelKind)}
@@ -144,7 +155,7 @@ function RegisterModelDialog() {
             </Field>
             <Field
               id="backend"
-              label="Backend"
+              label={t("field.backend")}
               required
               error={form.formState.errors.backend?.message}
             >
@@ -169,17 +180,17 @@ function RegisterModelDialog() {
           </div>
           <Field
             id="artifactUri"
-            label="Artifact URI"
+            label={t("models.artifactUri")}
             required
-            hint="e.g. s3://seedbank-models/maize/v1.pth"
+            hint={t("models.artifactUriHint")}
             error={form.formState.errors.artifactUri?.message}
           >
             <Input id="artifactUri" {...form.register("artifactUri")} />
           </Field>
           <Field
             id="seedTypeId"
-            label="Seed type"
-            hint="Optional; scope this model to one seed type"
+            label={t("field.seedType")}
+            hint={t("models.seedTypeHint")}
             error={form.formState.errors.seedTypeId?.message}
           >
             <Controller
@@ -201,11 +212,11 @@ function RegisterModelDialog() {
               onClick={() => setOpen(false)}
               disabled={register.isPending}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={register.isPending}>
               {register.isPending ? <Spinner /> : null}
-              Register
+              {t("models.registerSubmit")}
             </Button>
           </DialogFooter>
         </form>
@@ -215,6 +226,7 @@ function RegisterModelDialog() {
 }
 
 export function ModelsPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const pagination = usePagination(20);
   const [kind, setKind] = useState<ModelKind | "">("");
@@ -230,8 +242,8 @@ export function ModelsPage() {
   return (
     <>
       <PageHeader
-        title="Models"
-        description="Registered model artifacts and their lifecycle status."
+        title={t("models.title")}
+        description={t("models.description")}
         actions={<RegisterModelDialog />}
       />
 
@@ -244,10 +256,10 @@ export function ModelsPage() {
           }}
         >
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="Kind" />
+            <SelectValue placeholder={t("field.kind")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All kinds</SelectItem>
+            <SelectItem value={ALL}>{t("models.allKinds")}</SelectItem>
             {MODEL_KINDS.map((k) => (
               <SelectItem key={k} value={k}>
                 {humanize(k)}
@@ -263,10 +275,10 @@ export function ModelsPage() {
           }}
         >
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="Status" />
+            <SelectValue placeholder={t("field.status")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All statuses</SelectItem>
+            <SelectItem value={ALL}>{t("common.allStatuses")}</SelectItem>
             {MODEL_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {humanize(s)}
@@ -282,8 +294,8 @@ export function ModelsPage() {
         <ErrorState error={query.error} />
       ) : query.data.data.length === 0 ? (
         <EmptyState
-          title="No models"
-          description="Register a model artifact to make it available to the platform."
+          title={t("models.empty")}
+          description={t("models.emptyDesc")}
         />
       ) : (
         <Card>
@@ -291,12 +303,12 @@ export function ModelsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Kind</TableHead>
-                  <TableHead>Backend</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead>{t("field.name")}</TableHead>
+                  <TableHead>{t("field.version")}</TableHead>
+                  <TableHead>{t("field.kind")}</TableHead>
+                  <TableHead>{t("field.backend")}</TableHead>
+                  <TableHead>{t("field.status")}</TableHead>
+                  <TableHead>{t("field.created")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

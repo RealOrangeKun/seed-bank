@@ -1,9 +1,8 @@
 """Markdown report renderer for offline evaluations.
 
 Produced by the experiment worker after a run completes, uploaded to
-``seedbank-experiments/experiments/{experiment_id}/report.md`` and also
-attached as an MLflow run artifact. The shape is intentionally
-human-first: someone landing on the report from MLflow without a UI
+``seedbank-experiments/experiments/{experiment_id}/report.md``. The shape is
+intentionally human-first: someone landing on the report object without a UI
 should be able to see what model+dataset was evaluated and what came out.
 """
 
@@ -30,7 +29,6 @@ def render_report(
     duration_ms: int | None,
     items_evaluated: int,
     items_failed: int,
-    mlflow_run_id: str | None,
 ) -> str:
     """Render a Markdown report for one experiment run.
 
@@ -50,8 +48,6 @@ def render_report(
     lines.append(f"| Duration (ms) | `{duration_ms if duration_ms is not None else 'n/a'}` |")
     lines.append(f"| Items evaluated | `{items_evaluated}` |")
     lines.append(f"| Items failed | `{items_failed}` |")
-    if mlflow_run_id:
-        lines.append(f"| MLflow run | `{mlflow_run_id}` |")
     lines.append("")
 
     lines.append("## Summary metrics")

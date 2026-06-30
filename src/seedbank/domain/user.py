@@ -7,7 +7,7 @@ in `infrastructure/db/enums.py`, which the domain layer cannot import).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
@@ -25,9 +25,8 @@ class AuthenticatedUser:
     Built once per request (in `api.deps.current_user`) and passed by value
     into services. Frozen → safe to share, easy to reason about.
 
-    `scopes` are non-empty only when the request authenticated via an
-    API key. Bearer-token authentication grants the union of scopes implied
-    by the user's role and is checked via `require_role`, not `require_scope`.
+    Authorization is by role only (`require_role`); admins implicitly satisfy
+    any role check.
     """
 
     id: UUID
@@ -35,8 +34,7 @@ class AuthenticatedUser:
     role: Role
     is_active: bool
     is_verified: bool
-    scopes: frozenset[str] = field(default_factory=frozenset)
-    auth_method: str = "jwt"  # "jwt" | "api_key"
+    auth_method: str = "jwt"
 
     @property
     def is_admin(self) -> bool:
@@ -46,20 +44,13 @@ class AuthenticatedUser:
         # Admins implicitly satisfy any role check.
         return self.is_admin or self.role is role
 
-    def has_scope(self, scope: str) -> bool:
-        # JWT-authenticated users carry no explicit scopes; the role gate is
-        # the authoritative check for them.
-        if self.auth_method == "jwt":
-            return True
-        return scope in self.scopes
-
 
 @dataclass(frozen=True, slots=True)
 class OAuthIdentity:
     """Normalized identity returned by the OAuth provider clients.
 
-    Both Google and GitHub fan out to this shape so the auth service has one
-    code path for "create or link a user from an OAuth callback."
+    Providers fan out to this shape so the auth service has one code path for
+    "create or link a user from an OAuth callback."
     """
 
     provider: str

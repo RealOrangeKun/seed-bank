@@ -32,7 +32,6 @@ def _make_actor() -> AuthenticatedUser:
         role=Role.AI_DEVELOPER,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
 

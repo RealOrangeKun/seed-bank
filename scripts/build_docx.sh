@@ -63,6 +63,12 @@ sed -i 's/\.pdf}/.png}/g' "$BUILD"/chapters/*.tex
 # no rule machinery) so they convert to real Word tables instead of literal '&'.
 python3 "$ROOT/scripts/_docx_fix_tables.py" "$BUILD"/chapters/*.tex
 
+# The Arabic abstract is wrapped in `\begin{otherlanguage*}{arabic}` for XeLaTeX's
+# bidi; pandoc has no such environment and would print the literal word "arabic".
+# Strip the wrapper (the Arabic UTF-8 text passes through regardless); RTL direction
+# is reapplied to those paragraphs in _docx_polish.py.
+sed -i -E 's/\\begin\{otherlanguage\*\}\{arabic\}//; s/\\end\{otherlanguage\*\}//' "$BUILD/main.tex"
+
 # Redefine \figslot to a plain figure pandoc can convert (replaces the PDF-only,
 # \IfFileExists-based definition just for this pass).
 awk '/\\begin\{document\}/ && !d {print "\\renewcommand{\\figslot}[4][0.85]{\\begin{figure}\\centering\\includegraphics[width=#1\\linewidth]{figures/#2}\\caption{#3}\\label{#4}\\end{figure}}"; d=1} {print}' \
@@ -79,29 +85,9 @@ awk '/\\begin\{document\}/ && !d {print "\\renewcommand{\\figslot}[4][0.85]{\\be
 # Contents (and Lists of Figures/Tables) natively in Word via References ->
 # Table of Contents, so page numbers track Word's own pagination.
 
-# Center the title page. Cover lines share the justified body styles, so they
-# can only be told apart by position: every paragraph before the first heading is
-# title-page content. Apply direct centre alignment there (overrides the style).
-python3 - "$OUT" <<'PY'
-import sys, re, zipfile, os
-out = sys.argv[1]
-zin = zipfile.ZipFile(out); data = {n: zin.read(n) for n in zin.namelist()}; zin.close()
-doc = data['word/document.xml'].decode()
-m = re.search(r'<w:p\b(?:(?!</w:p>).)*?<w:pStyle w:val="Heading', doc, re.S)
-cut = m.start() if m else len(doc)
-head, tail = doc[:cut], doc[cut:]
-def center(p):
-    if '<w:jc ' in p:
-        return re.sub(r'<w:jc w:val="[^"]*"', '<w:jc w:val="center"', p, count=1)
-    if '</w:pPr>' in p:
-        return p.replace('</w:pPr>', '<w:jc w:val="center" /></w:pPr>', 1)
-    return re.sub(r'(<w:p\b[^>]*>)', r'\1<w:pPr><w:jc w:val="center" /></w:pPr>', p, count=1)
-head = re.sub(r'<w:p\b.*?</w:p>', lambda mm: center(mm.group(0)), head, flags=re.S)
-data['word/document.xml'] = (head + tail).encode()
-tmp = out + '.tmp'
-zo = zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED)
-for n, d in data.items(): zo.writestr(n, d)
-zo.close(); os.replace(tmp, out)
-PY
+# Post-process the docx to match the PDF's structure: numbered Figure/Table
+# captions (SEQ fields), live page-numbered Contents + List of Figures + List of
+# Tables, RTL Arabic paragraphs, and a centred title page. See _docx_polish.py.
+python3 "$ROOT/scripts/_docx_polish.py" "$OUT"
 
 echo "DOCX generated at $OUT"

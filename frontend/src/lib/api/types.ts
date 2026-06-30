@@ -23,7 +23,6 @@ export type LocationSource = S["LocationSource"];
 export type MeOut = S["MeOut"];
 export type UserListOut = S["UserListOut"];
 export type TokenPair = S["TokenPair"];
-export type ApiKeyOut = S["ApiKeyOut"];
 
 // ── Analyze / batches ────────────────────────────────────────────────────────
 export type BatchOut = S["BatchOut"];
@@ -41,7 +40,6 @@ export type DatasetOut = S["DatasetOut"];
 export type DatasetItemOut = S["DatasetItemOut"];
 export type ExperimentSummaryOut = S["ExperimentSummaryOut"];
 export type ExperimentDetailOut = S["ExperimentDetailOut"];
-export type TrafficSplitOut = S["TrafficSplitOut"];
 
 // ── Catalog (reference data) ──────────────────────────────────────────────────
 export type SeedTypeOut = S["SeedTypeOut"];
@@ -83,6 +81,14 @@ export const MODEL_STATUSES = [
   "production",
   "archived",
 ] as const satisfies ModelStatus[];
+// Allowed forward transitions — mirrors `_TRANSITIONS` in
+// services/model_registry_service.py. `archived` is a terminal sink.
+export const MODEL_STATUS_TRANSITIONS = {
+  registered: ["staging", "archived"],
+  staging: ["production", "archived"],
+  production: ["archived"],
+  archived: [],
+} as const satisfies Record<ModelStatus, ModelStatus[]>;
 export const BATCH_STATUSES = [
   "pending",
   "running",

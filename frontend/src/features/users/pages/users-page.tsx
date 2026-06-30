@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useI18n } from "@/i18n";
 import { ROLES } from "@/lib/api/types";
 import type { Role, UserListOut } from "@/lib/api/types";
 import { humanize } from "@/lib/format";
@@ -44,6 +45,7 @@ interface PendingChange {
 }
 
 export function UsersPage() {
+  const { t } = useI18n();
   const pagination = usePagination(20);
   const query = useUsers({ page: pagination.page, pageSize: pagination.pageSize });
   const updateRole = useUpdateRole();
@@ -63,32 +65,26 @@ export function UsersPage() {
 
   return (
     <>
-      <PageHeader
-        title="Users"
-        description="Manage roles and access across the platform."
-      />
+      <PageHeader title={t("users.title")} description={t("users.description")} />
 
       {query.isPending ? (
         <LoadingState />
       ) : query.isError ? (
         <ErrorState error={query.error} />
       ) : users.length === 0 ? (
-        <EmptyState
-          title="No users"
-          description="No users match the current page."
-        />
+        <EmptyState title={t("users.empty")} description={t("users.emptyDesc")} />
       ) : (
         <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Verified</TableHead>
-                  <TableHead>Active</TableHead>
-                  <TableHead className="text-end">Change role</TableHead>
+                  <TableHead>{t("field.email")}</TableHead>
+                  <TableHead>{t("field.name")}</TableHead>
+                  <TableHead>{t("field.role")}</TableHead>
+                  <TableHead>{t("users.colVerified")}</TableHead>
+                  <TableHead>{t("users.colActive")}</TableHead>
+                  <TableHead className="text-end">{t("users.colChangeRole")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -103,12 +99,12 @@ export function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={u.is_verified ? "success" : "warning"}>
-                        {u.is_verified ? "Verified" : "Unverified"}
+                        {u.is_verified ? t("users.verified") : t("users.unverified")}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant={u.is_active ? "success" : "secondary"}>
-                        {u.is_active ? "Active" : "Inactive"}
+                        {u.is_active ? t("users.active") : t("users.inactive")}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-end">
@@ -150,15 +146,15 @@ export function UsersPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change role</DialogTitle>
+            <DialogTitle>{t("users.changeRoleTitle")}</DialogTitle>
             <DialogDescription>
-              {pending ? (
-                <>
-                  Change <span className="font-medium">{pending.user.email}</span> from{" "}
-                  <span className="font-medium">{humanize(pending.user.role)}</span> to{" "}
-                  <span className="font-medium">{humanize(pending.role)}</span>?
-                </>
-              ) : null}
+              {pending
+                ? t("users.changeRoleConfirm", {
+                    email: pending.user.email,
+                    from: humanize(pending.user.role),
+                    to: humanize(pending.role),
+                  })
+                : null}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -167,11 +163,11 @@ export function UsersPage() {
               onClick={() => setPending(null)}
               disabled={updateRole.isPending}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={confirm} disabled={updateRole.isPending}>
               {updateRole.isPending ? <Spinner /> : null}
-              Confirm
+              {t("common.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

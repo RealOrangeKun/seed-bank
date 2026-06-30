@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from seedbank.core.exceptions import ConflictError, ValidationError
+from seedbank.core.exceptions import ConflictError
 from seedbank.core.ids import uuid7
 from seedbank.infrastructure.db.enums import (
     ModelBackend,
@@ -101,9 +101,7 @@ async def test_promote_through_full_state_machine(db_session: AsyncSession) -> N
     )
     assert row.status == ModelStatus.REGISTERED.value
 
-    row = await svc.change_status(
-        actor_id=user.id, model_id=row.id, new_status=ModelStatus.STAGING
-    )
+    row = await svc.change_status(actor_id=user.id, model_id=row.id, new_status=ModelStatus.STAGING)
     assert row.status == ModelStatus.STAGING.value
 
     row = await svc.change_status(
@@ -122,8 +120,9 @@ async def test_illegal_transition_raises(db_session: AsyncSession) -> None:
     svc = _service(db_session)
     user_id = row.created_by
     assert user_id is not None
-    # registered → production is illegal (must go through staging).
-    with pytest.raises(ValidationError):
+    # registered → production is illegal (must go through staging). An illegal
+    # transition conflicts with the resource's current state → ConflictError (409).
+    with pytest.raises(ConflictError):
         await svc.change_status(
             actor_id=user_id, model_id=row.id, new_status=ModelStatus.PRODUCTION
         )
@@ -143,9 +142,7 @@ async def test_promotion_archives_incumbent(db_session: AsyncSession) -> None:
         ),
     )
     await svc.change_status(actor_id=user.id, model_id=old.id, new_status=ModelStatus.STAGING)
-    await svc.change_status(
-        actor_id=user.id, model_id=old.id, new_status=ModelStatus.PRODUCTION
-    )
+    await svc.change_status(actor_id=user.id, model_id=old.id, new_status=ModelStatus.PRODUCTION)
 
     new = await svc.register(
         actor_id=user.id,
@@ -158,9 +155,7 @@ async def test_promotion_archives_incumbent(db_session: AsyncSession) -> None:
         ),
     )
     await svc.change_status(actor_id=user.id, model_id=new.id, new_status=ModelStatus.STAGING)
-    await svc.change_status(
-        actor_id=user.id, model_id=new.id, new_status=ModelStatus.PRODUCTION
-    )
+    await svc.change_status(actor_id=user.id, model_id=new.id, new_status=ModelStatus.PRODUCTION)
 
     refreshed_old = await svc.get(old.id)
     refreshed_new = await svc.get(new.id)

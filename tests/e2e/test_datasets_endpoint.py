@@ -123,7 +123,8 @@ async def _create_dataset(client: AsyncClient, token: str, name: str) -> str:
         json={"name": name},
     )
     assert r.status_code == 201, r.text
-    return r.json()["data"]["id"]
+    dataset_id: str = r.json()["data"]["id"]
+    return dataset_id
 
 
 async def test_add_items_bulk_succeeds(app_client: AsyncClient, ai_dev: SeededUser) -> None:

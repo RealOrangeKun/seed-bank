@@ -30,6 +30,8 @@ bash scripts/render_diagrams.sh        # writes the *.pdf files below
 | `12-usecase.pdf` | `diagrams/12-usecase.mmd` | 3.4 Use cases |
 | `13-class.pdf` | `diagrams/13-class.mmd` | 4.2 Class diagram |
 | `14-multiseedgen-pipeline.pdf` | `diagrams/14-multiseedgen-pipeline.mmd` | 4.x / 5.2 MultiSeedGen |
+| `15-analyze-activity.pdf` | `diagrams/15-analyze-activity.mmd` | 4.3 / 5.2 Activity (analyze pipeline) |
+| `16-model-resolution.pdf` | `diagrams/16-model-resolution.mmd` | 4.x ML platform (model resolution) |
 
 ## 2. Screenshots (TEAM TO PROVIDE)
 

@@ -42,12 +42,11 @@ def _make_actor(role: Role = Role.END_USER) -> AuthenticatedUser:
         role=role,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
 
 
-def _fake_image(storage_key: str):
+def _fake_image(storage_key: str) -> SimpleNamespace:
     """A lightweight stand-in for a ``ScanImage`` ORM row.
 
     ``image_urls_for_user`` only reads ``.id`` and ``.storage_key`` off
@@ -74,7 +73,7 @@ def _build_service() -> tuple[BatchService, MagicMock, MagicMock, MagicMock]:
     storage = MagicMock()
     storage.presigned_get_url = AsyncMock(return_value=_STUB_URL)
     svc = BatchService(
-        session=session,  # type: ignore[arg-type]
+        session=session,
         batches=batches,
         images=images,
         storage=storage,

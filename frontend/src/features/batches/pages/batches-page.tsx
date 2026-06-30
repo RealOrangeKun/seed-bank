@@ -37,7 +37,12 @@ export function BatchesPage() {
   const navigate = useNavigate();
   const { t, tn } = useI18n();
   const pagination = usePagination(20);
-  const query = useBatches({ page: pagination.page, pageSize: pagination.pageSize });
+  // No `source` pin: show all of the user's scans (web, mobile, api) — only the
+  // hidden realtime live-frame batches are excluded, server-side.
+  const query = useBatches({
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+  });
   const bulkDelete = useBulkDeleteBatches();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());

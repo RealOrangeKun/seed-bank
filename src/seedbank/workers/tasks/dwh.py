@@ -21,8 +21,8 @@ to be eventually consistent on hard deletes.
 from __future__ import annotations
 
 import re
-from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from collections.abc import Callable, Coroutine
+from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
 from uuid import UUID
@@ -78,7 +78,7 @@ SYNC_SCAN_BATCH = "seedbank.dwh.sync_scan_batch"
 
 
 def _run_timed(
-    task_name: str, fn: Callable[[UUID], Awaitable[None]], arg_id: str
+    task_name: str, fn: Callable[[UUID], Coroutine[Any, Any, None]], arg_id: str
 ) -> None:
     """Run an async sync-task body and observe its duration + outcome.
 
@@ -98,9 +98,7 @@ def _run_timed(
         result = "error"
         raise
     finally:
-        DWH_TASK_DURATION.labels(task=task_name, result=result).observe(
-            perf_counter() - start
-        )
+        DWH_TASK_DURATION.labels(task=task_name, result=result).observe(perf_counter() - start)
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -164,7 +162,9 @@ def sync_scan_batch(self: object, batch_id: str) -> None:  # noqa: ARG001
 async def _async_sync_inference(inference_id: UUID) -> None:
     async with worker_session_scope() as session:
         inference, image, batch, model = await _load_inference_chain(session, inference_id)
-        seed_type = await _load_seed_type(session, model.seed_type_id) if model.seed_type_id else None
+        seed_type = (
+            await _load_seed_type(session, model.seed_type_id) if model.seed_type_id else None
+        )
         user = await _require_user(session, batch.user_id)
 
     client = await get_clickhouse()
@@ -250,9 +250,7 @@ async def _async_sync_experiment_results(experiment_id: UUID) -> None:
         model = await session.get(ModelArtifact, experiment.model_id)
         dataset = await session.get(Dataset, experiment.dataset_id)
         if model is None or dataset is None:
-            raise NotFoundError(
-                f"experiment {experiment_id}: parent model or dataset missing"
-            )
+            raise NotFoundError(f"experiment {experiment_id}: parent model or dataset missing")
         user = (
             await session.get(User, experiment.created_by)
             if experiment.created_by is not None
@@ -269,7 +267,7 @@ async def _async_sync_experiment_results(experiment_id: UUID) -> None:
         )
         return
 
-    occurred_at = experiment.finished_at or experiment.started_at or datetime.now(timezone.utc)
+    occurred_at = experiment.finished_at or experiment.started_at or datetime.now(UTC)
     user_id = user.id if user is not None else None
 
     client = await get_clickhouse()
@@ -304,9 +302,12 @@ async def _async_sync_scan_batch(batch_id: UUID) -> None:
         if batch is None:
             raise NotFoundError(f"scan_batch {batch_id} not found")
         user = await _require_user(session, batch.user_id)
-        image_count = await session.scalar(
-            select(func.count(ScanImage.id)).where(ScanImage.batch_id == batch_id)
-        ) or 0
+        image_count = (
+            await session.scalar(
+                select(func.count(ScanImage.id)).where(ScanImage.batch_id == batch_id)
+            )
+            or 0
+        )
 
     client = await get_clickhouse()
     repo = AnalyticsRepository(client)
@@ -430,7 +431,7 @@ def dispatch_after_commit(task_name: str, *args: Any) -> None:
         return
     try:
         celery_app.send_task(task_name, args=list(args), queue=DWH_QUEUE)
-    except Exception as exc:  # noqa: BLE001 — broker driver can raise anything
+    except Exception as exc:
         DWH_DISPATCH.labels(task=task_name, result="error").inc()
         # ``repr(exc)`` on a redis-py / kombu exception can carry the broker
         # URL with credentials. Log the exception class + the scrubbed

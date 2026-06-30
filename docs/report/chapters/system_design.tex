@@ -188,7 +188,7 @@ visual data and report for any archived session.
 
 Security is brief and standard for a prototype of this size. Sessions use tokens:
 the user signs in and the backend issues a short-lived access token that the
-client sends with each request. Passwords and API keys are never stored in
+client sends with each request. Passwords are never stored in
 plaintext; only their hashes are kept, so a database leak does not expose a usable
 credential. Access is role-based, so an ordinary user can analyze and see only
 their own history, while administrative and model-management actions are gated to

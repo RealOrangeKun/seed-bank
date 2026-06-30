@@ -175,10 +175,10 @@ in Section~\ref{sec:ch2-synth} is written in COCO format so generated datasets
 drop straight into standard detection training code.
 
 Once a project trains more than one model it also needs a way to track what was
-trained, with which data, and how each version scored. MLflow
-\cite{mlflow2018} is a common open-source answer for that experiment tracking,
-and Seed Bank follows the same pattern when recording and comparing trained
-models.
+trained, with which data, and how each version scored. Seed Bank keeps this
+record itself: each evaluation run stores its metrics in PostgreSQL alongside a
+Markdown report in object storage, so trained models can be recorded and compared
+without standing up a separate experiment-tracking service.
 
 \subsection{Attention in the classifier}
 

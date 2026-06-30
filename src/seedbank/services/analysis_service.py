@@ -111,6 +111,8 @@ class AnalysisService:
         gps_long: Decimal | None,
         country_code: str | None,
         ip: str | None,
+        mode: str | None = None,
+        source: str | None = None,
     ) -> ScanBatch:
         """Validate, persist, and dispatch one analyze request.
 
@@ -131,6 +133,7 @@ class AnalysisService:
             gps_lat=gps_lat,
             gps_long=gps_long,
             country_code=country_code,
+            source=source,
         )
         await self.batches.add(batch)
 
@@ -140,9 +143,7 @@ class AnalysisService:
             image = ScanImage(
                 id=image_id,
                 batch_id=batch.id,
-                storage_key=self._make_storage_key(
-                    batch.id, image_id, prep.content_type
-                ),
+                storage_key=self._make_storage_key(batch.id, image_id, prep.content_type),
                 content_type=prep.content_type,
                 size_bytes=prep.size_bytes,
                 sha256=prep.sha256,
@@ -169,9 +170,7 @@ class AnalysisService:
                 target_id=str(batch.id),
                 audit_metadata={
                     "image_count": len(prepared),
-                    "model_id_override": (
-                        str(model_id_override) if model_id_override else None
-                    ),
+                    "model_id_override": (str(model_id_override) if model_id_override else None),
                     "seed_type_id": str(seed_type_id) if seed_type_id else None,
                 },
                 ip=ip,
@@ -191,13 +190,15 @@ class AnalysisService:
                     str(image.id),
                     str(model_id_override) if model_id_override else None,
                     str(seed_type_id) if seed_type_id else None,
+                    mode,
                 ],
                 queue=_ANALYZE_TASK_QUEUE,
             )
 
         # Phase 6 — DWH dual-write. Best-effort; broker failures are logged
         # but never break the API response (the OLTP commit already won).
-        from seedbank.workers.tasks.dwh import (  # local import: workers package may not be importable in test contexts
+        # local import: workers package may not be importable in test contexts
+        from seedbank.workers.tasks.dwh import (
             SYNC_SCAN_BATCH,
             dispatch_after_commit,
         )
@@ -209,9 +210,7 @@ class AnalysisService:
             batch_id=str(batch.id),
             image_count=len(prepared),
             user_id=str(actor.id),
-            model_id_override=(
-                str(model_id_override) if model_id_override else None
-            ),
+            model_id_override=(str(model_id_override) if model_id_override else None),
             seed_type_id=str(seed_type_id) if seed_type_id else None,
         )
         return batch
@@ -228,34 +227,27 @@ class AnalysisService:
             return
         if actor.role is Role.ADMIN or actor.role is Role.AI_DEVELOPER:
             return
-        raise ForbiddenError(
-            "Only ai_developer or admin can override model_id."
-        )
+        raise ForbiddenError("Only ai_developer or admin can override model_id.")
 
     def _validate_file_count(self, files: list[AnalyzeFile]) -> None:
         if not files:
             raise ValidationError("At least one image is required.")
         max_files = self.settings.analyze_max_files_per_request
         if len(files) > max_files:
-            raise ValidationError(
-                f"At most {max_files} files per request."
-            )
+            raise ValidationError(f"At most {max_files} files per request.")
 
     def _validate_and_prepare(self, f: AnalyzeFile) -> _PreparedImage:
         allowed = self.settings.analyze_allowed_mime_types
         if f.content_type not in allowed:
             raise ValidationError(
-                f"Unsupported content type {f.content_type!r}. "
-                f"Allowed: {', '.join(allowed)}."
+                f"Unsupported content type {f.content_type!r}. Allowed: {', '.join(allowed)}."
             )
 
         max_bytes = self.settings.analyze_max_image_bytes
         size = len(f.data)
         if size > max_bytes:
             name = f.filename or "<unnamed>"
-            raise ValidationError(
-                f"File {name!r} exceeds max size of {max_bytes} bytes."
-            )
+            raise ValidationError(f"File {name!r} exceeds max size of {max_bytes} bytes.")
 
         # PIL's ``verify`` consumes the buffer — re-open afterwards to
         # read width/height. Both opens use a fresh BytesIO so neither
@@ -267,9 +259,7 @@ class AnalysisService:
                 width, height = probe2.size
         except (UnidentifiedImageError, OSError, ValueError) as exc:
             name = f.filename or "<unnamed>"
-            raise ValidationError(
-                f"File {name!r} is not a valid image."
-            ) from exc
+            raise ValidationError(f"File {name!r} is not a valid image.") from exc
 
         return _PreparedImage(
             filename=f.filename,
@@ -289,27 +279,32 @@ class AnalysisService:
         gps_lat: Decimal | None,
         gps_long: Decimal | None,
         country_code: str | None,
+        source: str | None = None,
     ) -> ScanBatch:
         location_source: str | None = None
         # The DB enforces ``(gps_lat IS NULL) = (gps_long IS NULL)``;
         # location_source is a hint about provenance.
         if gps_lat is not None or country_code is not None:
             location_source = LocationSource.MANUAL.value
+        # Client-declared origin (web / mobile / mobile_realtime); defaults to
+        # ``api`` for direct/SDK callers. An unknown value falls back to ``api``
+        # rather than failing the scan.
+        resolved_source = BatchSource.API.value
+        if source is not None and source in BatchSource._value2member_map_:
+            resolved_source = source
         return ScanBatch(
             id=uuid7(),
             user_id=actor.id,
             supplier_id=supplier_id,
             status=BatchStatus.PENDING.value,
-            source=BatchSource.API.value,
+            source=resolved_source,
             gps_lat=gps_lat,
             gps_long=gps_long,
             geo_country_code=country_code,
             location_source=location_source,
         )
 
-    def _make_storage_key(
-        self, batch_id: UUID, image_id: UUID, content_type: str
-    ) -> str:
+    def _make_storage_key(self, batch_id: UUID, image_id: UUID, content_type: str) -> str:
         # Image id mirrors the row PK so the object path is trivially
         # traceable from a ``scan_images`` row to its MinIO object.
         ext = _MIME_TO_EXT.get(content_type, "")

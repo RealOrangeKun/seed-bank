@@ -7,6 +7,7 @@ from decimal import Decimal
 import pytest
 
 from seedbank.services.eval.classification import (
+    ClassificationItemResult,
     aggregate_classification,
     evaluate_classification_item,
 )
@@ -14,7 +15,7 @@ from seedbank.services.eval.classification import (
 pytestmark = pytest.mark.unit
 
 
-def _it(predicted: str, ground_truth: str, latency: int = 5) -> object:
+def _it(predicted: str, ground_truth: str, latency: int = 5) -> ClassificationItemResult:
     return evaluate_classification_item(
         predicted=predicted, ground_truth=ground_truth, latency_ms=latency
     )

@@ -70,7 +70,7 @@ class InferenceRepository(Repository[Inference]):
             .execution_options(synchronize_session=False)
         )
         result = await self.session.execute(stmt)
-        rowcount = result.rowcount or 0
+        rowcount = result.rowcount or 0  # type: ignore[attr-defined]
         log.info(
             "inference.set_error",
             inference_id=str(inference_id),

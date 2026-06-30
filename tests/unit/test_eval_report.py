@@ -28,14 +28,12 @@ def test_report_includes_header_and_metric_rows() -> None:
         duration_ms=5000,
         items_evaluated=42,
         items_failed=1,
-        mlflow_run_id="run-abc",
     )
     assert text.startswith("# Experiment exp-x")
     assert "## Summary metrics" in text
     assert "`precision`" in text
     assert "0.900000" in text
     assert "Items evaluated" in text
-    assert "run-abc" in text
 
 
 def test_report_renders_confusion_matrix_for_classification() -> None:
@@ -63,7 +61,6 @@ def test_report_renders_confusion_matrix_for_classification() -> None:
         duration_ms=None,
         items_evaluated=10,
         items_failed=0,
-        mlflow_run_id=None,
     )
     assert "## Confusion matrix" in text
     assert "| **good** |" in text
@@ -86,7 +83,5 @@ def test_report_handles_missing_optional_fields() -> None:
         duration_ms=None,
         items_evaluated=1,
         items_failed=0,
-        mlflow_run_id=None,
     )
     assert "n/a" in text  # missing started_at / finished_at
-    assert "MLflow run" not in text  # absent when no run_id

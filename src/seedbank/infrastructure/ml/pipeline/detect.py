@@ -1,6 +1,6 @@
 """DetectPipeline — service-facing entry point for object detection.
 
-Pipelines are deliberately thin: pick a model via the traffic router, ask
+Pipelines are deliberately thin: pick a model via the model resolver, ask
 the matching backend to detect, return the detections + the metadata
 (``model_id``, ``backend``, ``latency_ms``) the calling service needs to
 write the ``inferences`` row.
@@ -69,12 +69,8 @@ class DetectPipeline:
             raise
         finally:
             elapsed = time.perf_counter() - start
-            INFERENCE_DURATION.labels(
-                kind="detection", backend=backend_name
-            ).observe(elapsed)
-            INFERENCE_TOTAL.labels(
-                kind="detection", backend=backend_name, status=status
-            ).inc()
+            INFERENCE_DURATION.labels(kind="detection", backend=backend_name).observe(elapsed)
+            INFERENCE_TOTAL.labels(kind="detection", backend=backend_name, status=status).inc()
         elapsed_ms = int(elapsed * 1000)
         log.info(
             "ml.detect",

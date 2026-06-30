@@ -16,19 +16,19 @@ flowchart TB
 
         APP["workers/celery_app.py<br/>app factory<br/>task_routes inference→inference queue<br/>acks_late, prefetch=1"]
 
-        TASK["workers/tasks/analyze.py<br/>@celery_app.task seedbank.analyze_image<br/>sync entry → asyncio.run"]
+        TASK["workers/tasks/analyze.py<br/>@celery_app.task seedbank.analyze_image<br/>sync entry → run_async (persistent loop)"]
 
-        SS["workers/session.py<br/>worker_session_scope<br/>fresh AsyncEngine per task<br/>engine.dispose at exit"]
+        SS["workers/session.py<br/>worker_session_scope<br/>session from process-scoped sessionmaker<br/>engine built once in worker_process_init"]
 
         subgraph IMPL["_async_analyze_image (the real work)"]
             direction TB
             CAS["CAS pending → running<br/>via ScanBatchRepository.cas_status"]
             FETCH["MinIO.get_object<br/>image bytes"]
-            RES_DET["TrafficRouter.select_model<br/>kind=DETECTION<br/>or model_id_override + scope check"]
+            RES_DET["ModelResolver.select_model<br/>kind=DETECTION<br/>or model_id_override + scope check"]
             DET["DetectPipeline.detect<br/>via ModelManager.load"]
             P_INF["InferenceRepository.add_inference<br/>+ SeedDetectionRepository.add_many"]
             COMMIT1["commit detect rows"]
-            RES_CLS["TrafficRouter.select_model<br/>kind=CLASSIFICATION<br/>graceful skip if absent"]
+            RES_CLS["ModelResolver.select_model<br/>kind=CLASSIFICATION<br/>graceful skip if absent"]
             CROP["PIL crop per detection<br/>using normalized bbox × img.size"]
             CLS["ClassifyPipeline.classify"]
             P_QC["InferenceRepository.add_inference<br/>+ SeedDetectionRepository.update_quality_many"]
@@ -43,7 +43,7 @@ flowchart TB
     subgraph EXT["External adapters"]
         MIN[("MinIO")]
         ML["infrastructure/ml<br/>backends, manager, pipeline"]
-        TR["services/traffic_router"]
+        TR["services/model_resolver"]
     end
 
     BRK --> APP
@@ -68,23 +68,25 @@ flowchart TB
     TASK -. "result / state" .-> RES
 ```
 
-## Why a fresh engine per task
+## Why a per-process loop and engine
 
 Workers cannot reuse the API's process-wide `@lru_cache`'d
-`AsyncEngine`. `asyncpg`'s connection pool binds to the event loop it
-was created on, and each `asyncio.run(_async_analyze_image(...))`
-creates a brand-new loop. Reusing the API's engine would crash with
-"got Future <Future pending> attached to a different loop". The
-`worker_session_scope()` helper builds and disposes a fresh
-`create_async_engine` per task — the precedent is verbatim from
-`scripts/register_model.py`.
+`AsyncEngine`: it is bound to the API process's event loop. Instead,
+each Celery worker process builds **one** persistent `asyncio` loop
+plus one `AsyncEngine`/sessionmaker (and one Redis client) on that
+loop, in the `worker_process_init` signal (`init_worker_runtime`), and
+tears them down in `worker_process_shutdown`. Tasks run their coroutine
+via `run_async()` (`run_until_complete` on that persistent loop) rather
+than `asyncio.run`, so the engine and its asyncpg pool are reused across
+tasks instead of being rebuilt per task. `worker_session_scope()` just
+yields a fresh `AsyncSession` from the process-scoped sessionmaker.
 
 ## Task contract
 
 | Field | Value |
 |---|---|
 | Name | `seedbank.analyze_image` |
-| Args | `(image_id: str, model_id_override: str \| None, seed_type_id: str \| None)` |
+| Args | `(image_id: str, model_id_override: str \| None, seed_type_id: str \| None, mode: str \| None)` |
 | Queue | `inference` (routed via `task_routes`) |
 | Retries | `max_retries=2`, `default_retry_delay=10s` |
 | `autoretry_for` | `(ExternalServiceError,)` only — never retry on `ValidationError` / `NotFoundError` |

@@ -53,23 +53,23 @@ up-infra: env ## Start ONLY infra (postgres, redis, minio, clickhouse). No build
 	@$(COMPOSE) ps --format "table {{.Service}}\t{{.Health}}\t{{.Ports}}"
 
 up: env ## Start the full lean stack (api + both workers + infra). worker-inference defaults to CPU torch wheels.
-	$(COMPOSE) up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow
+	$(COMPOSE) up -d --build api worker-cpu worker-inference postgres redis minio clickhouse
 	@$(MAKE) wait
 
 up-no-inference: env ## Start without the (heavy) torch worker. Only api + worker-cpu + infra.
-	$(COMPOSE) up -d --build api worker-cpu postgres redis minio clickhouse mlflow
+	$(COMPOSE) up -d --build api worker-cpu postgres redis minio clickhouse
 	@$(MAKE) wait
 
 up-dev: env ## Start the lean stack PLUS DB UIs (adminer for Postgres, ch-ui for the DWH).
-	$(COMPOSE) --profile dev up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow adminer ch-ui
+	$(COMPOSE) --profile dev up -d --build api worker-cpu worker-inference postgres redis minio clickhouse adminer ch-ui
 	@$(MAKE) wait
 
 up-obs: env ## Start the lean stack PLUS prometheus + grafana (obs profile).
-	$(COMPOSE) --profile obs up -d --build api postgres redis minio clickhouse mlflow prometheus grafana
+	$(COMPOSE) --profile obs up -d --build api postgres redis minio clickhouse prometheus grafana
 	@$(MAKE) wait
 
 up-front: env ## Start the lean stack PLUS the built React frontend (nginx on :5173).
-	$(COMPOSE) --profile frontend up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow frontend
+	$(COMPOSE) --profile frontend up -d --build api worker-cpu worker-inference postgres redis minio clickhouse frontend
 	@$(MAKE) wait
 
 front: ## Run the frontend dev server locally (Vite on :5173; needs `make up` for the API).
@@ -139,7 +139,7 @@ wait: ## Wait until api becomes healthy.
 	done; echo "api did not become ready"; $(COMPOSE) ps; exit 1
 
 # ── Migrations / seed ────────────────────────────────────────────────────────
-.PHONY: migrate migrate-down migrate-clickhouse seed
+.PHONY: migrate migrate-down migrate-clickhouse seed register-models provision-smoke-model
 migrate: ## Apply Alembic migrations against the dev DB.
 	$(COMPOSE) exec api alembic upgrade head
 
@@ -149,8 +149,19 @@ migrate-down: ## Roll back one Alembic revision.
 migrate-clickhouse: ## Apply ClickHouse star-schema DDL (idempotent).
 	$(COMPOSE) exec api python -m scripts.init_clickhouse
 
-seed: migrate-clickhouse ## Seed catalog, register models, create demo users.
+seed: migrate-clickhouse ## Seed catalog, suppliers, and demo users.
 	$(COMPOSE) exec api python -m scripts.seed_dev
+
+# Uploads the seed-bank-app weights into MinIO and registers the two-stage
+# detector + 10 EfficientNet-B2 specialists + YOLOv11M, then promotes them.
+# Run after `make seed`. WEIGHTS_DIR can point at an unpacked seed-bank-app.
+WEIGHTS_DIR ?= /weights
+register-models: ## Register the new two-stage + YOLO models (run after `seed`).
+	$(COMPOSE) exec worker-inference python -m scripts.register_seed_bank_app_models \
+		--weights-dir "$(WEIGHTS_DIR)" --promote
+
+provision-smoke-model: ## CI/dev only: register a tiny untrained detector so the analyze pipeline can run.
+	$(COMPOSE) exec worker-inference python -m scripts.provision_smoke_model
 
 # ── Quality gates ────────────────────────────────────────────────────────────
 .PHONY: fmt lint typecheck check test test-unit test-integration test-e2e cov
@@ -170,8 +181,8 @@ check: lint typecheck test-unit ## Fast pre-commit gate.
 test: ## Full test pyramid (unit + integration + e2e).
 	$(VENV)/bin/pytest
 
-test-unit: ## Unit tests only.
-	$(VENV)/bin/pytest -m "unit or not integration and not e2e" tests/unit
+test-unit: ## Unit tests only (fast gate — no full-suite coverage threshold).
+	$(VENV)/bin/pytest -m "unit or not integration and not e2e" tests/unit --cov-fail-under=0
 
 test-integration: ## Integration tests (testcontainers).
 	$(VENV)/bin/pytest -m integration tests/integration

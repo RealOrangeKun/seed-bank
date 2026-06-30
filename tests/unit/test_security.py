@@ -14,16 +14,13 @@ from seedbank.core.security import (
     decode_jwt,
     encode_jwt,
     enforce_password_policy,
-    generate_api_key,
     generate_verification_token,
     hash_password,
     issue_access_token,
     issue_refresh_token,
-    looks_like_api_key,
     sha256_hex,
     verify_password,
 )
-
 
 # ── Password hashing ────────────────────────────────────────────────────────
 
@@ -97,7 +94,9 @@ class TestJWT:
 
     def test_expired_token_rejected(self) -> None:
         token = encode_jwt(
-            subject="u1", token_type=JWT_TYPE_ACCESS, expires_in_seconds=-1,
+            subject="u1",
+            token_type=JWT_TYPE_ACCESS,
+            expires_in_seconds=-1,
         )
         # Give clock-skew leeway zero by sleeping 1 second.
         time.sleep(0.1)
@@ -111,21 +110,7 @@ class TestJWT:
         assert expires_at.tzinfo is not None
 
 
-# ── API keys / tokens ────────────────────────────────────────────────────────
-
-
-class TestApiKeyGen:
-    def test_format_and_hash(self) -> None:
-        plaintext, prefix, key_hash = generate_api_key()
-        assert plaintext.startswith("seedbank_")
-        assert len(prefix) == 8
-        assert key_hash == sha256_hex(plaintext)
-        assert looks_like_api_key(plaintext)
-
-    def test_unique_per_call(self) -> None:
-        a, _, _ = generate_api_key()
-        b, _, _ = generate_api_key()
-        assert a != b
+# ── Verification tokens ──────────────────────────────────────────────────────
 
 
 class TestVerificationToken:

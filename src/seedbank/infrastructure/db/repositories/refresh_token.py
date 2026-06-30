@@ -13,7 +13,7 @@ exposes:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -27,7 +27,7 @@ class RefreshTokenRepository(Repository[RefreshToken]):
     model = RefreshToken
 
     async def get_active_by_hash(self, token_hash: str) -> RefreshToken | None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         stmt = (
             select(RefreshToken)
             .where(
@@ -43,22 +43,22 @@ class RefreshTokenRepository(Repository[RefreshToken]):
         """Atomically revoke `old_id` and link it to `new_id`. Returns the
         affected row count: 0 means the old token was already revoked
         (replay attempt — caller should treat as auth failure)."""
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         stmt = (
             update(RefreshToken)
             .where(RefreshToken.id == old_id, RefreshToken.revoked_at.is_(None))
             .values(revoked_at=now, replaced_by_id=new_id)
         )
         result = await self.session.execute(stmt)
-        return result.rowcount or 0
+        return result.rowcount or 0  # type: ignore[attr-defined]
 
     async def revoke_all_for_user(self, user_id: UUID) -> int:
         """Force-logout — used on password change or admin action."""
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         stmt = (
             update(RefreshToken)
             .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
             .values(revoked_at=now)
         )
         result = await self.session.execute(stmt)
-        return result.rowcount or 0
+        return result.rowcount or 0  # type: ignore[attr-defined]

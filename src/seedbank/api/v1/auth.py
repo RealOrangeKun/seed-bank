@@ -12,13 +12,19 @@ endpoint should pick the resource shape (see the ``add-endpoint`` skill).
 
 from __future__ import annotations
 
+from types import ModuleType
+from typing import cast
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Request, status
+from starlette.responses import RedirectResponse, Response
 
 from seedbank.api.deps import AuthServiceDep, SettingsDep
 from seedbank.api.rate_limit import limiter
 from seedbank.core.config import get_settings
 from seedbank.core.exceptions import AuthError, ExternalServiceError
-from seedbank.infrastructure.oauth import get_oauth, github, google
+from seedbank.core.logging import get_logger
+from seedbank.infrastructure.oauth import get_oauth, google
 from seedbank.schemas.auth import (
     BootstrapAdminIn,
     LoginIn,
@@ -34,6 +40,7 @@ from seedbank.schemas.common import Envelope
 from seedbank.services.auth_service import TokenPair as ServiceTokenPair
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+log = get_logger(__name__)
 
 
 def _to_token_pair_dto(pair: ServiceTokenPair) -> TokenPair:
@@ -106,9 +113,7 @@ async def register(
 
 
 @router.post("/verify-email", response_model=Envelope[MessageOut])
-async def verify_email(
-    payload: VerifyEmailIn, service: AuthServiceDep
-) -> Envelope[MessageOut]:
+async def verify_email(payload: VerifyEmailIn, service: AuthServiceDep) -> Envelope[MessageOut]:
     await service.verify_email(token=payload.token)
     return Envelope[MessageOut](data=MessageOut(message="Email verified."))
 
@@ -152,12 +157,22 @@ async def logout(payload: LogoutIn, service: AuthServiceDep) -> Envelope[Message
 # ── OAuth ───────────────────────────────────────────────────────────────────
 
 
-def _provider_module(provider: str):
+def _provider_module(provider: str) -> ModuleType | None:
     if provider == google.PROVIDER_NAME:
         return google
-    if provider == github.PROVIDER_NAME:
-        return github
     return None
+
+
+@router.get("/oauth/providers", response_model=Envelope[list[str]])
+async def oauth_providers(settings: SettingsDep) -> Envelope[list[str]]:
+    """List the OAuth providers that are configured (have credentials).
+
+    The SPA renders one sign-in button per returned provider, so a provider
+    without credentials simply never appears — disabling it is a matter of
+    leaving its credentials unset.
+    """
+    enabled = [mod.PROVIDER_NAME for mod in (google,) if mod.is_configured(settings)]
+    return Envelope[list[str]](data=enabled)
 
 
 @router.get("/oauth/{provider}/login")
@@ -165,37 +180,67 @@ async def oauth_login(
     provider: str,
     request: Request,
     settings: SettingsDep,
-):
+) -> Response:
     mod = _provider_module(provider)
     if mod is None:
         raise AuthError(f"Unknown OAuth provider: {provider}")
     if not mod.is_configured(settings):
         raise ExternalServiceError(f"{provider} OAuth is not configured.")
     redirect_uri = (
-        f"{settings.oauth_redirect_base_url}{settings.api_v1_prefix}"
-        f"/auth/oauth/{provider}/callback"
+        f"{settings.oauth_redirect_base_url}{settings.api_v1_prefix}/auth/oauth/{provider}/callback"
     )
-    return await mod.authorize_redirect(get_oauth(settings), request, redirect_uri)
+    return cast(
+        "Response", await mod.authorize_redirect(get_oauth(settings), request, redirect_uri)
+    )
 
 
-@router.get("/oauth/{provider}/callback", response_model=Envelope[TokenPair])
+@router.get("/oauth/{provider}/callback")
 async def oauth_callback(
     provider: str,
     request: Request,
     service: AuthServiceDep,
     settings: SettingsDep,
-) -> Envelope[TokenPair]:
+) -> Response:
+    """Complete the OAuth round-trip and bounce the browser back to the SPA.
+
+    The provider redirects the *browser* here, so we answer with a 302 to the
+    frontend callback route rather than a JSON body. Tokens ride in the URL
+    **fragment** (never sent to a server, scrubbed by the SPA once read) — the
+    same memory-access / localStorage-refresh model the password login uses. A
+    failed exchange bounces to the same route with ``?error`` so the SPA shows a
+    toast instead of a raw problem document.
+    """
     mod = _provider_module(provider)
     if mod is None:
         raise AuthError(f"Unknown OAuth provider: {provider}")
     if not mod.is_configured(settings):
         raise ExternalServiceError(f"{provider} OAuth is not configured.")
 
-    identity = await mod.fetch_identity(get_oauth(settings), request)
-    _user, pair = await service.upsert_oauth_user(
-        identity=identity, ip=_client_ip(request),
+    try:
+        identity = await mod.fetch_identity(get_oauth(settings), request)
+        _user, pair = await service.upsert_oauth_user(
+            identity=identity,
+            ip=_client_ip(request),
+        )
+    except (AuthError, ExternalServiceError) as exc:
+        log.warning("auth.oauth_callback_failed", provider=provider, error=str(exc))
+        return RedirectResponse(
+            url=f"{settings.oauth_post_login_redirect_url}?error=oauth_failed",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    fragment = urlencode(
+        {
+            "access_token": pair.access_token,
+            "refresh_token": pair.refresh_token,
+            "token_type": "bearer",
+            "expires_in": pair.expires_in,
+        }
     )
-    return Envelope[TokenPair](data=_to_token_pair_dto(pair))
+    return RedirectResponse(
+        url=f"{settings.oauth_post_login_redirect_url}#{fragment}",
+        status_code=status.HTTP_302_FOUND,
+    )
 
 
 __all__ = ["router"]

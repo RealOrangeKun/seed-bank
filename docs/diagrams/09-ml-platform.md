@@ -1,7 +1,8 @@
 # 09 — ML Platform
 
-How a trained `.pth` becomes production traffic, how A/B is served,
-and how an AI developer overrides the router for one request.
+How a trained `.pth` becomes production traffic, how the production
+model is resolved for a segment, and how an AI developer overrides the
+resolver for one request.
 
 ## Model lifecycle
 
@@ -24,7 +25,8 @@ stateDiagram-v2
     end note
 
     note right of production
-        eligible for traffic_splits.
+        served by ModelResolver for its
+        (kind, seed_type_id) segment.
         per-request model_id override
         also requires status ∈ {staging, production}
     end note
@@ -32,67 +34,44 @@ stateDiagram-v2
 
 Status enum: `infrastructure/db/enums.py::ModelStatus`.
 
-## Traffic router decision tree
+## Model resolution decision tree
 
-`services/traffic_router.py::TrafficRouter.select_model`. Called by
+`services/model_resolver.py::ModelResolver.select_model`. Called by
 both the worker (one detect call + one classify call per image) and
-the experiment runner (later phase).
+the experiment runner. There is no A/B / weighted-split routing: the
+resolver returns the **`production`** model for the segment, with a
+global (seed-type-agnostic) production fallback.
 
 ```mermaid
 flowchart TD
-    REQ["select_model(kind, seed_type_id, user_id)"]
+    REQ["select_model(kind, seed_type_id)"]
 
     OVR{"per-request<br/>model_id<br/>override?"}
     OVRSCOPE{"caller in<br/>{ai_developer, admin}?<br/>+ artifact.status ∈<br/>{staging, production}?"}
     OVR_OK[return overridden model]
     OVR_DENY[ForbiddenError /<br/>ModelNotReadyError]
 
-    SPLITS{"traffic_splits<br/>where kind=…<br/>AND seed_type_id matches<br/>AND is_active<br/>AND now between valid_from/until"}
-    PICK[weighted pick by<br/>splits[].weight]
-    NONE{"production model for<br/>(kind, seed_type)?"}
-    SOLE[return that model]
+    SEG{"production model for<br/>(kind, seed_type_id)?"}
+    SEGOK[return that model]
+    GLOBAL{"global production model<br/>for kind<br/>(seed_type_id = NULL)?"}
+    GLOBALOK[return global model]
     EMPTY[ModelNotReadyError]
 
     REQ --> OVR
     OVR -- yes --> OVRSCOPE
     OVRSCOPE -- yes --> OVR_OK
     OVRSCOPE -- no --> OVR_DENY
-    OVR -- no --> SPLITS
-    SPLITS -- 1+ rows --> PICK
-    SPLITS -- 0 rows --> NONE
-    NONE -- yes --> SOLE
-    NONE -- no --> EMPTY
-```
-
-## A/B in production
-
-Two `traffic_splits` rows, weights summing to 100, same `(kind,
-seed_type_id)`. The router picks via deterministic weighted choice;
-each per-detection `inferences.model_id` records which one served the
-call. The comparison is a SQL join — no extra logging plumbing.
-
-```mermaid
-flowchart LR
-    subgraph TS["traffic_splits"]
-        A["model A<br/>weight 80<br/>(production v3)"]
-        B["model B<br/>weight 20<br/>(staging v4 canary)"]
-    end
-
-    R[TrafficRouter]
-    INF[(inferences<br/>model_id pinned per row)]
-
-    R --> A
-    R --> B
-    A --> INF
-    B --> INF
-
-    INF -.-> SQL["compare(A,B):<br/>SELECT model_id, AVG(latency_ms),<br/>COUNT(*) FROM inferences<br/>JOIN model_artifacts m USING(model_id)<br/>GROUP BY model_id"]
+    OVR -- no --> SEG
+    SEG -- yes --> SEGOK
+    SEG -- no --> GLOBAL
+    GLOBAL -- yes --> GLOBALOK
+    GLOBAL -- no --> EMPTY
 ```
 
 ## Per-request override (the AI-developer escape hatch)
 
 The platform's "let me try this model on this exact image without
-touching production traffic" path. Allowed for `ai_developer` and
+touching the production model" path. Allowed for `ai_developer` and
 `admin` only.
 
 ```mermaid
@@ -102,7 +81,7 @@ sequenceDiagram
     participant API as POST /analyze
     participant AS as AnalysisService
     participant W as worker.analyze_image
-    participant TR as TrafficRouter
+    participant TR as ModelResolver
 
     AID->>API: POST /analyze<br/>files=…<br/>model_id=<UUID>
     API->>AS: create_and_dispatch(actor, files, model_id_override=UUID)

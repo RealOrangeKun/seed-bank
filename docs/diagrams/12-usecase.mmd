@@ -11,11 +11,9 @@ flowchart LR
         u5((Share read-only report))
         u6((View analytics))
         u7((Compare scans))
-        u8((Manage API keys))
         u9((Register / promote models))
         u10((Run offline experiments))
         u11((Manage datasets))
-        u12((Configure A/B traffic splits))
         u13((Manage users and roles))
     end
 
@@ -26,14 +24,12 @@ flowchart LR
     farmer --- u5
     farmer --- u6
     farmer --- u7
-    farmer --- u8
 
     dev --- u2
     dev --- u9
     dev --- u10
     dev --- u11
 
-    admin --- u12
     admin --- u13
     admin --- u9
 

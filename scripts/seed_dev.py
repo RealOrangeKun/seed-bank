@@ -76,10 +76,15 @@ _DEMO_USERS: tuple[tuple[str, str, UserRole, str, str], ...] = (
     ),
 )
 
+# Catalog = the 20 Stage-1 superclasses the new Faster R-CNN detector emits.
+# Sourced from the canonical taxonomy so the seeded codes always match the
+# detector's class_map and the specialist routing. ``coffee`` is kept as a
+# legacy alias so historical coffee scans/models still resolve.
+from seedbank.infrastructure.ml.seed_taxonomy import SUPERCLASSES  # noqa: E402
+
 _SEED_TYPES: tuple[SeedTypeSpec, ...] = (
     SeedTypeSpec(code="coffee", display_name="Coffee"),
-    SeedTypeSpec(code="maize", display_name="Maize"),
-    SeedTypeSpec(code="lentil", display_name="Lentil"),
+    *(SeedTypeSpec(code=sc.code, display_name=sc.display_name) for sc in SUPERCLASSES),
 )
 
 _SUPPLIERS: tuple[GlobalSupplierSpec, ...] = (
@@ -94,7 +99,10 @@ def _build_user_specs() -> tuple[list[DemoUserSpec], list[str]]:
     specs: list[DemoUserSpec] = []
     used_default_for: list[str] = []
     for env_var, fallback, role, email, full_name in _DEMO_USERS:
-        password = os.environ.get(env_var)
+        # `or None`: an unset var is None, but compose passes `${SEED_*:-}` as an
+        # empty string — treat both as "use the demo default" rather than seeding
+        # an empty password (which fails the 12-char policy).
+        password = os.environ.get(env_var) or None
         if password is None:
             password = fallback
             used_default_for.append(env_var)

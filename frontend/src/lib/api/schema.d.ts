@@ -109,6 +109,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/oauth/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oauth Providers
+         * @description List the OAuth providers that are configured (have credentials).
+         *
+         *     The SPA renders one sign-in button per returned provider, so a provider
+         *     without credentials simply never appears — disabling it is a matter of
+         *     leaving its credentials unset.
+         */
+        get: operations["oauth_providers_api_v1_auth_oauth_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/oauth/{provider}/login": {
         parameters: {
             query?: never;
@@ -133,7 +157,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Oauth Callback */
+        /**
+         * Oauth Callback
+         * @description Complete the OAuth round-trip and bounce the browser back to the SPA.
+         *
+         *     The provider redirects the *browser* here, so we answer with a 302 to the
+         *     frontend callback route rather than a JSON body. Tokens ride in the URL
+         *     **fragment** (never sent to a server, scrubbed by the SPA once read) — the
+         *     same memory-access / localStorage-refresh model the password login uses. A
+         *     failed exchange bounces to the same route with ``?error`` so the SPA shows a
+         *     toast instead of a raw problem document.
+         */
         get: operations["oauth_callback_api_v1_auth_oauth__provider__callback_get"];
         put?: never;
         post?: never;
@@ -192,41 +226,6 @@ export interface paths {
         head?: never;
         /** Update Role */
         patch: operations["update_role_api_v1_users__user_id__role_patch"];
-        trace?: never;
-    };
-    "/api/v1/api-keys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Keys */
-        get: operations["list_keys_api_v1_api_keys_get"];
-        put?: never;
-        /** Create Key */
-        post: operations["create_key_api_v1_api_keys_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/api-keys/{key_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Revoke Key */
-        delete: operations["revoke_key_api_v1_api_keys__key_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/models": {
@@ -290,27 +289,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/traffic-splits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Splits */
-        get: operations["list_splits_api_v1_traffic_splits_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Replace Splits
-         * @description Atomically replace the traffic splits for one segment.
-         */
-        patch: operations["replace_splits_api_v1_traffic_splits_patch"];
         trace?: never;
     };
     "/api/v1/analyze": {
@@ -778,7 +756,7 @@ export interface components {
     schemas: {
         /**
          * AnalyticsConfidenceBin
-         * @description A 10%-wide bucket; ``from_pct``/``to_pct`` are 0–100 inclusive bounds.
+         * @description A 10%-wide bucket; ``from_pct``/``to_pct`` are 0-100 inclusive bounds.
          */
         AnalyticsConfidenceBin: {
             /** From Pct */
@@ -844,46 +822,6 @@ export interface components {
             bad: number;
             /** Good Rate */
             good_rate: number;
-        };
-        /** ApiKeyCreateIn */
-        ApiKeyCreateIn: {
-            /** Name */
-            name: string;
-            /** Scopes */
-            scopes?: string[];
-            /** Expires At */
-            expires_at?: string | null;
-        };
-        /**
-         * ApiKeyOut
-         * @description Returned on **creation only**. The plaintext `key` is included exactly
-         *     once and never retrievable again.
-         */
-        ApiKeyOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Prefix */
-            prefix: string;
-            /** Scopes */
-            scopes: string[];
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Expires At */
-            expires_at?: string | null;
-            /** Last Used At */
-            last_used_at?: string | null;
-            /** Revoked At */
-            revoked_at?: string | null;
-            /** Key */
-            key?: string | null;
         };
         /**
          * BatchBulkDeleteIn
@@ -1046,7 +984,7 @@ export interface components {
          * BatchSource
          * @enum {string}
          */
-        BatchSource: "api" | "web" | "sdk";
+        BatchSource: "api" | "web" | "sdk" | "mobile" | "mobile_realtime";
         /**
          * BatchStatus
          * @enum {string}
@@ -1065,6 +1003,16 @@ export interface components {
             seed_type_id?: string | null;
             /** Model Id */
             model_id?: string | null;
+            /**
+             * Mode
+             * @description Pipeline selector: 'fast' = YOLO one-shot detector, 'accurate' = Faster R-CNN two-stage. Unlike model_id this is open to all users. Ignored when model_id is set.
+             */
+            mode?: string | null;
+            /**
+             * Source
+             * @description Client origin, used to split history per app: 'web', 'mobile', or 'mobile_realtime' (live-video frames, hidden from history). Omitted for direct/SDK callers → recorded as 'api'.
+             */
+            source?: string | null;
             /** Gps Lat */
             gps_lat?: number | string | null;
             /** Gps Long */
@@ -1198,10 +1146,6 @@ export interface components {
         Envelope_AnalyticsOut_: {
             data: components["schemas"]["AnalyticsOut"];
         };
-        /** Envelope[ApiKeyOut] */
-        Envelope_ApiKeyOut_: {
-            data: components["schemas"]["ApiKeyOut"];
-        };
         /** Envelope[BatchCompareOut] */
         Envelope_BatchCompareOut_: {
             data: components["schemas"]["BatchCompareOut"];
@@ -1286,10 +1230,10 @@ export interface components {
             /** Data */
             data: components["schemas"]["SupplierOut"][];
         };
-        /** Envelope[list[TrafficSplitOut]] */
-        Envelope_list_TrafficSplitOut__: {
+        /** Envelope[list[str]] */
+        Envelope_list_str__: {
             /** Data */
-            data: components["schemas"]["TrafficSplitOut"][];
+            data: string[];
         };
         /**
          * ExperimentCreateIn
@@ -1345,8 +1289,6 @@ export interface components {
             summary_metrics?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1398,8 +1340,6 @@ export interface components {
             summary_metrics?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1545,8 +1485,6 @@ export interface components {
             training_metadata?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
             status: components["schemas"]["ModelStatus"];
             /** Created By */
             created_by?: string | null;
@@ -1599,8 +1537,6 @@ export interface components {
             training_metadata?: {
                 [key: string]: unknown;
             } | null;
-            /** Mlflow Run Id */
-            mlflow_run_id?: string | null;
         };
         /**
          * ModelStatus
@@ -1641,12 +1577,6 @@ export interface components {
             total: number;
             /** Has More */
             has_more: boolean;
-        };
-        /** Page[ApiKeyOut] */
-        Page_ApiKeyOut_: {
-            /** Data */
-            data: components["schemas"]["ApiKeyOut"][];
-            meta: components["schemas"]["PageMeta"];
         };
         /** Page[BatchOut] */
         Page_BatchOut_: {
@@ -1746,6 +1676,7 @@ export interface components {
             id: string;
             /** Seed Type Id */
             seed_type_id?: string | null;
+            seed_type?: components["schemas"]["SeedTypeRef"] | null;
             quality?: components["schemas"]["SeedQuality"] | null;
             /** Confidence */
             confidence: string;
@@ -1791,6 +1722,22 @@ export interface components {
             description?: string | null;
             /** Default Confidence Threshold */
             default_confidence_threshold: string;
+        };
+        /**
+         * SeedTypeRef
+         * @description Minimal seed-type reference embedded in a detection so clients can
+         *     render a human label ("Coffee") instead of a raw ``seed_type_id`` UUID.
+         */
+        SeedTypeRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Display Name */
+            display_name: string;
         };
         /**
          * ShareLinkOut
@@ -1918,59 +1865,6 @@ export interface components {
             token_type: string;
             /** Expires In */
             expires_in: number;
-        };
-        /** TrafficSplitEntryIn */
-        TrafficSplitEntryIn: {
-            /**
-             * Model Id
-             * Format: uuid
-             */
-            model_id: string;
-            /** Weight */
-            weight: number;
-            /** Valid From */
-            valid_from?: string | null;
-            /** Valid Until */
-            valid_until?: string | null;
-        };
-        /** TrafficSplitOut */
-        TrafficSplitOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            kind: components["schemas"]["ModelKind"];
-            /** Seed Type Id */
-            seed_type_id?: string | null;
-            /**
-             * Model Id
-             * Format: uuid
-             */
-            model_id: string;
-            /** Weight */
-            weight: number;
-            /** Is Active */
-            is_active: boolean;
-            /** Valid From */
-            valid_from?: string | null;
-            /** Valid Until */
-            valid_until?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
-        /**
-         * TrafficSplitReplaceIn
-         * @description Atomic replacement of all active splits for ``(kind, seed_type_id)``.
-         */
-        TrafficSplitReplaceIn: {
-            kind: components["schemas"]["ModelKind"];
-            /** Seed Type Id */
-            seed_type_id?: string | null;
-            /** Entries */
-            entries: components["schemas"]["TrafficSplitEntryIn"][];
         };
         /** UserListOut */
         UserListOut: {
@@ -2217,6 +2111,26 @@ export interface operations {
             };
         };
     };
+    oauth_providers_api_v1_auth_oauth_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_str__"];
+                };
+            };
+        };
+    };
     oauth_login_api_v1_auth_oauth__provider__login_get: {
         parameters: {
             query?: never;
@@ -2265,7 +2179,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_TokenPair_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2284,7 +2198,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2319,7 +2232,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2351,7 +2263,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 user_id: string;
@@ -2384,109 +2295,6 @@ export interface operations {
             };
         };
     };
-    list_keys_api_v1_api_keys_get: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-            };
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_ApiKeyOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_key_api_v1_api_keys_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApiKeyCreateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ApiKeyOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    revoke_key_api_v1_api_keys__key_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path: {
-                key_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_models_api_v1_models_get: {
         parameters: {
             query?: {
@@ -2498,7 +2306,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2530,7 +2337,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2566,7 +2372,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 model_id: string;
@@ -2600,7 +2405,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 model_id: string;
@@ -2638,7 +2442,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 model_id: string;
@@ -2667,83 +2470,11 @@ export interface operations {
             };
         };
     };
-    list_splits_api_v1_traffic_splits_get: {
-        parameters: {
-            query?: {
-                kind?: components["schemas"]["ModelKind"] | null;
-                seed_type_id?: string | null;
-            };
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_list_TrafficSplitOut__"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    replace_splits_api_v1_traffic_splits_patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrafficSplitReplaceIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_list_TrafficSplitOut__"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     analyze_api_v1_analyze_post: {
         parameters: {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2779,12 +2510,13 @@ export interface operations {
             query?: {
                 supplier_id?: string | null;
                 country_code?: string | null;
+                /** @description Scope history to one client origin: 'web' or 'mobile' so each app shows only its own scans. Omitted → all of the user's batches except the hidden realtime live-frame scans. */
+                source?: string | null;
                 page?: number;
                 page_size?: number;
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2816,7 +2548,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2850,7 +2581,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2882,7 +2612,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -2916,7 +2645,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2952,7 +2680,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -2988,7 +2715,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3022,7 +2748,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3056,7 +2781,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3091,7 +2815,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3125,7 +2848,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 batch_id: string;
@@ -3159,7 +2881,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3222,7 +2943,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3254,7 +2974,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3286,7 +3005,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3322,7 +3040,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 supplier_id: string;
@@ -3354,7 +3071,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 supplier_id: string;
@@ -3395,7 +3111,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3427,7 +3142,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3463,7 +3177,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 dataset_id: string;
@@ -3500,7 +3213,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 dataset_id: string;
@@ -3534,7 +3246,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 dataset_id: string;
@@ -3578,7 +3289,6 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3610,7 +3320,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -3646,7 +3355,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-                "X-API-Key"?: string | null;
             };
             path: {
                 experiment_id: string;

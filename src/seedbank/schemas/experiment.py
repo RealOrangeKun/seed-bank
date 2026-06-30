@@ -50,7 +50,6 @@ class ExperimentSummaryOut(BaseModel):
     finished_at: datetime | None = None
     duration_ms: int | None = None
     summary_metrics: dict[str, Any] | None = None
-    mlflow_run_id: str | None = None
     created_at: datetime
     created_by: UUID | None = None
 

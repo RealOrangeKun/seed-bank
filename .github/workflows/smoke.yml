@@ -1,7 +1,8 @@
 # End-to-end smoke against a real compose stack.
 # This is the gate that testcontainers can't catch (image-level issues:
-# missing psycopg2 in mlflow, worker concurrency/OOM, the analyze pipeline
-# actually running). Heavy (builds the CPU-torch inference worker), so it
+# torch missing from the inference worker image, worker concurrency/OOM,
+# the analyze pipeline actually running). Heavy (builds the CPU-torch
+# inference worker), so it
 # runs on master and on demand — not on every PR.
 name: smoke
 
@@ -26,8 +27,14 @@ jobs:
       - name: Apply migrations
         run: make migrate
 
-      - name: Seed catalog, models, demo users
+      - name: Seed catalog, suppliers, demo users
         run: make seed
+
+      # The analyze pipeline needs a production detection model. Production
+      # weights live in MinIO (never in git), so CI provisions a tiny,
+      # untrained detector fixture — see scripts/provision_smoke_model.py.
+      - name: Provision smoke inference fixture (tiny detector)
+        run: make provision-smoke-model
 
       - name: Run smoke
         run: make smoke

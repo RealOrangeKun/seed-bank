@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "//": "PERSONAL, machine-local overrides. Copy this file to settings.local.json (which is gitignored) and add YOUR OWN rules — local venv paths, container IDs, one-off curl/grep commands, personal model/theme prefs. Team-shared rules (everyone needs them) belong in settings.json, which IS committed. settings.local.json takes precedence over settings.json on your machine only. See docs/claude-config.md.",
+  "permissions": {
+    "allow": [
+      "Bash(/tmp/your-local-venv/bin/python *)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

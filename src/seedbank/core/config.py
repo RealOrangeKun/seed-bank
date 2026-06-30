@@ -66,18 +66,18 @@ class Settings(BaseSettings):
     jwt_access_ttl_seconds: int = 60 * 15  # 15 min
     jwt_refresh_ttl_seconds: int = 60 * 60 * 24 * 7  # 7 days
     bcrypt_rounds: int = 12
-    api_key_prefix: str = "seedbank_"
 
     # OAuth (filled in via env in prod)
     oauth_google_client_id: SecretStr | None = None
     oauth_google_client_secret: SecretStr | None = None
-    oauth_github_client_id: SecretStr | None = None
-    oauth_github_client_secret: SecretStr | None = None
     oauth_redirect_base_url: str = "http://localhost:8000"
+    # Where the OAuth callback bounces the browser after minting tokens — the
+    # SPA route that reads them from the URL fragment and completes login.
+    oauth_post_login_redirect_url: str = "http://localhost:5173/auth/callback"
 
     # ── Postgres ─────────────────────────────────────────────────────────────
-    postgres_dsn: PostgresDsn = Field(
-        default="postgresql+asyncpg://seedbank:seedbank@postgres:5432/seedbank"  # type: ignore[arg-type]
+    postgres_dsn: PostgresDsn = Field(  # type: ignore[assignment]
+        default="postgresql+asyncpg://seedbank:seedbank@postgres:5432/seedbank"
     )
     postgres_pool_size: int = 10
     postgres_max_overflow: int = 5
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     postgres_echo: bool = False
 
     # ── Redis ────────────────────────────────────────────────────────────────
-    redis_dsn: RedisDsn = Field(default="redis://redis:6379/0")  # type: ignore[arg-type]
+    redis_dsn: RedisDsn = Field(default="redis://redis:6379/0")  # type: ignore[assignment]
 
     # ── Celery ───────────────────────────────────────────────────────────────
     celery_broker_url: str = "redis://redis:6379/1"
@@ -136,9 +136,7 @@ class Settings(BaseSettings):
                 f"scheme (set minio_public_secure instead); got {v!r}"
             )
         if "/" in s:
-            raise ValueError(
-                f"minio_public_endpoint must not contain a path; got {v!r}"
-            )
+            raise ValueError(f"minio_public_endpoint must not contain a path; got {v!r}")
         return s
 
     # ── ClickHouse ───────────────────────────────────────────────────────────
@@ -148,10 +146,6 @@ class Settings(BaseSettings):
     clickhouse_password: SecretStr = SecretStr("seedbank-dev-secret")
     clickhouse_database: str = "seedbank"
 
-    # ── MLflow ───────────────────────────────────────────────────────────────
-    mlflow_tracking_uri: str = "http://mlflow:5000"
-    mlflow_experiment_name: str = "seedbank"
-
     # ── Inference ────────────────────────────────────────────────────────────
     inference_default_backend: Literal["torch_local", "roboflow", "ultralytics_yolo"] = (
         "torch_local"
@@ -159,6 +153,15 @@ class Settings(BaseSettings):
     roboflow_api_key: SecretStr | None = None
     inference_max_image_bytes: int = 10 * 1024 * 1024
     inference_max_image_pixels: int = 4096 * 4096
+    # Stage-2 (two-stage / "accurate") tuning. The torch classifier batches the
+    # per-seed crops through one forward pass instead of one call per crop; this
+    # caps the batch so a tray with hundreds of seeds doesn't blow up memory.
+    inference_classify_batch_size: int = 32
+    # U2NET (rembg) background removal before the specialist sees each crop.
+    # Quality win on cluttered backgrounds but expensive per crop on CPU — the
+    # dominant cost of "accurate" mode without a GPU. Set false to disable
+    # globally regardless of a model's per-artifact ``segment`` config.
+    inference_segmentation_enabled: bool = True
 
     # ── Analyze endpoint ─────────────────────────────────────────────────────
     rate_limit_analyze_per_minute: int = 30
@@ -196,6 +199,10 @@ class Settings(BaseSettings):
     rate_limit_login_per_minute: int = 10
     rate_limit_register_per_minute: int = 5
     rate_limit_refresh_per_minute: int = 60
+    # Storage backend for the slowapi limiter (the `limits` library). Defaults
+    # to ``redis_dsn`` (see api/rate_limit.py); set to ``memory://`` in tests so
+    # the import-time limiter never dials a real Redis.
+    rate_limit_storage_uri: str | None = None
 
     # ── Email verification ───────────────────────────────────────────────────
     email_verification_ttl_seconds: int = 60 * 60 * 24  # 24h

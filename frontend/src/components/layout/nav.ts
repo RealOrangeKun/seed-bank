@@ -1,12 +1,10 @@
 import {
   FlaskConical,
-  KeyRound,
   LayoutDashboard,
   ScanLine,
   Boxes,
   ChartColumn,
   Database,
-  GitBranch,
   GitCompareArrows,
   Images,
   Users,
@@ -61,19 +59,12 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: FlaskConical,
         roles: ["ai_developer", "admin"],
       },
-      {
-        to: "/traffic",
-        labelKey: "nav.traffic",
-        icon: GitBranch,
-        roles: ["admin"],
-      },
     ],
   },
   {
     headingKey: "nav.section.account",
     items: [
       { to: "/users", labelKey: "nav.users", icon: Users, roles: ["admin"] },
-      { to: "/api-keys", labelKey: "nav.apiKeys", icon: KeyRound },
     ],
   },
 ];

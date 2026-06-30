@@ -8,6 +8,7 @@ import { EmptyState, LoadingState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n";
 import { LoginPage } from "@/features/auth/pages/login-page";
+import { OAuthCallbackPage } from "@/features/auth/pages/oauth-callback-page";
 import { RegisterPage } from "@/features/auth/pages/register-page";
 import { VerifyEmailPage } from "@/features/auth/pages/verify-email-page";
 
@@ -81,20 +82,9 @@ const ExperimentDetailPage = lazy(() =>
     default: m.ExperimentDetailPage,
   })),
 );
-const TrafficPage = lazy(() =>
-  import("@/features/traffic/pages/traffic-page").then((m) => ({
-    default: m.TrafficPage,
-  })),
-);
 const UsersPage = lazy(() =>
   import("@/features/users/pages/users-page").then((m) => ({ default: m.UsersPage })),
 );
-const ApiKeysPage = lazy(() =>
-  import("@/features/api-keys/pages/api-keys-page").then((m) => ({
-    default: m.ApiKeysPage,
-  })),
-);
-
 function lazyEl(node: ReactNode): ReactNode {
   return <Suspense fallback={<LoadingState />}>{node}</Suspense>;
 }
@@ -116,6 +106,7 @@ function NotFound() {
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
+  { path: "/auth/callback", element: <OAuthCallbackPage /> },
   { path: "/register", element: <RegisterPage /> },
   { path: "/verify-email", element: <VerifyEmailPage /> },
   { path: "/shared/:token", element: lazyEl(<SharedBatchPage />) },
@@ -133,7 +124,6 @@ export const router = createBrowserRouter([
           { path: "analytics", element: lazyEl(<AnalyticsPage />) },
           { path: "compare", element: lazyEl(<ComparePage />) },
           { path: "profile", element: lazyEl(<ProfilePage />) },
-          { path: "api-keys", element: lazyEl(<ApiKeysPage />) },
           {
             element: <RoleRoute allow={["ai_developer", "admin"]} />,
             children: [
@@ -150,10 +140,7 @@ export const router = createBrowserRouter([
           },
           {
             element: <RoleRoute allow={["admin"]} />,
-            children: [
-              { path: "traffic", element: lazyEl(<TrafficPage />) },
-              { path: "users", element: lazyEl(<UsersPage />) },
-            ],
+            children: [{ path: "users", element: lazyEl(<UsersPage />) }],
           },
           { path: "*", element: <NotFound /> },
         ],

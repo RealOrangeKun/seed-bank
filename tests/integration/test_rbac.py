@@ -14,9 +14,7 @@ from seedbank.infrastructure.db.repositories import UserRepository
 pytestmark = pytest.mark.integration
 
 
-async def _seed_user(
-    db_session: AsyncSession, *, email: str, role: UserRole
-) -> User:
+async def _seed_user(db_session: AsyncSession, *, email: str, role: UserRole) -> User:
     repo = UserRepository(db_session)
     user = User(
         email=email,
@@ -36,7 +34,8 @@ async def _login(client: AsyncClient, email: str) -> str:
         json={"email": email, "password": "StrongPasswd1A"},
     )
     assert r.status_code == 200, r.text
-    return r.json()["data"]["access_token"]
+    token: str = r.json()["data"]["access_token"]
+    return token
 
 
 async def test_end_user_cannot_list_users(
@@ -45,21 +44,15 @@ async def test_end_user_cannot_list_users(
     await _seed_user(db_session, email="end@e.com", role=UserRole.END_USER)
     token = await _login(app_client, "end@e.com")
 
-    r = await app_client.get(
-        "/api/v1/users", headers={"Authorization": f"Bearer {token}"}
-    )
+    r = await app_client.get("/api/v1/users", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 403
 
 
-async def test_admin_can_list_users(
-    app_client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_admin_can_list_users(app_client: AsyncClient, db_session: AsyncSession) -> None:
     await _seed_user(db_session, email="admin@e.com", role=UserRole.ADMIN)
     token = await _login(app_client, "admin@e.com")
 
-    r = await app_client.get(
-        "/api/v1/users", headers={"Authorization": f"Bearer {token}"}
-    )
+    r = await app_client.get("/api/v1/users", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     body = r.json()
     assert isinstance(body["data"], list)
@@ -73,7 +66,5 @@ async def test_ai_developer_cannot_list_users(
     await _seed_user(db_session, email="dev@e.com", role=UserRole.AI_DEVELOPER)
     token = await _login(app_client, "dev@e.com")
 
-    r = await app_client.get(
-        "/api/v1/users", headers={"Authorization": f"Bearer {token}"}
-    )
+    r = await app_client.get("/api/v1/users", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 403

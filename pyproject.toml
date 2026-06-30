@@ -51,7 +51,6 @@ dependencies = [
   "secure>=1.0.1,<2.0",
   # Analytics / ML platform
   "clickhouse-connect>=0.8,<1.0",
-  "mlflow-skinny>=2.18,<3.0",
   # File handling
   "python-magic>=0.4.27,<1.0",
   "pillow>=11.0,<12.0",
@@ -69,6 +68,21 @@ inference = [
   "torchvision>=0.20,<1.0",
   "numpy>=1.26,<3.0",
   "opencv-python-headless>=4.10,<5.0",
+  # Two-stage pipeline: EfficientNet-B2 specialists (timm backbone) + U2NET
+  # background removal (rembg/onnxruntime) on each crop before classification.
+  # onnxruntime is the CPU EP — GPU hosts swap in onnxruntime-gpu so rembg's
+  # CUDAExecutionProvider is picked up (see infrastructure/ml/segmentation.py).
+  "timm>=1.0,<2.0",
+  # Pin below 2.0.67 — later rembg releases require numpy>=2.3 / pillow>=12.1,
+  # which collide with opencv-python-headless's numpy<2.3 cap and our pillow<12.
+  # 2.0.66 leaves numpy/pillow unpinned and gates onnxruntime behind extras
+  # (we depend on onnxruntime explicitly below / onnxruntime-gpu in the GPU image).
+  "rembg>=2.0.59,<2.0.67",
+  # rembg → pymatting → numba. Without this floor the resolver picks numba 0.53
+  # (llvmlite 0.36), which only builds on Python <3.10 and breaks the py3.12
+  # worker image. 0.60+ ships py3.12 wheels and supports numpy<2.3.
+  "numba>=0.60,<1.0",
+  "onnxruntime>=1.18,<2.0",
 ]
 # Full inference stack — adds the optional YOLO (ultralytics) and Roboflow
 # (inference-sdk) backends. Both are lazily imported (manager.py / backends/
@@ -82,8 +96,12 @@ inference-full = [
   "inference-sdk>=0.30,<1.0",         # Roboflow client
 ]
 dev = [
-  "ruff>=0.7,<1.0",
-  "mypy>=1.13,<2.0",
+  # Pinned EXACT: ruff's formatter + lint rules change across minor versions,
+  # so a range silently reformats the tree on a fresh install (the 0.7→0.15
+  # drift that broke `make check`). mypy strict is sensitive the same way.
+  # Bump these deliberately, in their own commit, never via a range bump.
+  "ruff==0.15.18",
+  "mypy==1.20.2",
   "types-passlib",
   "types-python-jose",
   "pytest>=8.3,<9.0",
@@ -130,7 +148,7 @@ select = [
   "B",                 # bugbear
   "UP",                # pyupgrade
   "SIM",               # simplify
-  "TCH",               # type-checking
+  "TC",                # type-checking (renamed from TCH in ruff 0.15)
   "ASYNC",             # async correctness
   "S",                 # bandit
   "PL",                # pylint subset
@@ -143,14 +161,64 @@ select = [
   "T20",               # no print
 ]
 ignore = [
-  "S101",   # asserts in tests
+  "S101",    # asserts in tests
   "PLR0913", # too many args — common in service constructors with DI
   "PLR2004", # magic numbers in tests
+  # ── Rules that fight this codebase's architecture (reviewed with the 0.15 pin) ──
+  # Heavy/optional ML deps (torch, ultralytics, roboflow) are imported lazily
+  # inside functions so the slim worker image boots without them — by design
+  # (see infrastructure/ml/backends/, pyproject inference extras).
+  "PLC0415", # import-outside-top-level
+  # Pydantic v2, FastAPI, and SQLAlchemy 2.0 resolve type hints at RUNTIME
+  # (get_type_hints over models, route signatures, Mapped[...]). Moving those
+  # imports into `if TYPE_CHECKING:` raises NameError at model-build / route-
+  # registration time — and `from __future__ import annotations` does not save
+  # us, since the frameworks still call get_type_hints. TC004/005/006/010,
+  # which catch genuine type-checking-block mistakes, stay enabled.
+  "TC001",   # typing-only first-party import
+  "TC002",   # typing-only third-party import
+  "TC003",   # typing-only standard-library import
+  # Module-level singletons initialised lazily (prometheus collectors, the
+  # passlib context, async engine/redis handles, the model-registry cache).
+  # `global` is the intended idiom here; a class rewrite would be worse.
+  "PLW0603", # global-statement
+  # Keep the explicit `Generic[T]` / TypeVar form — PEP 695 generics interact
+  # poorly with Pydantic v2 generic models and buy nothing on py312 here.
+  "UP046",   # non-pep695-generic-class
+  "UP047",   # non-pep695-generic-function
+  # Ambiguous-unicode in PROSE only (docstrings/comments): the codebase uses
+  # en-dashes and math symbols (×, σ) intentionally. RUF001 — ambiguous unicode
+  # in executable strings/identifiers, the real homoglyph risk — stays enabled.
+  "RUF002",  # ambiguous-unicode-character-docstring
+  "RUF003",  # ambiguous-unicode-character-comment
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's parameter markers are call-in-default by design and are immutable,
+# so B008 (function-call-in-default-argument) is a false alarm for them.
+extend-immutable-calls = [
+  "fastapi.Depends",
+  "fastapi.Query",
+  "fastapi.Path",
+  "fastapi.Header",
+  "fastapi.Body",
+  "fastapi.Form",
+  "fastapi.Cookie",
+  "fastapi.File",
+  "fastapi.Security",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "PLR", "ARG", "T20"]
-"scripts/**" = ["T20"]
+# PT019: leading-underscore fixtures injected as params (`_stub_storage`) are
+# our "side-effect only" convention; we keep the param rather than usefixtures.
+# PT018: composite asserts read fine in these tests and we already relax pytest
+# style here (cf. PT019); split them only where it aids a specific diagnosis.
+"tests/**" = ["S", "PLR", "ARG", "T20", "PT019", "PT018"]
+# E402: conftest sets os.environ before importing seedbank so Settings() sees it.
+"tests/**/conftest.py" = ["E402"]
+# ASYNC240: CLI scripts run their own loop; blocking pathlib I/O off the request
+# path is fine (sync code is explicitly allowed in scripts per CLAUDE.md).
+"scripts/**" = ["T20", "ASYNC240"]
 "alembic/**" = ["I", "T20"]
 
 [tool.ruff.format]
@@ -167,8 +235,27 @@ mypy_path = "src"
 files = ["src", "tests", "scripts"]
 exclude = ["legacy/", "\\.venv/", "alembic/versions/", "scripts/make_reference_docx\\.py", "scripts/_docx_fix_tables\\.py"]
 
+# Third-party modules that ship no type stubs / py.typed. The ML stack
+# (torch/torchvision/numpy) lives in the [inference] extra and is intentionally
+# NOT installed in the lean typecheck env (CI runs `pip install -e .[dev]`), so
+# mypy must treat these as untyped rather than erroring on the missing import.
 [[tool.mypy.overrides]]
-module = ["miniopy_async.*", "clickhouse_connect.*", "inference_sdk.*", "ultralytics.*"]
+module = [
+  "miniopy_async.*",
+  "clickhouse_connect.*",
+  "inference_sdk.*",
+  "ultralytics.*",
+  "torch.*",
+  "torchvision.*",
+  "timm.*",
+  "numpy.*",
+  "onnxruntime.*",
+  "rembg.*",
+  "uuid_extensions.*",
+  "authlib.*",
+  "celery.*",
+  "testcontainers.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

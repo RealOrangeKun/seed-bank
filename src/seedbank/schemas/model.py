@@ -1,4 +1,4 @@
-"""Pydantic v2 DTOs for the model registry + traffic split endpoints."""
+"""Pydantic v2 DTOs for the model registry endpoints."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from seedbank.infrastructure.db.enums import ModelBackend, ModelKind, ModelStatus
-
 
 # ── model_artifacts ─────────────────────────────────────────────────────────
 
@@ -26,7 +25,6 @@ class ModelOut(BaseModel):
     artifact_uri: str
     config: dict[str, Any] | None = None
     training_metadata: dict[str, Any] | None = None
-    mlflow_run_id: str | None = None
     status: ModelStatus
     created_by: UUID | None = None
     created_at: datetime | None = None
@@ -44,7 +42,6 @@ class ModelRegisterIn(BaseModel):
     seed_type_id: UUID | None = None
     config: dict[str, Any] | None = None
     training_metadata: dict[str, Any] | None = None
-    mlflow_run_id: Annotated[str | None, Field(default=None, max_length=64)] = None
 
 
 class ModelStatusUpdateIn(BaseModel):
@@ -81,50 +78,10 @@ class ModelPerformanceOut(BaseModel):
     note: str | None = None
 
 
-# ── traffic_splits ──────────────────────────────────────────────────────────
-
-
-class TrafficSplitOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    kind: ModelKind
-    seed_type_id: UUID | None = None
-    model_id: UUID
-    weight: int
-    is_active: bool
-    valid_from: datetime | None = None
-    valid_until: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
-class TrafficSplitEntryIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    model_id: UUID
-    weight: Annotated[int, Field(ge=0, le=100)]
-    valid_from: datetime | None = None
-    valid_until: datetime | None = None
-
-
-class TrafficSplitReplaceIn(BaseModel):
-    """Atomic replacement of all active splits for ``(kind, seed_type_id)``."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    kind: ModelKind
-    seed_type_id: UUID | None = None
-    entries: Annotated[list[TrafficSplitEntryIn], Field(max_length=16)]
-
-
 __all__ = [
     "ModelOut",
     "ModelPerformanceOut",
     "ModelRegisterIn",
     "ModelStatusUpdateIn",
     "OfflineMetricOut",
-    "TrafficSplitEntryIn",
-    "TrafficSplitOut",
-    "TrafficSplitReplaceIn",
 ]

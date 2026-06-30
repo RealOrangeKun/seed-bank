@@ -74,7 +74,6 @@ def _build_app(detections: list[SimpleNamespace]) -> FastAPI:
         role=Role.END_USER,
         is_active=True,
         is_verified=True,
-        scopes=frozenset(),
         auth_method="jwt",
     )
     return app

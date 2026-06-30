@@ -10,10 +10,14 @@
 > [`docs/adr/`](./adr/), [`docs/operations.md`](./operations.md),
 > [`docs/revamp-status.md`](./revamp-status.md)).
 
-Last updated: 2026-06-25. **Status: v1 — final.** This revision completes the
+Last updated: 2026-06-30. **Status: v1 — final.** This revision completes the
 infrastructure, observability, and end-to-end tooling coverage; it is intended to
 be exhaustive (every service, queue, image target, metric, dashboard, admin UI,
-Make target, and external tool the project uses is documented here).
+Make target, and external tool the project uses is documented here). MLflow and
+the weighted-A/B traffic-splits feature have been removed (see
+[`docs/revamp-status.md`](./revamp-status.md)): experiments now persist their
+metrics to Postgres + a MinIO report, and model selection is production-model
+resolution via `ModelResolver`.
 
 ---
 
@@ -31,8 +35,8 @@ It serves two very different audiences from one backend:
   journey is: sign in → photograph seeds → get an instant good/bad report →
   review history → optionally share a read-only report link.
 - **AI developers & administrators** — the people who run the ML platform behind
-  the product: registering model weights, promoting models through a lifecycle,
-  splitting inference traffic for A/B tests, running offline evaluation
+  the product: registering model weights, promoting models through a lifecycle so
+  the promoted `production` model serves a segment, running offline evaluation
   experiments against labelled datasets, and managing users.
 
 The platform is built around **full model traceability**: every individual seed
@@ -56,12 +60,12 @@ and weights that generated it.
                          │            FastAPI backend (async)            │
                          │  routers → services → repositories → ORM      │
                          │  auth · RBAC · rate-limit · RFC 9457 errors   │
-                         └───┬─────────┬─────────┬─────────┬────────┬────┘
-                             │         │         │         │        │
-                   Postgres ◀┘  Redis ◀┘  MinIO ◀┘ ClickHouse│   MLflow
-                   (OLTP)      (cache/   (objects: │ (analytics │ (experiment
-                   18 tables    broker)   images,   │  star      │  tracking)
-                   UUIDv7       Celery)    weights)  │  schema)   │
+                         └───┬─────────┬─────────┬─────────┬─────────────┘
+                             │         │         │         │
+                   Postgres ◀┘  Redis ◀┘  MinIO ◀┘ ClickHouse
+                   (OLTP)      (cache/   (objects:  (analytics
+                   16 tables    broker)   images,    star
+                   UUIDv7       Celery)    weights)   schema)
                                                      │
                          ┌───────────────────────────┴──────────────────┐
                          │              Celery workers                   │
@@ -97,7 +101,7 @@ seed-bank/
 │   │   ├── middleware.py    # RequestId + Prometheus middleware
 │   │   └── rate_limit.py    # slowapi limiter wiring
 │   ├── services/            # Business logic (one service per domain)
-│   ├── infrastructure/      # Adapters: db, cache, storage, ml, analytics, mlflow, oauth
+│   ├── infrastructure/      # Adapters: db, cache, storage, ml, analytics, oauth
 │   ├── schemas/             # Pydantic request/response models
 │   ├── domain/              # Domain entities (e.g. user roles)
 │   ├── core/                # config, logging, metrics, tracing, sentry
@@ -126,7 +130,7 @@ seed-bank/
 
 Python 3.12 · FastAPI · async SQLAlchemy 2 + asyncpg · Pydantic v2 +
 pydantic-settings · Alembic · Celery (Redis broker) · miniopy-async (S3/MinIO) ·
-clickhouse-connect · MLflow · authlib (OAuth) · slowapi (rate limiting) ·
+clickhouse-connect · authlib (OAuth) · slowapi (rate limiting) ·
 structlog · OpenTelemetry · Sentry · Prometheus.
 
 ### 4.2 Application factory & request lifecycle
@@ -165,12 +169,10 @@ groups:
   JSON array), `trusted_hosts`.
 - **Auth**: `jwt_secret`, `jwt_algorithm` (HS256), `jwt_access_ttl_seconds`
   (15 min), `jwt_refresh_ttl_seconds` (7 days), `bcrypt_rounds`,
-  `api_key_prefix` (`seedbank_`), Google/GitHub OAuth client id/secret,
-  `bootstrap_token` (first-admin tripwire).
+  Google OAuth client id/secret, `bootstrap_token` (first-admin tripwire).
 - **Datastores**: `postgres_dsn` (+ pool tuning), `redis_dsn`, Celery broker/result
   URLs, MinIO endpoint/keys/buckets (+ a separate `minio_public_endpoint` used
-  **only** to sign browser-facing presigned GET URLs), ClickHouse host/creds,
-  MLflow tracking URI.
+  **only** to sign browser-facing presigned GET URLs), ClickHouse host/creds.
 - **Inference / analyze**: `inference_default_backend`
   (`torch_local`/`roboflow`/`ultralytics_yolo`), image size/pixel caps,
   `analyze_max_files_per_request` (16), allowed MIME types, per-minute rate caps.
@@ -187,11 +189,9 @@ client is generated from this — see §5.3).
 
 | Router | Responsibility (representative endpoints) |
 |---|---|
-| `auth` | `register`, `verify-email`, `login`, `refresh`, `logout`, OAuth start/callback (Google/GitHub), one-shot `bootstrap-admin`. |
+| `auth` | `register`, `verify-email`, `login`, `refresh`, `logout`, OAuth start/callback (Google), one-shot `bootstrap-admin`. |
 | `users` | `GET /users/me`, admin user list & role management. |
-| `api_keys` | Create/list/revoke personal API keys (hashed at rest, scopes, expiry). |
 | `models` | Register model artifacts, list/get, promote lifecycle, `GET /models/{id}/performance`. |
-| `traffic` | Manage weighted A/B `traffic_splits` (admin). |
 | `analyze` | `POST /analyze` — multipart image upload that starts a batch. |
 | `batches` | List/get batches, `GET /batches/{id}` (poll for results), delete, bulk-delete, CSV/JSON export, annotated PNG, **share-link** create/revoke. |
 | `analytics` | Aggregated detection/quality metrics over a time window. |
@@ -218,14 +218,11 @@ client is generated from this — see §5.3).
   Refresh tokens **rotate** on use with **replay detection** (a reused old token
   invalidates the chain). Clients store tokens and transparently refresh once on
   a `401`, then retry the original request.
-- **OAuth** — Google and GitHub social login (authlib; `SessionMiddleware`
+- **OAuth** — Google social login (authlib; `SessionMiddleware`
   carries the `state` across the redirect).
-- **API keys** — personal programmatic tokens, **hashed at rest**, prefixed
-  (`seedbank_`), with optional scopes and expiry; shown in plaintext exactly once
-  at creation.
 - **RBAC** — three roles: **`end_user`** (farmer; analyze + own history),
   **`ai_developer`** (+ models/datasets/experiments, model override at analyze
-  time), **`admin`** (+ traffic splits, user management). Role gates exist on
+  time), **`admin`** (+ user management). Role gates exist on
   both the API and the clients' routing.
 - **Rate limiting** — per-route caps (login/register/refresh/analyze and a
   global default), Redis-backed via slowapi.
@@ -236,13 +233,13 @@ client is generated from this — see §5.3).
 
 ### 4.6 Data model (Postgres OLTP)
 
-Async SQLAlchemy over Postgres, **all 18 tables**, **UUIDv7 primary keys** (time-
+Async SQLAlchemy over Postgres, **all 16 tables**, **UUIDv7 primary keys** (time-
 ordered, index-friendly), Alembic-managed. Repositories
 ([`infrastructure/db/repositories/`](../src/seedbank/infrastructure/db/repositories/))
 are the only code that touches the ORM. The complete set (grouped):
 
-- **Identity & auth** (5): `users`, `refresh_tokens`, `oauth_accounts`,
-  `api_keys`, `audit_log`.
+- **Identity & auth** (4): `users`, `refresh_tokens`, `oauth_accounts`,
+  `audit_log`.
 - **Reference / catalog** (2): `seed_types`, `suppliers`.
 - **Inference graph** (4 — the traceability chain):
   - `scan_batches` — one per `POST /analyze`; carries the **state machine**
@@ -254,9 +251,9 @@ are the only code that touches the ORM. The complete set (grouped):
   - `seed_detections` — one per detected seed: normalized bbox
     (`box_x_norm/y_norm/w_norm/h_norm`), `confidence`, `quality`
     (`good`/`bad`/null), `seed_type_id`, linked to its `inference`.
-- **ML platform** (7): `model_artifacts` (registered weights + metadata +
+- **ML platform** (6): `model_artifacts` (registered weights + metadata +
   lifecycle status), `model_metrics` (per-model performance records behind
-  `GET /models/{id}/performance`), `traffic_splits` (weighted A/B routing),
+  `GET /models/{id}/performance`),
   `datasets` + `dataset_items` (offline-eval ground truth), `experiments` +
   `experiment_results` (offline-eval runs and their computed metrics).
 
@@ -283,7 +280,8 @@ So the data fans out: `1 image → N detections → N quality labels`. Aggregate
 metrics (seed count, good-rate, confidence distribution, per-type breakdown) are
 computed from that detection graph. **Detection and classification are recorded
 as separate `inferences` rows** over the same image, so a detector and a
-classifier can be versioned, swapped, and A/B-tested completely independently.
+classifier can be versioned and swapped (promoted to `production`) completely
+independently.
 
 ```
         ┌──────────────────────── one uploaded image ───────────────────────┐
@@ -382,21 +380,19 @@ load), LRU-evicts to bound GPU memory, and **hot-reloads** a model when its
 `model_artifacts.updated_at` advances. Pipelines are cheap, created per request;
 the expensive weights live here.
 
-#### 4.7.6 Traffic router — model selection & A/B testing
-([`services/traffic_router.py`](../src/seedbank/services/traffic_router.py))
+#### 4.7.6 Model resolver — model selection
+([`services/model_resolver.py`](../src/seedbank/services/model_resolver.py))
 
-Given a **segment** `(kind, seed_type_id)`, the router decides *which* model runs:
+Given a **segment** `(kind, seed_type_id)`, the resolver decides *which* model
+runs. There is **no A/B / weighted-split routing, no sticky user bucket, and no
+Redis in model selection** — it returns the promoted `production` model:
 
-1. Read active rows from **`traffic_splits`** for the segment (60 s Redis cache).
-2. If splits exist, route by a **sticky bucket** = `hash(user_id) % 100` against
-   the cumulative weights — the **same user always lands on the same model**
-   (stable A/B), and traffic is uniform across the user base.
-3. If no splits, fall back to the **`production`** model for that seed type, then
-   to the **global** (seed-type-agnostic) production model. This makes per-type
-   promotion *optional* — a deployment can promote one global model and every
-   scan (including the mobile point-and-shoot flow, which sends **no** seed type)
-   routes to it.
-4. If still nothing, raise `ModelNotReadyError` → the user gets a clear "no model
+1. Resolve the **`production`** model for the segment `(kind, seed_type_id)`.
+2. If there is none, fall back to the **global** (seed-type-agnostic)
+   `production` model for that `kind`. This makes per-type promotion *optional* —
+   a deployment can promote one global model and every scan (including the mobile
+   point-and-shoot flow, which sends **no** seed type) routes to it.
+3. If still nothing, raise `ModelNotReadyError` → the user gets a clear "no model
    is available" failure (not a blank error).
 
 `ai_developer`/`admin` can **override** the model with an explicit `model_id` at
@@ -419,7 +415,7 @@ Celery  worker-inference   task: seedbank.analyze_image   (workers/tasks/analyze
         │  CAS  pending → running   (only the first task to arrive wins; sets started_at)
         │  fetch image bytes ← MinIO
         │  ── DETECT ───────────────────────────────────────────────────────────
-        │     resolve detection model (override OR traffic router)
+        │     resolve detection model (override OR production model via ModelResolver)
         │     run detect (torch forward in a thread) → boxes/scores/labels
         │     persist 1 inference row + N seed_detections rows
         │        (normalized bbox NUMERIC, confidence, px dims, aspect ratio;
@@ -427,7 +423,7 @@ Celery  worker-inference   task: seedbank.analyze_image   (workers/tasks/analyze
         │         the detector's class name coffee/maize → catalog id)
         │  ── CLASSIFY ─────────────────────────────────────────────────────────
         │     GROUP detections by seed_type
-        │     for each group: resolve its classifier (router) → crop each seed
+        │     for each group: resolve its classifier (ModelResolver) → crop each seed
         │        from the source image (JPEG) → classify → good/bad + confidence
         │     bulk-update each detection's `quality`; add 1 classify inference row
         │  ── FINALISE ─────────────────────────────────────────────────────────
@@ -472,26 +468,29 @@ Key properties:
 #### 4.8.2 What the platform supports (summary)
 
 Multiple **crop types** (coffee, maize today; more via new builders + classifiers)
-· **per-seed-type** classifiers with independent A/B · **mixed batches** ·
+· **per-seed-type** classifiers promoted independently · **mixed batches** ·
 the **mobile point-and-shoot** flow (no seed type → global model) ·
 **production-line / conveyor-belt batch scanning** via the same multi-shot
 capture + async per-image worker pool, no belt-specific code needed (§6.3.1) ·
 **multiple backends** (local torch, YOLO, hosted Roboflow) · **GPU or CPU** ·
-**hot model reload** without a restart · **weighted A/B traffic splits** with
-sticky per-user assignment · **per-request model override** for developers ·
+**hot model reload** without a restart · **production-model resolution** per
+`(kind, seed_type_id)` segment with a global fallback (`ModelResolver`) ·
+**per-request model override** for developers ·
 **offline evaluation** of any model against labelled datasets (§4.9) · and full
 **traceability** from every seed label back to the exact model version that
 produced it.
 
-### 4.9 Experiments, datasets & MLflow
+### 4.9 Experiments & datasets
 
 - **Datasets** — labelled images + items, stored in MinIO + Postgres, used as
   ground truth for offline evaluation.
 - **Experiments** — `POST /experiments` runs a model over a dataset offline,
   computes classification metrics (confusion matrix, etc. — see
-  [`services/eval/`](../src/seedbank/services/eval/)), logs params/metrics/
-  artifacts to **MLflow**, writes a Markdown report to MinIO, and surfaces results
-  via `GET /models/{id}/performance`. The runner task is
+  [`services/eval/`](../src/seedbank/services/eval/)). The **source of truth for
+  results is Postgres** — the run's `summary_metrics`, the per-item
+  `experiment_results`, and the per-model `model_metrics` rows — plus a Markdown
+  report written to MinIO (bucket `seedbank-experiments`); results are surfaced
+  via `GET /models/{id}/performance`. There is no MLflow. The runner task is
   [`workers/tasks/experiment.py`](../src/seedbank/workers/tasks/experiment.py).
 
 ### 4.10 Data warehouse (ClickHouse)
@@ -625,7 +624,7 @@ src/
 │   └── guards/         # ProtectedRoute, RoleRoute
 ├── features/<name>/    # api.ts + pages/ + components/ per feature
 │   (auth, dashboard, analyze, batches, analytics, compare, profile,
-│    api-keys, models, datasets, experiments, traffic, users, catalog)
+│    models, datasets, experiments, users, catalog)
 ├── i18n/               # localization system (see §5.4) — NEW
 └── lib/                # api client, env, format, query-client, auth/token-store
 ```
@@ -663,9 +662,9 @@ A **dependency-free, fully-typed** i18n system under `frontend/src/i18n/`:
   consistency; dates are formatted with the active locale.
 - **Switcher** — a language picker in the topbar and on the auth/share pages.
 - **Coverage** — the **entire end-user surface** is translated (auth, dashboard,
-  analyze, batches, batch detail, analytics, compare, profile, api-keys, the
+  analyze, batches, batch detail, analytics, compare, profile, the
   public shared report, the shell, and all shared components). The admin/ML
-  pages (models, datasets, experiments, traffic, users) are intentionally
+  pages (models, datasets, experiments, users) are intentionally
   English — they are role-gated to developers/admins and never reached by
   farmers.
 - **Tests** — `i18n/translate.test.ts` (interpolation, plural rules, dictionary
@@ -691,11 +690,10 @@ A **dependency-free, fully-typed** i18n system under `frontend/src/i18n/`:
   by seed type, from the ClickHouse warehouse.
 - **Compare** — pick 2–10 scans, see metrics side-by-side with the best column
   highlighted.
-- **Profile / API keys** — account details; create/reveal-once/revoke API keys.
+- **Profile** — account details.
 - **Public shared report** (`/shared/:token`) — unauthenticated, read-only batch
   summary, also localized with its own language/theme toggles.
-- **ML-platform pages** (role-gated) — models, datasets, experiments, traffic
-  splits, users.
+- **ML-platform pages** (role-gated) — models, datasets, experiments, users.
 
 ### 5.6 Design system
 
@@ -832,7 +830,6 @@ datastore DSNs/credentials to the API and both workers.
 | `redis` (`seedbank-redis`) | *(default)* | Cache, Celery broker (DB 1) + result (DB 2), rate-limit store; `allkeys-lru`, 256 MB | `localhost:6379` |
 | `minio` (`seedbank-minio`) | *(default)* | Object store: images, weights, datasets, experiment artifacts | API `localhost:9000` · **console** http://localhost:9001 |
 | `clickhouse` (`seedbank-clickhouse`) | *(default)* | Analytics warehouse (star schema) | `localhost:8123` |
-| `mlflow` (`seedbank-mlflow`) | *(default)* | Experiment tracking server + UI (Postgres backend store, MinIO artifacts) | http://localhost:5000 |
 | `adminer` (`seedbank-adminer`) | `dev` | Postgres web admin UI | http://localhost:8080 |
 | `ch-ui` (`seedbank-ch-ui`) | `dev` | ClickHouse web admin UI (proxies CH over the compose net) | http://localhost:3488 |
 | `prometheus` (`seedbank-prometheus`) | `obs` | Metrics scraper + TSDB (7-day retention) | http://localhost:9090 |
@@ -866,7 +863,6 @@ required:
 |---|---|---|---|
 | **API Swagger / OpenAPI** | http://localhost:8000/api/v1/docs | Explore & call every endpoint; the web client's types are generated from `/api/v1/openapi.json` | default |
 | **MinIO console** | http://localhost:9001 | Browse buckets (uploaded images, model weights, datasets, experiment reports) | default |
-| **MLflow UI** | http://localhost:5000 | Compare experiment runs, params, metrics, artifacts | default |
 | **Adminer** | http://localhost:8080 | Query/inspect the Postgres OLTP tables | `make up-dev` |
 | **ch-ui** | http://localhost:3488 | Query/inspect the ClickHouse warehouse | `make up-dev` |
 | **Prometheus** | http://localhost:9090 | Raw metric queries, target health (`/targets`) | `make up-obs` |
@@ -876,7 +872,7 @@ required:
 
 | Command | Profiles | Brings up |
 |---|---|---|
-| `make up` | *(none)* | Lean stack: api + both workers + Postgres/Redis/MinIO/ClickHouse/MLflow |
+| `make up` | *(none)* | Lean stack: api + both workers + Postgres/Redis/MinIO/ClickHouse |
 | `make up-infra` | *(none)* | **Only** the datastores (fast smoke / running the app locally) |
 | `make up-no-inference` | *(none)* | api + worker-cpu + infra (skip the heavy torch worker) |
 | `make up-dev` | `dev` | Lean stack **+ Adminer + ch-ui** |
@@ -886,8 +882,8 @@ required:
 
 ### 7.4 Container images (multi-stage `Dockerfile`)
 
-One [`Dockerfile`](../Dockerfile) builds every first-party image via 9 stages —
-**4 builder** stages (resolve deps with `uv`) feeding **5 runnable** runtimes.
+One [`Dockerfile`](../Dockerfile) builds every first-party image via 8 stages —
+**4 builder** stages (resolve deps with `uv`) feeding **4 runnable** runtimes.
 Each runtime carries exactly the dependencies its job needs, which is why the API
 image is small and torch only exists where inference runs:
 
@@ -897,7 +893,6 @@ image is small and torch only exists where inference runs:
 | `runtime-inference-cpu` | `worker-inference` (default) | + **slim CPU torch + torchvision + headless cv2** (~1.6 GB) for the `torch_local` backend |
 | `runtime-inference-cpu-full` | `worker-inference` (opt-in) | + **ultralytics (YOLO) + inference-sdk (Roboflow)** |
 | `runtime-gpu` | `worker-inference` (prod overlay) | CUDA 12.4 base + GPU torch + device reservation |
-| `mlflow` | `mlflow` | Upstream MLflow image |
 
 ### 7.5 Observability stack — Prometheus + Grafana ([`ops/`](../ops/))
 
@@ -1017,8 +1012,7 @@ Tracked in detail in [`docs/revamp-status.md`](./revamp-status.md). Highlights:
 - Inference upload is **multipart-only** (no presigned upload, no batch cancel).
 - DWH is **app-level dual-write**, not true logical-replication CDC.
 - A few service/schema-backed endpoints lack routes (password change, experiment
-  results, presigned upload); `housekeeping` queue has no task; `TrafficRouter`
-  queries splits ad-hoc (no repository).
+  results, presigned upload); `housekeeping` queue has no task.
 - OTel/Sentry are **opt-in** (no-op unless configured).
 
 ---
@@ -1032,8 +1026,6 @@ Tracked in detail in [`docs/revamp-status.md`](./revamp-status.md). Highlights:
   be confused with the FastAPI "backend".
 - **Builder** — a factory that constructs a model's architecture before loading
   weights, keyed by `builder_key`.
-- **Traffic split** — weighted routing of inference requests across production
-  models (A/B).
 - **Good-rate** — `good / (good + bad)` over classified detections.
 - **Envelope** — the `{ data, [meta] }` response wrapper.
 - **DWH** — the ClickHouse data warehouse / analytics store.
@@ -1084,14 +1076,13 @@ nothing is a mystery when you meet it in the code or the compose file.
 - **Celery** (task queue, Redis broker) · **PyTorch** + **torchvision** (Faster
   R-CNN detector, ResNet18+CBAM classifiers) · **Ultralytics YOLO** (alt backend)
   · **Roboflow inference-sdk** (hosted backend) · **Pillow** + **OpenCV
-  (headless)** (image decode/crop) · **MLflow** (experiment tracking + artifact
-  store) · **NumPy**.
+  (headless)** (image decode/crop) · **NumPy**.
 
 **Auth & security**
 - **bcrypt/passlib** (password hashing) · **PyJWT** (access/refresh tokens) ·
-  **authlib** (Google/GitHub OAuth) · **slowapi** (rate limiting) · **gitleaks**
+  **authlib** (Google OAuth) · **slowapi** (rate limiting) · **gitleaks**
   (secret scanning in pre-commit). Conventions: RFC 9457 problem-details,
-  hashed-at-rest API keys, refresh-token rotation with replay detection.
+  refresh-token rotation with replay detection.
 
 **Observability**
 - **structlog** (structured JSON/console logs) · **prometheus-client** (metrics)
@@ -1117,13 +1108,13 @@ nothing is a mystery when you meet it in the code or the compose file.
 **Infra, build & tooling**
 - **Docker** + **Docker Compose** (profiles: default / `dev` / `obs` /
   `frontend`) · multi-stage **Dockerfile** (CPU / inference-CPU / inference-full /
-  GPU / MLflow) · **nginx** (serves the built web app) · **uv** (Python dependency
+  GPU) · **nginx** (serves the built web app) · **uv** (Python dependency
   manager + lockfile) · **Makefile** (developer entrypoint) · **ruff** (format +
   lint) · **mypy** (strict types) · **pytest** (+ **testcontainers**) ·
   **pre-commit** · **NVIDIA CUDA 12.4** (prod GPU runtime).
 
 **Operator UIs**
-- **Swagger/OpenAPI** (`/api/v1/docs`) · **MinIO console** · **MLflow UI** ·
+- **Swagger/OpenAPI** (`/api/v1/docs`) · **MinIO console** ·
   **Adminer** (Postgres) · **ch-ui** (ClickHouse) · **Prometheus UI** ·
   **Grafana**. See §7.2 for URLs.
 ```

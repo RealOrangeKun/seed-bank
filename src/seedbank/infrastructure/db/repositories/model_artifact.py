@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 
-from seedbank.infrastructure.db.enums import ModelKind, ModelStatus
+from seedbank.infrastructure.db.enums import ModelBackend, ModelKind, ModelStatus
 from seedbank.infrastructure.db.models import ModelArtifact
 
 from .base import Repository
@@ -14,6 +14,27 @@ from .base import Repository
 
 class ModelArtifactRepository(Repository[ModelArtifact]):
     model = ModelArtifact
+
+    async def find_detection_by_backend(self, backend: ModelBackend) -> ModelArtifact | None:
+        """A routable detection model for ``backend`` — production preferred,
+        else staging, newest first. Backs the fast/accurate ``mode`` selector
+        (fast → yolo, accurate → torch_local) without hard-coding model ids."""
+        stmt = (
+            select(ModelArtifact)
+            .where(
+                ModelArtifact.kind == ModelKind.DETECTION.value,
+                ModelArtifact.backend == backend.value,
+                ModelArtifact.status.in_((ModelStatus.PRODUCTION.value, ModelStatus.STAGING.value)),
+            )
+            .order_by(
+                case(
+                    (ModelArtifact.status == ModelStatus.PRODUCTION.value, 0),
+                    else_=1,
+                ),
+                ModelArtifact.created_at.desc(),
+            )
+        )
+        return (await self.session.execute(stmt)).scalars().first()
 
     async def get_production(
         self, kind: ModelKind, seed_type_id: UUID | None

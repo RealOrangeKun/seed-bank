@@ -22,22 +22,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dev dependencies
+      - name: Install dev toolchain (from the lockfile — reproducible)
         run: |
           python -m pip install --upgrade pip uv
-          pip install -e ".[dev]"
+          uv sync --frozen --extra dev
 
       - name: uv.lock is in sync with pyproject.toml
         run: uv lock --check
 
       - name: ruff format (check only)
-        run: ruff format --check .
+        run: .venv/bin/ruff format --check .
 
       - name: ruff lint
-        run: ruff check .
+        run: .venv/bin/ruff check .
 
       - name: mypy (strict)
-        run: mypy
+        run: .venv/bin/mypy
 
       - name: unit tests
-        run: pytest -m "unit or not integration and not e2e" tests/unit --no-cov
+        run: .venv/bin/pytest -m "unit or not integration and not e2e" tests/unit --no-cov

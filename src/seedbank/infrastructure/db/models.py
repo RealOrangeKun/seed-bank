@@ -24,7 +24,6 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
-    ARRAY,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -33,14 +32,14 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
-    SmallInteger,
     String,
     Text,
     UniqueConstraint,
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import CITEXT, INET, JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import CITEXT, INET, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from seedbank.core.ids import uuid7
@@ -57,7 +56,6 @@ from .enums import (
     SEED_QUALITY_ENUM,
     USER_ROLE_ENUM,
 )
-
 
 # ── Identity & access ───────────────────────────────────────────────────────
 
@@ -91,9 +89,6 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    api_keys: Mapped[list[ApiKey]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
 
     __table_args__ = (
         Index("ix_users_role", "role"),
@@ -121,7 +116,7 @@ class OAuthAccount(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("provider", "provider_subject", name="uq_oauth_provider_subject"),
         CheckConstraint(
-            "provider IN ('google', 'github')",
+            "provider IN ('google')",
             name="provider_supported",
         ),
         Index("ix_oauth_accounts_user_id", "user_id"),
@@ -161,33 +156,6 @@ class RefreshToken(Base, TimestampMixin):
             unique=True,
             postgresql_where=text("revoked_at IS NULL"),
         ),
-    )
-
-
-class ApiKey(Base, TimestampMixin):
-    __tablename__ = "api_keys"
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
-    key_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    prefix: Mapped[str] = mapped_column(String(16), nullable=False)
-    scopes: Mapped[list[str]] = mapped_column(
-        ARRAY(String(64)), nullable=False, server_default=text("'{}'::varchar[]")
-    )
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    user: Mapped[User] = relationship(back_populates="api_keys")
-
-    __table_args__ = (
-        Index("ix_api_keys_user_id", "user_id"),
-        Index("ix_api_keys_prefix", "prefix"),
     )
 
 
@@ -312,7 +280,6 @@ class ModelArtifact(Base, TimestampMixin):
     artifact_uri: Mapped[str] = mapped_column(String(512), nullable=False)
     config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     training_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    mlflow_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(
         MODEL_STATUS_ENUM, nullable=False, server_default=text("'registered'")
     )
@@ -410,34 +377,6 @@ class DatasetItem(Base):
     dataset: Mapped[Dataset] = relationship(back_populates="items")
 
 
-class TrafficSplit(Base, TimestampMixin):
-    __tablename__ = "traffic_splits"
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
-    kind: Mapped[str] = mapped_column(MODEL_KIND_ENUM, nullable=False)
-    seed_type_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("seed_types.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    model_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("model_artifacts.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    weight: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
-    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    __table_args__ = (
-        CheckConstraint("weight >= 0 AND weight <= 100", name="weight_range"),
-        Index("ix_traffic_splits_kind_seed_type_id", "kind", "seed_type_id"),
-        Index("ix_traffic_splits_model_id", "model_id"),
-        Index("ix_traffic_splits_is_active", "is_active"),
-    )
-
-
 # ── Experiments ─────────────────────────────────────────────────────────────
 
 
@@ -463,7 +402,6 @@ class Experiment(Base, TimestampMixin):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     summary_metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    mlflow_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -623,7 +561,8 @@ class Inference(Base):
     """One row per (image, model) inference attempt.
 
     `model_id` is NOT NULL — every inference is traceable to the exact model
-    artifact that produced it. This is the join column for A/B analyses.
+    artifact that produced it. This is the join column that ties every
+    detection to the exact model version that produced it.
     """
 
     __tablename__ = "inferences"
@@ -718,7 +657,6 @@ class SeedDetection(Base):
 
 
 __all__ = [
-    "ApiKey",
     "AuditLog",
     "Dataset",
     "DatasetItem",
@@ -734,6 +672,5 @@ __all__ = [
     "SeedDetection",
     "SeedType",
     "Supplier",
-    "TrafficSplit",
     "User",
 ]

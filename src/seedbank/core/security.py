@@ -1,12 +1,12 @@
-"""Security primitives — password hashing, JWT, API-key generation.
+"""Security primitives — password hashing, JWT, token generation.
 
 Pure functions over crypto libraries. Holds no I/O state and no DB references,
 so it's freely importable from services and tests.
 
 - bcrypt via passlib for password hashes (rounds from `Settings.bcrypt_rounds`).
 - python-jose for JWT signing / decoding (HS256, secret from `Settings`).
-- secrets + hashlib for refresh-token / API-key generation; we never store
-  the raw value — only its SHA-256 hash.
+- secrets + hashlib for refresh-token / verification-token generation; we never
+  store the raw value — only its SHA-256 hash.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import hashlib
 import hmac
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 from jose import JWTError, jwt
@@ -74,9 +74,7 @@ def enforce_password_policy(password: str) -> None:
     Policy: ≥ 12 chars, mix of upper/lower/digit. Symbols not required (we don't
     want to push users to reuse passwords elsewhere)."""
     if len(password) < PASSWORD_MIN_LENGTH:
-        raise ValidationError(
-            f"Password must be at least {PASSWORD_MIN_LENGTH} characters."
-        )
+        raise ValidationError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters.")
     if not _PWD_RE_LOWER.search(password):
         raise ValidationError("Password must contain a lowercase letter.")
     if not _PWD_RE_UPPER.search(password):
@@ -92,7 +90,7 @@ JWT_TYPE_REFRESH: Final[str] = "refresh"
 
 
 def _now_utc() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def encode_jwt(
@@ -143,9 +141,7 @@ def decode_jwt(
     return payload
 
 
-def issue_access_token(
-    *, subject: str, role: str, settings: Settings | None = None
-) -> str:
+def issue_access_token(*, subject: str, role: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
     return encode_jwt(
         subject=subject,
@@ -156,9 +152,7 @@ def issue_access_token(
     )
 
 
-def issue_refresh_token(
-    *, subject: str, settings: Settings | None = None
-) -> tuple[str, datetime]:
+def issue_refresh_token(*, subject: str, settings: Settings | None = None) -> tuple[str, datetime]:
     """Return `(token, expires_at)`. The plaintext token is shown to the
     client once; we persist only its hash."""
     s = settings or get_settings()
@@ -172,46 +166,16 @@ def issue_refresh_token(
     return token, expires_at
 
 
-# ── Hashing helpers (refresh tokens, API keys, generic SHA-256) ──────────────
+# ── Hashing helpers (refresh tokens, generic SHA-256) ────────────────────────
 
 
 def sha256_hex(value: str) -> str:
-    """Return the hex digest of `value`. Used for refresh-token and API-key
-    storage hashes."""
+    """Return the hex digest of `value`. Used for refresh-token storage hashes."""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def constant_time_eq(a: str, b: str) -> bool:
     return hmac.compare_digest(a, b)
-
-
-# ── API keys ─────────────────────────────────────────────────────────────────
-
-API_KEY_RANDOM_LEN: Final[int] = 32
-"""Number of random URL-safe characters in the key body (after the prefix)."""
-
-
-def generate_api_key(settings: Settings | None = None) -> tuple[str, str, str]:
-    """Generate a new API key.
-
-    Returns `(plaintext_key, prefix, key_hash)`:
-
-    - `plaintext_key` — `"seedbank_<random>"`. Shown to the user **once**.
-    - `prefix` — first 8 chars of the random portion. Stored as a non-secret
-      identifier so users can tell their keys apart in the UI.
-    - `key_hash` — SHA-256 hex digest of `plaintext_key`. Stored as the only
-      authoritative copy.
-    """
-    s = settings or get_settings()
-    random_part = secrets.token_urlsafe(API_KEY_RANDOM_LEN)[:API_KEY_RANDOM_LEN]
-    plaintext = f"{s.api_key_prefix}{random_part}"
-    return plaintext, random_part[:8], sha256_hex(plaintext)
-
-
-def looks_like_api_key(value: str, settings: Settings | None = None) -> bool:
-    """Cheap structural check — useful before hitting the DB on every request."""
-    s = settings or get_settings()
-    return value.startswith(s.api_key_prefix) and len(value) >= len(s.api_key_prefix) + 16
 
 
 # ── Email-verification tokens ────────────────────────────────────────────────
@@ -225,7 +189,6 @@ def generate_verification_token() -> tuple[str, str]:
 
 
 __all__ = [
-    "API_KEY_RANDOM_LEN",
     "JWT_TYPE_ACCESS",
     "JWT_TYPE_REFRESH",
     "PASSWORD_MIN_LENGTH",
@@ -233,12 +196,10 @@ __all__ = [
     "decode_jwt",
     "encode_jwt",
     "enforce_password_policy",
-    "generate_api_key",
     "generate_verification_token",
     "hash_password",
     "issue_access_token",
     "issue_refresh_token",
-    "looks_like_api_key",
     "sha256_hex",
     "verify_password",
 ]

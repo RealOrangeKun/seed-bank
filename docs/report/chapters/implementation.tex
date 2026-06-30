@@ -76,12 +76,29 @@ between a healthy and a defective seed of the same crop.
 \subsection{Model management and evaluation}
 
 The backend also has a small amount of supporting machinery around the models.
-It can register and swap the trained weights without code changes, it can run an
-offline evaluation of a model against a held-out set so we can compare versions
-before putting one into use \cite{mlflow2018}, and it runs the actual inference
-in a background worker so that uploading a batch of images does not block the
-rest of the application while the models run. This part stayed simple on purpose,
-since the prototype only needs to serve and compare a handful of models.
+It can register and swap the trained weights without code changes; it can run an
+offline evaluation of a model against a held-out set, storing each run's metrics
+in PostgreSQL alongside a Markdown report in object storage so that versions can
+be compared before one is put into use; and it runs the actual inference in a
+background worker so that uploading a batch of images does not block the rest of
+the application while the models run. This part stayed simple on purpose, since
+the prototype only needs to serve and compare a handful of models.
+
+Choosing which model actually runs for a given request is the job of the model
+resolver. Given a segment --- the kind of model needed (detection or
+classification) and, optionally, the seed type --- it resolves the model promoted
+to \texttt{production} for that exact segment; if none has been promoted and a
+seed type was supplied, it falls back to the global, seed-type-agnostic production
+model for that kind; and if nothing is routable it reports that no model is ready
+rather than failing silently. The decision is deterministic and stateless --- there
+is no weighted routing and no per-user bucket --- so the same request always
+resolves to the same model, and a developer can override the choice with an
+explicit model on a single request. Figure~\ref{fig:model-resolution} shows the
+decision.
+
+\figslot{16-model-resolution.pdf}{Model resolution: the resolver selects the model
+promoted to production for a segment, falls back to the global production model
+when only that is available, or reports that no model is ready.}{fig:model-resolution}
 
 \subsection{MultiSeedGen: the synthetic-data pipeline}
 

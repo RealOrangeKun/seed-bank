@@ -6,7 +6,7 @@ one task per image. This task
 
 1. opens a fresh ``AsyncSession`` (workers must NOT share the API engine),
 2. flips the batch from ``pending`` → ``running`` on first arrival,
-3. resolves a detection model (override or via :class:`TrafficRouter`),
+3. resolves a detection model (override or via :class:`ModelResolver`),
 4. runs detection, persists ``inferences`` + ``seed_detections`` rows,
 5. resolves a classification model and labels every detected crop,
 6. flips the batch to ``succeeded`` / ``partial`` / ``failed`` once every
@@ -50,6 +50,7 @@ from seedbank.core.ids import uuid7
 from seedbank.core.logging import get_logger
 from seedbank.infrastructure.db.enums import (
     BatchStatus,
+    ModelBackend,
     ModelKind,
     ModelStatus,
     SeedQuality,
@@ -77,10 +78,11 @@ from seedbank.infrastructure.ml.pipeline.factory import (
     build_classify_pipeline,
     build_detect_pipeline,
 )
+from seedbank.infrastructure.ml.yolo_taxonomy import classify_name
 from seedbank.infrastructure.storage import get_storage
-from seedbank.services.traffic_router import TrafficRouter
+from seedbank.services.model_resolver import ModelResolver
 from seedbank.workers.celery_app import celery_app
-from seedbank.workers.runtime import get_worker_redis, run_async
+from seedbank.workers.runtime import run_async
 from seedbank.workers.session import worker_session_scope
 from seedbank.workers.tasks.dwh import (
     SYNC_DETECTIONS,
@@ -119,6 +121,7 @@ def analyze_image(
     image_id: str,
     model_id_override: str | None = None,
     seed_type_id: str | None = None,
+    mode: str | None = None,
 ) -> None:
     """Sync Celery wrapper. The real work lives in the async coroutine."""
     run_async(
@@ -126,6 +129,7 @@ def analyze_image(
             image_id=UUID(image_id),
             model_id_override=(UUID(model_id_override) if model_id_override else None),
             seed_type_id=UUID(seed_type_id) if seed_type_id else None,
+            mode=mode,
         )
     )
 
@@ -150,13 +154,10 @@ async def _async_analyze_image(
     image_id: UUID,
     model_id_override: UUID | None,
     seed_type_id: UUID | None,
+    mode: str | None = None,
 ) -> None:
     settings = get_settings()
     storage = get_storage()
-    # The redis client and DB engine are process-scoped (built in the
-    # worker_process_init signal) and bound to the persistent loop —
-    # safe to reuse across tasks; nothing to close here.
-    redis = get_worker_redis()
     async with worker_session_scope() as session:
         repos = _Repos(
             batches=ScanBatchRepository(session),
@@ -210,19 +211,19 @@ async def _async_analyze_image(
         # which Celery retries via ``autoretry_for``.
         image_bytes = await storage.get_object(settings.minio_bucket_images, image.storage_key)
 
-        # 4. Build pipelines + traffic router.
+        # 4. Build pipelines + model resolver.
         detect_pipeline = build_detect_pipeline()
         classify_pipeline = build_classify_pipeline()
-        router = TrafficRouter(session=session, models=repos.models, redis=redis)
+        resolver = ModelResolver(models=repos.models)
 
         # 5. Resolve + run detect. Errors are recorded and re-raised.
         try:
             detect_model = await _resolve_detect_model(
                 repos=repos,
-                router=router,
+                resolver=resolver,
                 model_id_override=model_id_override,
                 seed_type_id=seed_type_id,
-                user_id=batch.user_id,
+                mode=mode,
             )
         except ModelNotReadyError:
             # No detector is routable for this segment — a config/ops state, not
@@ -245,11 +246,17 @@ async def _async_analyze_image(
                 repos=repos,
                 batch_id=batch.id,
                 started_at=batch_started_at,
-                error_message="Could not start analysis: the requested model is invalid or unavailable.",
+                error_message=(
+                    "Could not start analysis: the requested model is invalid or unavailable."
+                ),
             )
             await session.commit()
             dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
             raise
+
+        # YOLO one-shot grades at detection time; the two-stage torch path runs
+        # a separate classifier per crop.
+        one_shot = detect_model.backend == ModelBackend.YOLO.value
 
         detect_inference = await _run_detect_and_persist(
             session=session,
@@ -261,6 +268,7 @@ async def _async_analyze_image(
             seed_type_id=seed_type_id,
             batch_id=batch.id,
             started_at=batch_started_at,
+            one_shot=one_shot,
         )
 
         # 6. Resolve + run classify, per seed type. Each detection carries its
@@ -269,26 +277,34 @@ async def _async_analyze_image(
         # Failures here are non-fatal: detect data is already persisted; we
         # degrade the batch to ``partial`` instead of ``failed``.
         classify_failed = False
-        try:
-            classify_failed = await _classify_all_detections(
-                session=session,
-                repos=repos,
-                router=router,
-                pipeline=classify_pipeline,
-                image=image,
-                image_bytes=image_bytes,
-                detect_inference=detect_inference,
-                user_id=batch.user_id,
-                batch_id=batch.id,
-            )
-        except Exception as exc:
-            log.exception(
-                "analyze.classify_failed",
-                batch_id=str(batch.id),
+        if one_shot:
+            # Fast mode: YOLO already wrote seed type + good/bad on each
+            # detection. No per-crop classifier, no segmentation.
+            log.info(
+                "analyze.classify_skipped",
+                reason="one_shot_detector",
                 image_id=str(image.id),
-                error=repr(exc),
             )
-            classify_failed = True
+        else:
+            try:
+                classify_failed = await _classify_all_detections(
+                    session=session,
+                    repos=repos,
+                    resolver=resolver,
+                    pipeline=classify_pipeline,
+                    image=image,
+                    image_bytes=image_bytes,
+                    detect_inference=detect_inference,
+                    batch_id=batch.id,
+                )
+            except Exception as exc:
+                log.exception(
+                    "analyze.classify_failed",
+                    batch_id=str(batch.id),
+                    image_id=str(image.id),
+                    error=repr(exc),
+                )
+                classify_failed = True
 
         # 7. Finalise the batch if every image is now accounted for.
         await _finalize_batch_if_done(
@@ -306,12 +322,13 @@ async def _async_analyze_image(
 async def _resolve_detect_model(
     *,
     repos: _Repos,
-    router: TrafficRouter,
+    resolver: ModelResolver,
     model_id_override: UUID | None,
     seed_type_id: UUID | None,
-    user_id: UUID,
+    mode: str | None = None,
 ) -> ModelArtifact:
-    """Pick the detection model — override path or traffic router."""
+    """Pick the detection model — explicit override, fast/accurate mode, or the
+    model resolver (in that precedence)."""
     if model_id_override is not None:
         model = await repos.models.get(model_id_override)
         if model is None:
@@ -324,10 +341,19 @@ async def _resolve_detect_model(
             )
         return model
 
-    model_id = await router.select_model(
+    # Curated fast/accurate selection — open to all users (unlike model_id).
+    # fast → YOLO one-shot, accurate → Faster R-CNN two-stage. Falls through to
+    # the model resolver if the requested backend has no routable model.
+    if mode is not None:
+        backend = ModelBackend.YOLO if mode == "fast" else ModelBackend.TORCH_LOCAL
+        chosen = await repos.models.find_detection_by_backend(backend)
+        if chosen is not None:
+            return chosen
+        log.info("analyze.mode_no_model", mode=mode, backend=backend.value)
+
+    model_id = await resolver.select_model(
         kind=ModelKind.DETECTION,
         seed_type_id=seed_type_id,
-        user_id=user_id,
     )
     model = await repos.models.get(model_id)
     if model is None:  # pragma: no cover — router promised it exists
@@ -337,19 +363,17 @@ async def _resolve_detect_model(
 
 async def _resolve_classify_model(
     *,
-    router: TrafficRouter,
+    resolver: ModelResolver,
     models: ModelArtifactRepository,
     seed_type_id: UUID | None,
-    user_id: UUID,
     batch_id: UUID,
 ) -> ModelArtifact | None:
     """Pick the classification model. Returns ``None`` (with a log) when no
     classifier is registered for the segment — classification is optional."""
     try:
-        model_id = await router.select_model(
+        model_id = await resolver.select_model(
             kind=ModelKind.CLASSIFICATION,
             seed_type_id=seed_type_id,
-            user_id=user_id,
         )
     except ModelNotReadyError:
         log.info(
@@ -364,6 +388,10 @@ async def _resolve_classify_model(
 
 def _detection_config(model: ModelArtifact) -> DetectionConfig:
     cfg = model.config or {}
+    # class_map is stored as {"1": "soybean", ...} (JSON keys are strings);
+    # coerce the keys back to ints for the backend.
+    raw_map = cfg.get("class_map")
+    class_map = {int(k): str(v) for k, v in raw_map.items()} if isinstance(raw_map, dict) else None
     return DetectionConfig(
         model_id=model.id,
         artifact_uri=model.artifact_uri,
@@ -372,17 +400,22 @@ def _detection_config(model: ModelArtifact) -> DetectionConfig:
         iou_threshold=float(cfg.get("iou_threshold", 0.5)),
         max_detections=int(cfg.get("max_detections", 300)),
         image_size=cfg.get("image_size"),
+        class_map=class_map,
     )
 
 
 def _classification_config(model: ModelArtifact) -> ClassificationConfig:
     cfg = model.config or {}
+    raw_classes = cfg.get("classes")
+    classes = tuple(str(c) for c in raw_classes) if isinstance(raw_classes, list) else None
     return ClassificationConfig(
         model_id=model.id,
         artifact_uri=model.artifact_uri,
         builder_key=str(cfg.get("builder_key", "default")),
         threshold=float(cfg.get("threshold", 0.5)),
         image_size=int(cfg.get("image_size", 224)),
+        classes=classes,
+        segment=bool(cfg.get("segment", False)),
     )
 
 
@@ -397,6 +430,7 @@ async def _run_detect_and_persist(
     seed_type_id: UUID | None,
     batch_id: UUID,
     started_at: datetime | None,
+    one_shot: bool = False,
 ) -> Inference:
     """Run detect, write the inference + detection rows, commit."""
     inference = await repos.inferences.add_inference(
@@ -442,24 +476,41 @@ async def _run_detect_and_persist(
         .execution_options(synchronize_session=False)
     )
 
-    # Resolve each detection's seed type. An explicit batch-level
-    # ``seed_type_id`` (from the request) always wins; otherwise we map the
-    # detector's class name ("coffee"/"maize") to its catalog id so per-type
-    # quality classifiers can be routed downstream.
-    code_to_id = {} if seed_type_id is not None else await repos.seed_types.code_to_id()
-    rows = [
-        _build_seed_detection(
-            inference_id=inference.id,
-            seed_type_id=(
-                seed_type_id
-                if seed_type_id is not None
-                else code_to_id.get((det.class_name or "").lower())
-            ),
-            detection=det,
-            image=image,
-        )
-        for det in outcome.detections
-    ]
+    # Resolve each detection's seed type. The YOLO one-shot detector encodes
+    # both the seed type *and* good/bad in its class name, so we map it straight
+    # to a catalog id + quality here and skip the classifier. The two-stage
+    # detector emits a superclass: an explicit batch-level ``seed_type_id`` wins,
+    # otherwise we map the class name to its catalog id so per-type quality
+    # classifiers can be routed downstream.
+    if one_shot:
+        code_to_id = await repos.seed_types.code_to_id()
+        rows = []
+        for det in outcome.detections:
+            code, quality = classify_name(det.class_name)
+            rows.append(
+                _build_seed_detection(
+                    inference_id=inference.id,
+                    seed_type_id=code_to_id.get(code) if code else None,
+                    detection=det,
+                    image=image,
+                    quality=quality,
+                )
+            )
+    else:
+        code_to_id = {} if seed_type_id is not None else await repos.seed_types.code_to_id()
+        rows = [
+            _build_seed_detection(
+                inference_id=inference.id,
+                seed_type_id=(
+                    seed_type_id
+                    if seed_type_id is not None
+                    else code_to_id.get((det.class_name or "").lower())
+                ),
+                detection=det,
+                image=image,
+            )
+            for det in outcome.detections
+        ]
     await repos.detections.add_many(rows)
     await session.commit()
 
@@ -482,12 +533,15 @@ def _build_seed_detection(
     seed_type_id: UUID | None,
     detection: Detection,
     image: ScanImage,
+    quality: str | None = None,
 ) -> SeedDetection:
     """Convert a backend ``Detection`` DTO into a persisted row.
 
     Confidence is ``NUMERIC(5,4)`` and bbox columns are ``NUMERIC(7,6)`` —
     we round and pass ``Decimal`` so SQLAlchemy doesn't coerce float into
-    a mismatched scale.
+    a mismatched scale. ``quality`` is set directly for the YOLO one-shot
+    path (which grades at detection time); the two-stage path leaves it
+    ``None`` here and fills it in during classification.
     """
     box = detection.bbox
     width_px = int(box.w * image.width) if image.width else None
@@ -501,6 +555,7 @@ def _build_seed_detection(
         id=uuid7(),
         inference_id=inference_id,
         seed_type_id=seed_type_id,
+        quality=quality,
         confidence=_decimal4(detection.confidence),
         detection_confidence=_decimal4(detection.confidence),
         box_x_norm=_decimal6(box.x),
@@ -531,12 +586,11 @@ async def _classify_all_detections(
     *,
     session: AsyncSession,
     repos: _Repos,
-    router: TrafficRouter,
+    resolver: ModelResolver,
     pipeline: ClassifyPipeline,
     image: ScanImage,
     image_bytes: bytes,
     detect_inference: Inference,
-    user_id: UUID,
     batch_id: UUID,
 ) -> bool:
     """Classify every detection, routing each seed-type group to its own model.
@@ -572,10 +626,9 @@ async def _classify_all_detections(
     for type_id, group in groups.items():
         try:
             classify_model = await _resolve_classify_model(
-                router=router,
+                resolver=resolver,
                 models=repos.models,
                 seed_type_id=type_id,
-                user_id=user_id,
                 batch_id=batch_id,
             )
         except Exception as exc:
@@ -625,7 +678,7 @@ async def _run_classify_for_detections(
 ) -> None:
     """Crop each detection from the image, classify it, and bulk-update
     the ``quality`` column. Classification adds a fresh ``inferences`` row
-    so the registry can A/B classifiers independently of detectors.
+    so classifiers can be versioned and promoted independently of detectors.
 
     ``detections`` is the pre-grouped list for a single seed type — the caller
     (:func:`_classify_all_detections`) resolved ``classify_model`` to match."""
@@ -651,13 +704,16 @@ async def _run_classify_for_detections(
     valid_labels = {q.value for q in SeedQuality}
 
     try:
-        for det in detections:
-            crop_bytes = _crop_to_jpeg(base_img, det, width, height)
-            outcome = await pipeline.run(
-                crop=crop_bytes,
-                cfg=cfg,
-                backend_name=classify_model.backend,
-            )
+        # Crop every detection up-front, then grade them in one batched call.
+        # The torch backend runs a single (chunked) forward pass over the whole
+        # group instead of one pass per seed — the main cost of "accurate" mode.
+        crops = [_crop_to_jpeg(base_img, det, width, height) for det in detections]
+        outcomes = await pipeline.run_batch(
+            crops=crops,
+            cfg=cfg,
+            backend_name=classify_model.backend,
+        )
+        for det, outcome in zip(detections, outcomes, strict=True):
             label = outcome.classification.label
             if label not in valid_labels:
                 # Defensive: a misconfigured model returning class names

@@ -102,9 +102,7 @@ def build_problem(
     return JSONResponse(status_code=status_code, content=body, headers=headers)
 
 
-def _problem_for_domain_error(
-    request: Request, exc: DomainError, status_code: int
-) -> JSONResponse:
+def _problem_for_domain_error(request: Request, exc: DomainError, status_code: int) -> JSONResponse:
     return build_problem(
         request=request,
         status_code=status_code,
@@ -120,7 +118,8 @@ def install_error_handlers(app: FastAPI) -> None:
     subclasses are registered first."""
 
     for exc_cls, http_status in _STATUS_MAP.items():
-        async def _handler(  # type: ignore[no-redef]
+
+        async def _handler(
             request: Request,
             exc: DomainError,
             _status: int = http_status,
@@ -133,7 +132,7 @@ def install_error_handlers(app: FastAPI) -> None:
             )
             return _problem_for_domain_error(request, exc, _status)
 
-        app.add_exception_handler(exc_cls, _handler)
+        app.add_exception_handler(exc_cls, _handler)  # type: ignore[arg-type]
 
     async def _fallback(request: Request, exc: DomainError) -> JSONResponse:
         # Subclasses of DomainError not in the map fall through here.
@@ -143,15 +142,11 @@ def install_error_handlers(app: FastAPI) -> None:
             code=exc.code,
             detail=str(exc),
         )
-        return _problem_for_domain_error(
-            request, exc, status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return _problem_for_domain_error(request, exc, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    app.add_exception_handler(DomainError, _fallback)
+    app.add_exception_handler(DomainError, _fallback)  # type: ignore[arg-type]
 
-    async def _validation_handler(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
+    async def _validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         """Pydantic 422 → Problem Details with ``errors[]`` per field.
 
         Each Pydantic error has shape ``{"loc": [...], "msg": ..., "type": ...}``;
@@ -182,7 +177,7 @@ def install_error_handlers(app: FastAPI) -> None:
             errors=field_errors,
         )
 
-    app.add_exception_handler(RequestValidationError, _validation_handler)
+    app.add_exception_handler(RequestValidationError, _validation_handler)  # type: ignore[arg-type]
 
 
 __all__ = [

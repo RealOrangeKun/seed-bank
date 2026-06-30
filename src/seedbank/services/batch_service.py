@@ -51,7 +51,7 @@ _QUALITY_COLORS: dict[str | None, tuple[int, int, int]] = {
 }
 
 
-def _draw_boxes(raw: bytes, detections: list) -> bytes:  # noqa: ANN001 — ORM rows
+def _draw_boxes(raw: bytes, detections: list[SeedDetection]) -> bytes:
     """Burn normalized detection boxes onto an image, return PNG bytes.
 
     Pure/CPU-bound (runs in a thread). Coordinates are stored normalized
@@ -114,6 +114,7 @@ class BatchService:
         page_size: int,
         supplier_id: UUID | None = None,
         country_code: str | None = None,
+        source: str | None = None,
     ) -> tuple[list[tuple[ScanBatch, int]], int]:
         """Return ``(rows, total)`` for the requested page.
 
@@ -122,6 +123,10 @@ class BatchService:
         grouped query (no N+1). ``total`` is the unpaginated count under the
         same filters so the caller can build a ``Page[BatchOut]``. ``page``
         is 1-indexed, matching the schemas' :class:`PageMeta`.
+
+        ``source`` scopes the list to one client origin (``web`` / ``mobile``)
+        so each app shows its own history; when omitted the repository hides the
+        realtime live-frame batches.
         """
         offset = (page - 1) * page_size
         rows = await self.batches.list_for_user_with_counts(
@@ -130,11 +135,13 @@ class BatchService:
             offset=offset,
             supplier_id=supplier_id,
             country_code=country_code,
+            source=source,
         )
         total = await self.batches.count_for_user(
             user_id,
             supplier_id=supplier_id,
             country_code=country_code,
+            source=source,
         )
         return rows, total
 

@@ -1,11 +1,7 @@
-import { KeyRound } from "lucide-react";
-import { Link } from "react-router-dom";
-
 import { CopyButton } from "@/components/shared/copy-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/features/auth/use-auth";
 import { useI18n } from "@/i18n";
@@ -66,20 +62,6 @@ export function ProfilePage() {
                 </span>
               }
             />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("profile.access")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>{t("profile.accessDesc")}</p>
-            <Button variant="outline" asChild>
-              <Link to="/api-keys">
-                <KeyRound className="h-4 w-4" /> {t("profile.manageApiKeys")}
-              </Link>
-            </Button>
           </CardContent>
         </Card>
       </div>

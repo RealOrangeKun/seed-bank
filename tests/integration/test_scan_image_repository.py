@@ -9,6 +9,7 @@ ties), and an unknown batch yields an empty list rather than an error.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +36,7 @@ async def _seed_batch(db_session: AsyncSession) -> ScanBatch:
     return batch
 
 
-def _image(batch_id, *, key: str, uploaded_at: datetime) -> ScanImage:
+def _image(batch_id: UUID, *, key: str, uploaded_at: datetime) -> ScanImage:
     return ScanImage(
         batch_id=batch_id,
         storage_key=key,
