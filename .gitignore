@@ -99,3 +99,5 @@ docs/report/**/*.bcf
 docs/report/**/*.run.xml
 docs/report/**/*.bbl
 docs/report/**/*.blg
+
+!docs/report/figures/*

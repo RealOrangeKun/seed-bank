@@ -1,48 +1,57 @@
-flowchart TD
-    src[/Single-seed source images/]
-    tex[/Background / texture photos/]
-    cfg[/Config: YAML / CLI flags/]
-
-    subgraph SEG[Segmentation cascade]
-        s1[auto: border-color -> Otsu -> GrabCut]
-        s2[rembg U2-Net / SAM fallback]
-        s3[confidence gate + content-hash cache]
+flowchart TB
+    subgraph R1["Phase 1: Input & Segmentation"]
+        direction LR
+        src[/Single-seed source images/]
+        cfg[/Config: YAML / CLI flags/]
+        subgraph SEG[Segmentation cascade]
+            direction TB
+            s1[auto: border-color -> Otsu -> GrabCut]
+            s2[rembg U2-Net / SAM fallback]
+            s3[confidence gate + content-hash cache]
+        end
+        src --> SEG
+        cfg --> SEG
     end
 
-    subgraph COMP[Scene composition]
-        c1[sample N seeds 6..25]
-        c2[place: IoU limit + visibility check]
-        c3[label-safe augment: scale/rotate/shear/HSV]
-        c4[composite on inpainted or synthetic background]
-        c5[soft directional shadows]
+    subgraph R2["Phase 2: Composition & Degradation"]
+        direction LR
+        tex[/Background / texture photos/]
+        subgraph COMP[Scene composition]
+            direction TB
+            c1[sample N seeds 6..25]
+            c2[place: IoU limit + visibility check]
+            c3[label-safe augment: scale/rotate/shear/HSV]
+            c4[composite on inpainted background]
+            c5[soft directional shadows]
+        end
+        subgraph LBL[Label derivation]
+            direction TB
+            l1[axis-aligned bounding boxes]
+            l2[occlusion-aware polygons]
+            l3[provenance per box]
+        end
+        deg[Camera-matched degradation: noise / JPEG / blur / gamma]
+        tex --> COMP
+        COMP --> LBL
+        COMP --> deg
     end
 
-    subgraph LBL[Label derivation]
-        l1[axis-aligned bounding boxes]
-        l2[occlusion-aware polygons]
-        l3[provenance per box]
+    subgraph R3["Phase 3: Export & Splitting"]
+        direction LR
+        subgraph EXP[Export]
+            direction TB
+            e1[YOLO boxes]
+            e2[YOLO-seg polygons]
+            e3[COCO annotations.json]
+            e4[data.yaml + run manifest]
+        end
+        split[Leakage-safe train/val split: per-class seed holdout]
+        out[/Annotated multi-seed detection dataset/]
+        EXP --> split
+        split --> out
     end
 
-    deg[Camera-matched degradation: noise / JPEG / blur / gamma]
-
-    subgraph EXP[Export]
-        e1[YOLO boxes]
-        e2[YOLO-seg polygons]
-        e3[COCO annotations.json]
-        e4[data.yaml + run manifest]
-    end
-
-    split[Leakage-safe train/val split: per-class seed holdout]
-    out[/Annotated multi-seed detection dataset/]
-
-    src --> SEG
-    cfg --> SEG
     SEG --> COMP
-    tex --> COMP
-    COMP --> LBL
-    COMP --> deg
-    deg --> EXP
     LBL --> EXP
-    EXP --> split
-    split --> out
+    deg --> EXP
     out -.->|trains detector| seedbank[Seed Bank detection model]

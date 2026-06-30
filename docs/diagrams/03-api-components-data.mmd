@@ -1,0 +1,71 @@
+flowchart TB
+    subgraph SVC["Services — src/seedbank/services/"]
+        S_AUTH["AuthService"]
+        S_REG["ModelRegistryService"]
+        S_TR["ModelResolver"]
+        S_AN["AnalysisService"]
+        S_BAT["BatchService"]
+    end
+
+    subgraph REPO["Repositories — src/seedbank/infrastructure/db/repositories/"]
+        direction TB
+        subgraph REPO1["User & Auth"]
+            direction LR
+            R_USER["UserRepository"]
+            R_OAUTH["OAuthAccountRepository"]
+            R_RT["RefreshTokenRepository"]
+        end
+        subgraph REPO2["Core Scans & Detections"]
+            direction LR
+            R_SB["ScanBatchRepository"]
+            R_SI["ScanImageRepository"]
+            R_INF["InferenceRepository"]
+            R_SD["SeedDetectionRepository"]
+        end
+        subgraph REPO3["Models & Suppliers"]
+            direction LR
+            R_MA["ModelArtifactRepository"]
+            R_SUP["SupplierRepository"]
+        end
+    end
+
+    subgraph INFRA["Infrastructure adapters"]
+        direction TB
+        subgraph INFRA1["Core Services Integration"]
+            direction LR
+            ML["infrastructure/ml<br/>(ML models/pipeline)"]
+            STO["storage/MinioStorage"]
+            CACHE["cache/Redis"]
+        end
+        subgraph INFRA2["External Auth & Analytics"]
+            direction LR
+            OAUTH["oauth/google.py"]
+            ANA["analytics/clickhouse"]
+        end
+    end
+
+    ORM[("SQLAlchemy 2.0 AsyncSession<br/>infrastructure/db/models.py")]
+
+    S_AUTH --> R_USER
+    S_AUTH --> R_OAUTH
+    S_AUTH --> R_RT
+    S_AUTH --> OAUTH
+
+    S_REG --> R_MA
+    S_TR --> R_MA
+    S_AN --> R_SB
+    S_AN --> R_SI
+    S_AN --> STO
+    S_AN -. "send_task" .-> CACHE
+    S_BAT --> R_SB
+    S_BAT --> R_SI
+
+    R_USER --> ORM
+    R_OAUTH --> ORM
+    R_RT --> ORM
+    R_MA --> ORM
+    R_SUP --> ORM
+    R_SB --> ORM
+    R_SI --> ORM
+    R_INF --> ORM
+    R_SD --> ORM

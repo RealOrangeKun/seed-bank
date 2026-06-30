@@ -1,0 +1,21 @@
+flowchart TB
+    BRK[("Redis broker<br/>db1")]
+    RES[("Redis result backend<br/>db2")]
+
+    subgraph WK["worker-cpu / worker-inference"]
+        direction TB
+
+        APP["workers/celery_app.py<br/>app factory<br/>task_routes inference→inference queue<br/>acks_late, prefetch=1"]
+
+        TASK["workers/tasks/analyze.py<br/>@celery_app.task seedbank.analyze_image<br/>sync entry → run_async (persistent loop)"]
+
+        SS["workers/session.py<br/>worker_session_scope<br/>session from process-scoped sessionmaker<br/>engine built once in worker_process_init"]
+
+        IMPL["_async_analyze_image<br/>(the inference loop)"]
+    end
+
+    BRK --> APP
+    APP --> TASK
+    TASK --> SS
+    SS --> IMPL
+    TASK -. "result / state" .-> RES

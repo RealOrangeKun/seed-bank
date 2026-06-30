@@ -17,19 +17,11 @@ gives us an environment that behaves the same on a personal laptop, a lab
 machine, or a server, which removes the usual "it works on my machine" problem
 and makes it easy for a new team member to get started.
 
-There are three pieces. The frontend is a React application \cite{reactindepth}
-that the user interacts with. The backend is a FastAPI service \cite{fastapi}
-that takes an image, runs the models, and returns the results. PostgreSQL stores
-the results so a user can come back later and see the history of what they
-scanned. The frontend talks to the backend over a simple HTTP API, and the
-backend writes to the database, so each part can be developed and tested on its
-own.
+There are four primary components. The frontend is a React application \cite{reactindepth} that the user interacts with. The backend is a FastAPI service \cite{fastapi} that takes an image, runs the models, and returns the results. PostgreSQL stores the transactional records so a user can come back later and see the history of what they scanned. Alongside PostgreSQL, a ClickHouse instance acts as the analytics data warehouse, storing detailed inference telemetry and performance metrics for reporting and evaluation. The frontend talks to the backend over a simple HTTP API, and the backend communicates with the databases and object storage, so each part can be developed and tested on its own.
 
 \autoref{fig:deployment} shows how the containers connect.
 
-\figslot{10-deployment.pdf}{Deployment view: the React frontend, the FastAPI
-backend, and the PostgreSQL database, each running as its own
-container.}{fig:deployment}
+\figslot{10-deployment.pdf}{Deployment view: the React frontend, the FastAPI backend, the PostgreSQL database, and the ClickHouse analytics warehouse.}{fig:deployment}
 
 \section{Key implementation details}
 
@@ -99,6 +91,14 @@ decision.
 \figslot{16-model-resolution.pdf}{Model resolution: the resolver selects the model
 promoted to production for a segment, falls back to the global production model
 when only that is available, or reports that no model is ready.}{fig:model-resolution}
+
+\subsection{Data warehouse and analytics telemetry (ClickHouse)}
+
+To track the real-world performance of the grading system, the platform implements an online analytical processing (OLAP) star schema in ClickHouse. While PostgreSQL manages transactional and relational data (such as user credentials, scan batches, and model status), ClickHouse is dedicated to high-performance analytics, storing scan telemetry, inference latency, model accuracy over time, and geographic distribution metrics.
+
+The analytics database schema consists of dimension tables (such as \texttt{dim\_user}, \texttt{dim\_model}, and \texttt{dim\_seed\_type}) and fact tables (such as \texttt{fact\_inference}, \texttt{fact\_detection}, and \texttt{fact\_scan\_batch}). Data is synchronized from PostgreSQL using application-level dual-writes rather than log-based change data capture (CDC). After each successful transactional commit, a Celery worker dispatches an idempotent insert to ClickHouse via the \texttt{AnalyticsRepository} using the async driver \texttt{clickhouse-connect}.
+
+Because ClickHouse uses the \texttt{ReplacingMergeTree} table engine, duplicate inserts collapse on their sort key during merge cycles. This makes at-least-once delivery from the Celery tasks completely safe against duplicates, ensuring high consistency without complex distributed locking. Callers query this database on async read paths to drive the dashboard statistics, leaderboards, and offline performance tracking.
 
 \subsection{MultiSeedGen: the synthetic-data pipeline}
 

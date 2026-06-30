@@ -21,7 +21,7 @@ flowchart TB
         SS["workers/session.py<br/>worker_session_scope<br/>session from process-scoped sessionmaker<br/>engine built once in worker_process_init"]
 
         subgraph IMPL["_async_analyze_image (the real work)"]
-            direction TB
+            direction LR
             CAS["CAS pending → running<br/>via ScanBatchRepository.cas_status"]
             FETCH["MinIO.get_object<br/>image bytes"]
             RES_DET["ModelResolver.select_model<br/>kind=DETECTION<br/>or model_id_override + scope check"]

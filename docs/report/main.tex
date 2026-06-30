@@ -41,11 +41,12 @@
 
 % Captions (after hyperref/float, still before polyglossia/bidi)
 \usepackage[font=small,labelfont=bf]{caption}
-\captionsetup{skip=4pt}
+\captionsetup{skip=2pt,aboveskip=4pt,belowskip=2pt}
 \graphicspath{{figures/}}
 % Tighten vertical space around in-text [H] floats to keep the figure-heavy
 % chapters compact (keeps the body within the page budget).
 \setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\raggedbottom
 
 % Typography: give the line breaker last-resort stretch so long unbreakable
 % monospace runs (e.g. the routers->services->repositories->ORM chains and long
@@ -92,10 +93,25 @@
 % Drop the real image into docs/report/figures/ with the exact <file> name and
 % rebuild -- the placeholder is replaced automatically. See figures/README.md.
 \newcommand{\figslot}[4][0.68]{%
-  \begin{figure}[htbp]
+  \begin{figure}[H]
     \centering
     \IfFileExists{figures/#2}{%
-      \includegraphics[width=#1\textwidth]{figures/#2}%
+      \includegraphics[width=#1\textwidth,height=0.62\textheight,keepaspectratio]{figures/#2}%
+    }{%
+      \fbox{\parbox[c][0.13\textheight][c]{#1\textwidth}{\centering\ttfamily
+        [\,FIGURE PLACEHOLDER\,]\\[6pt] figures/#2 \\[10pt]
+        \normalfont\itshape #3}}%
+    }
+    \caption{#3}
+    \label{#4}
+  \end{figure}%
+}
+
+\newcommand{\figslotlarge}[4][0.9]{%
+  \begin{figure}[H]
+    \centering
+    \IfFileExists{figures/#2}{%
+      \includegraphics[width=#1\textwidth,height=0.88\textheight,keepaspectratio]{figures/#2}%
     }{%
       \fbox{\parbox[c][0.13\textheight][c]{#1\textwidth}{\centering\ttfamily
         [\,FIGURE PLACEHOLDER\,]\\[6pt] figures/#2 \\[10pt]

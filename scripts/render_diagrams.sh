@@ -38,10 +38,10 @@ render() { # <input.mmd> <output.pdf>
   local in="$1" out="$2"
   case "$RENDERER" in
     npx)
-      npx -y @mermaid-js/mermaid-cli -p "$PCFG" -i "$in" -o "$out" -b transparent ;;
+      npx -y @mermaid-js/mermaid-cli -p "$PCFG" -i "$in" -o "$out" -b transparent -f ;;
     docker)
       docker run --rm -v "$TMP:/data" -v "$OUT:/out" minlag/mermaid-cli \
-        -i "/data/$(basename "$in")" -o "/out/$(basename "$out")" -b transparent ;;
+        -i "/data/$(basename "$in")" -o "/out/$(basename "$out")" -b transparent -f ;;
   esac
 }
 

@@ -1,0 +1,36 @@
+flowchart TB
+    subgraph IMPL["_async_analyze_image pipeline"]
+        direction TB
+        subgraph R1["Phase 1: Detection"]
+            direction LR
+            CAS["CAS pending → running"] --> FETCH["MinIO.get_object<br/>image bytes"]
+            FETCH --> RES_DET["ModelResolver.select_model<br/>kind=DETECTION"]
+            RES_DET --> DET["DetectPipeline.detect"]
+        end
+        subgraph R2["Phase 2: Classification Prep"]
+            direction LR
+            P_INF["InferenceRepository<br/>+ SeedDetectionRepository"] --> COMMIT1["commit detect rows"]
+            COMMIT1 --> RES_CLS["ModelResolver.select_model<br/>kind=CLASSIFICATION"]
+            RES_CLS --> CROP["PIL crop per detection"]
+        end
+        subgraph R3["Phase 3: Classification & Finalize"]
+            direction LR
+            CLS["ClassifyPipeline.classify"] --> P_QC["InferenceRepository<br/>+ SeedDetectionRepository"]
+            P_QC --> COMMIT2["commit classify rows"]
+            COMMIT2 --> FIN["finalize batch (CAS running → succeeded)"]
+        end
+        DET --> P_INF
+        CROP --> CLS
+    end
+
+    subgraph EXT["External adapters"]
+        MIN[("MinIO")]
+        ML["infrastructure/ml<br/>backends/pipeline"]
+        TR["services/model_resolver"]
+    end
+
+    FETCH --> MIN
+    RES_DET --> TR
+    RES_CLS --> TR
+    DET --> ML
+    CLS --> ML

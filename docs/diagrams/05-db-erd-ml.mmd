@@ -1,0 +1,66 @@
+erDiagram
+    USERS ||--o{ MODEL_ARTIFACTS : "registers"
+    USERS ||--o{ DATASETS : "creates"
+    USERS ||--o{ EXPERIMENTS : "runs"
+    SEED_TYPES ||--o{ MODEL_ARTIFACTS : "scopes"
+    MODEL_ARTIFACTS ||--o{ MODEL_METRICS : "scored by"
+    MODEL_ARTIFACTS ||--o{ EXPERIMENTS : "evaluated"
+    DATASETS ||--o{ DATASET_ITEMS : "contains"
+    DATASETS ||--o{ MODEL_METRICS : "evaluated against"
+    DATASETS ||--o{ EXPERIMENTS : "uses"
+    EXPERIMENTS ||--o{ EXPERIMENT_RESULTS : "yields"
+    DATASET_ITEMS ||--o{ EXPERIMENT_RESULTS : "scored"
+
+    SEED_TYPES {
+        uuid id PK
+        string code UK
+        string display_name
+        numeric default_confidence_threshold
+    }
+    MODEL_ARTIFACTS {
+        uuid id PK
+        string name
+        string version
+        string kind
+        string backend
+        uuid seed_type_id FK
+        string artifact_uri
+        jsonb config
+        string status
+    }
+    MODEL_METRICS {
+        uuid id PK
+        uuid model_id FK
+        uuid dataset_id FK
+        string metric_name
+        numeric metric_value
+        timestamptz computed_at
+    }
+    DATASETS {
+        uuid id PK
+        string name UK
+        uuid created_by FK
+    }
+    DATASET_ITEMS {
+        uuid id PK
+        uuid dataset_id FK
+        string image_storage_key
+        jsonb ground_truth
+    }
+    EXPERIMENTS {
+        uuid id PK
+        string name
+        string status
+        uuid model_id FK
+        uuid dataset_id FK
+        bigint duration_ms
+        jsonb summary_metrics
+    }
+    EXPERIMENT_RESULTS {
+        uuid id PK
+        uuid experiment_id FK
+        uuid dataset_item_id FK
+        jsonb predicted_boxes
+        int latency_ms
+        text error
+    }

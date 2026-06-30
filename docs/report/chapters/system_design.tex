@@ -10,12 +10,7 @@ added without disturbing the rest \cite{cleanarchitecture2017}.
 
 \section{System Architecture}
 
-At a high level the prototype has four pieces. A React web client is the front
-end the user works with. A FastAPI backend exposes the API and runs the
-two-stage inference pipeline that turns a seed photo into a report
-\cite{fastapi}. A relational database holds users, scan batches, and the
-per-seed results. File storage keeps the uploaded images themselves, so the
-database stores references rather than image bytes.
+At a high level the prototype has five pieces. A React web client is the front end the user works with. A FastAPI backend exposes the API and runs the two-stage inference pipeline that turns a seed photo into a report \cite{fastapi}. A relational database (PostgreSQL) holds users, scan batches, and the per-seed results. An analytical database (ClickHouse) stores the inference metrics, scan statistics, and system telemetry for performance tracking. File storage keeps the uploaded images themselves, so the databases store references rather than image bytes.
 
 Model inference is the heavy part of the work, so it does not run inside the
 request that the web client is waiting on. The API accepts a batch, records it,
@@ -25,22 +20,19 @@ back to the database. This keeps the API responsive: a user submitting a batch
 gets an immediate acknowledgement instead of waiting on a slow forward pass,
 and several images can be graded in parallel by the worker.
 
-\autoref{fig:context} places the system in its setting, showing the actors and
-the boundary they talk to. \autoref{fig:containers} shows the running pieces (web
-client, API, worker, database, and file storage) and how they connect.
-\autoref{fig:api-components} zooms into the backend, where requests pass through
-a thin routing layer into the services that hold the business logic and the data
-access beneath them. \autoref{fig:worker-components} shows the worker side: the
-task that consumes a queued image and runs the detect-then-classify steps in
-order.
+\autoref{fig:context} places the system in its setting, showing the actors and the boundary they talk to.
+\figslot[0.52]{01-system-context.pdf}{System context: the actors and the Seed Bank boundary they interact with.}{fig:context}
 
-\figslot{01-system-context.pdf}{System context: the actors and the Seed Bank boundary they interact with.}{fig:context}
+\autoref{fig:containers} shows the running pieces (web client, API, worker, databases, and file storage) and how they connect.
+\figslot[0.85]{02-containers.pdf}{Container view: the web client, the API, the inference worker, the databases, and file storage.}{fig:containers}
 
-\figslot{02-containers.pdf}{Container view: the web client, the API, the inference worker, the database, and file storage.}{fig:containers}
+The backend components are detailed in two parts. \autoref{fig:api-flow} shows the request flow as it enters through middleware and is routed to core services. \autoref{fig:api-data} shows how these services interact with the repository layer and the underlying database ORM model.
+\figslot[0.72]{03-api-components-flow.pdf}{Backend request routing and services flow.}{fig:api-flow}
+\figslotlarge[0.95]{03-api-components-data.pdf}{Backend data-access layer and repositories.}{fig:api-data}
 
-\figslot{03-api-components.pdf}{Backend components: the routing layer, the services that hold business logic, and the data-access layer beneath them.}{fig:api-components}
-
-\figslot{04-worker-components.pdf}{Inference worker components: the task that consumes a queued image and the detect-then-classify steps it runs.}{fig:worker-components}
+The worker side is similarly divided. \autoref{fig:worker-flow} shows the task orchestration and worker process loop. \autoref{fig:worker-pipeline} maps the detailed steps of the inference pipeline.
+\figslot[0.72]{04-worker-components-flow.pdf}{Inference worker task orchestration and dispatch.}{fig:worker-flow}
+\figslotlarge[0.95]{04-worker-components-pipeline.pdf}{Inference worker detailed pipeline steps.}{fig:worker-pipeline}
 
 \section{Class Diagrams}
 
@@ -75,25 +67,27 @@ classifies it as good or bad. When every image is done it aggregates the
 statistics across the batch, updates the status to \texttt{COMPLETED}, and returns
 the structured report to the client.
 
-\figslot{06-analyze-sequence.pdf}{Batch-analysis sequence: identify the user, create the batch, save images, detect seeds, crop and classify each one, aggregate, and complete.}{fig:analyze-seq}
+\figslot[0.95]{06-analyze-sequence.pdf}{Batch-analysis sequence: identify the user, create the batch, save images, detect seeds, crop and classify each one, aggregate, and complete.}{fig:analyze-seq}
 
 \section{Database Entity-Relationship Diagram}
 
-The data model maintains a strict hierarchy from high-level user sessions down to
-individual seed metrics, shown in \autoref{fig:erd}. There are four core
-entities.
+The database schema is split into two logical areas to preserve printed legibility. \autoref{fig:erd-core} shows the Core Platform and Analysis database tables (users, authentication details, audit log, scan batches, and detections). \autoref{fig:erd-ml} shows the Machine Learning Registry, datasets, and experiment tables.
 
-\texttt{USER} manages identity and access, and owns the scans a person creates.
-\texttt{SCAN\_BATCH} is the primary operational container. It tracks the progress
-of an analysis request (pending, processing, completed, or failed) and is the
-central point for summary metrics such as the total seed count, the bad-seed
-count, and the average confidence score. \texttt{SCAN\_IMAGE} records the
-metadata for every individual file in a batch, including its storage path and its
-pixel dimensions. \texttt{SEED\_DETECTION} is the granular output of the models:
-for every identified seed it stores a quality label (good or bad) and the
-normalized bounding box coordinates.
+The core scan hierarchy spans four central entities:
+\begin{itemize}
+    \item \texttt{USER} manages identity and access, and owns the scans a person creates.
+    \item \texttt{SCAN\_BATCH} is the primary operational container. It tracks the progress of an analysis request (pending, processing, completed, or failed) and aggregates summary metrics (total seed count, bad-seed count, average confidence).
+    \item \texttt{SCAN\_IMAGE} records the metadata for every individual file in a batch, including its storage path and its pixel dimensions.
+    \item \texttt{SEED\_DETECTION} is the granular output of the models, storing a quality label (good or bad) and the normalized bounding box coordinates.
+\end{itemize}
 
-\figslot[0.85]{05-db-erd.pdf}{Entity-relationship diagram: the \texttt{USER}, \texttt{SCAN\_BATCH}, \texttt{SCAN\_IMAGE}, and \texttt{SEED\_DETECTION} hierarchy.}{fig:erd}
+\clearpage
+\figslotlarge[0.9]{05-db-erd-core.pdf}{Core database schema: users, scans, and detections.}{fig:erd-core}
+\clearpage
+
+\clearpage
+\figslotlarge[0.9]{05-db-erd-ml.pdf}{Machine learning database schema: models, datasets, and experiments.}{fig:erd-ml}
+\clearpage
 
 \section{MultiSeedGen Design}
 
@@ -130,7 +124,7 @@ in any training image, so the validation score is not inflated by the same seed
 showing up on both sides. The resulting detection and segmentation datasets are
 what train the Seed Bank detector.
 
-\figslot{14-multiseedgen-pipeline.pdf}{MultiSeedGen pipeline: segment single seeds, composite many onto varied backgrounds, augment per seed, record exact boxes and masks, and export detection and segmentation datasets.}{fig:msg-pipeline}
+\figslotlarge[1.0]{14-multiseedgen-pipeline.pdf}{MultiSeedGen pipeline: segment single seeds, composite many onto varied backgrounds, augment per seed, record exact boxes and masks, and export detection and segmentation datasets.}{fig:msg-pipeline}
 
 \section{User Interface Design (Wireframes and Mockups)}
 

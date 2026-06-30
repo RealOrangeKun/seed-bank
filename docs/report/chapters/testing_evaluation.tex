@@ -15,9 +15,7 @@ does the most damage. The suite is layered. Unit tests check single functions in
 isolation with the database, the object store, and the model backends replaced by
 fakes, so they run in milliseconds and cover the pure logic: request and response
 validation, the batch state transitions, and the authentication token paths.
-Integration tests run against a real PostgreSQL instance started for the test run
-and torn down afterwards, so repository code is checked against the database
-engine it actually uses rather than a mock that might disagree with real SQL.
+Integration tests run against real PostgreSQL and ClickHouse instances started for the test run and torn down afterwards, so both the transactional repository code and the analytical data-warehouse code are checked against the database engines they actually use rather than mocks that might disagree with real SQL.
 End-to-end tests drive the assembled HTTP application and assert on status codes
 and response bodies, exercising routing, authentication, and serialization
 together. On top of these sits a smoke test that boots the full stack, registers

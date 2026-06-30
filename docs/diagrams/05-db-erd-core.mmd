@@ -1,0 +1,109 @@
+erDiagram
+    USERS ||--o{ OAUTH_ACCOUNTS : "has"
+    USERS ||--o{ REFRESH_TOKENS : "issues"
+    USERS ||--o{ AUDIT_LOG : "actor"
+    USERS ||--o{ SCAN_BATCHES : "submits"
+    USERS ||--o{ SUPPLIERS : "creates"
+
+    SUPPLIERS ||--o{ SCAN_BATCHES : "branded"
+    SCAN_BATCHES ||--o{ SCAN_IMAGES : "groups"
+    SCAN_IMAGES ||--o{ INFERENCES : "scored by"
+    INFERENCES ||--o{ SEED_DETECTIONS : "produces"
+    SEED_TYPES ||--o{ SEED_DETECTIONS : "labels"
+
+    USERS {
+        uuid id PK
+        citext email UK
+        string hashed_password
+        string role "admin/ai_developer/end_user"
+        bool is_active
+        bool is_verified
+        timestamptz last_login_at
+    }
+    OAUTH_ACCOUNTS {
+        uuid id PK
+        uuid user_id FK
+        string provider "google"
+        string provider_subject
+        text access_token_encrypted
+    }
+    REFRESH_TOKENS {
+        uuid id PK
+        uuid user_id FK
+        string token_hash
+        timestamptz expires_at
+        timestamptz revoked_at
+        uuid replaced_by_id FK
+        inet ip
+    }
+    AUDIT_LOG {
+        uuid id PK
+        uuid actor_id FK
+        string action
+        string target_type
+        string target_id
+        jsonb audit_metadata
+        inet ip
+        timestamptz occurred_at
+    }
+    SEED_TYPES {
+        uuid id PK
+        string code UK
+        string display_name
+        numeric default_confidence_threshold
+    }
+    SUPPLIERS {
+        uuid id PK
+        citext name
+        string slug UK
+        bool is_global
+        uuid created_by_user_id FK
+    }
+    SCAN_BATCHES {
+        uuid id PK
+        uuid user_id FK
+        uuid supplier_id FK
+        string status "pending/running/succeeded/failed/partial"
+        string source "api/web/sdk/mobile/mobile_realtime"
+        timestamptz submitted_at
+        timestamptz started_at
+        timestamptz finished_at
+        bigint duration_ms
+        numeric gps_lat
+        numeric gps_long
+        string geo_country_code
+    }
+    SCAN_IMAGES {
+        uuid id PK
+        uuid batch_id FK
+        string storage_key
+        string content_type
+        bigint size_bytes
+        string sha256
+        int width
+        int height
+        timestamptz uploaded_at
+    }
+    INFERENCES {
+        uuid id PK
+        uuid image_id FK
+        uuid model_id FK
+        string backend
+        int latency_ms
+        text error
+        timestamptz occurred_at
+    }
+    SEED_DETECTIONS {
+        uuid id PK
+        uuid inference_id FK
+        uuid seed_type_id FK
+        string quality "good/bad"
+        numeric confidence
+        numeric detection_confidence
+        numeric box_x_norm
+        numeric box_y_norm
+        numeric box_w_norm
+        numeric box_h_norm
+        int area_px
+        numeric aspect_ratio
+    }
