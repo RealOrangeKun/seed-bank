@@ -1,0 +1,14 @@
+flowchart TD
+    dev([AI Developer])
+
+    subgraph SB["Seed Bank Platform (Developer Use Cases)"]
+        u2((Analyze seed photos))
+        u9((Register / promote models))
+        u10((Run offline experiments))
+        u11((Manage datasets))
+    end
+
+    dev --- u2
+    dev --- u9
+    dev --- u10
+    dev --- u11

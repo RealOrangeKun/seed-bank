@@ -226,7 +226,9 @@ NFR-7 & Maintainability & Layered backend; inference in a separate worker; model
 
 The use cases group into three areas, following the same split used in the
 first-semester design: system utilities, history and statistics, and seed
-analysis. \autoref{fig:usecase} shows the actors and the main use cases.
+analysis. The diagrams are split logically by actor: \autoref{fig:usecase-farmer}
+shows the Farmer/End User use cases, \autoref{fig:usecase-dev} shows the AI Developer
+use cases, and \autoref{fig:usecase-admin} shows the Administrator use cases.
 
 System utilities cover the supporting calls that keep the service usable: a health
 check that reports whether the service is up, and a configuration call that lets a
@@ -251,7 +253,9 @@ and also chooses which model serves normal traffic, manages users and their
 roles, and reads the log of sensitive actions. These last actions change
 behaviour for everyone else, so they sit with the most-privileged actor.
 
-\figslot{12-usecase.pdf}{Use-case diagram (actors and main use cases).}{fig:usecase}
+\figslot[0.88]{12a-usecase-farmer.pdf}{Use-case diagram: Farmer / End User.}{fig:usecase-farmer}
+\figslot[0.65]{12b-usecase-dev.pdf}{Use-case diagram: AI Developer.}{fig:usecase-dev}
+\figslot[0.58]{12c-usecase-admin.pdf}{Use-case diagram: Administrator.}{fig:usecase-admin}
 
 \section{Feasibility Study}
 

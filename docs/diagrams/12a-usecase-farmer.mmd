@@ -1,0 +1,20 @@
+flowchart TD
+    farmer([Farmer / End User])
+
+    subgraph SB["Seed Bank Platform (Farmer Use Cases)"]
+        u1((Register / Log in))
+        u2((Analyze seed photos))
+        u3((View batch results))
+        u4((Browse scan history))
+        u5((Share read-only report))
+        u6((View analytics))
+        u7((Compare scans))
+    end
+
+    farmer --- u1
+    farmer --- u2
+    farmer --- u3
+    farmer --- u4
+    farmer --- u5
+    farmer --- u6
+    farmer --- u7

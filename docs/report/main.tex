@@ -64,6 +64,7 @@
 \usepackage{polyglossia}
 \setmainlanguage{english}
 \setotherlanguage{arabic}
+\gappto\captionsenglish{\renewcommand{\contentsname}{Table of Contents}}
 
 % Fonts. TeX Gyre Termes (standard in TeX Live); Arabic is vendored in fonts/ so
 % the build does not depend on a specific TeX Live install path and works in any
@@ -92,7 +93,7 @@
 % the document compiles whether or not the final image has been dropped in yet.
 % Drop the real image into docs/report/figures/ with the exact <file> name and
 % rebuild -- the placeholder is replaced automatically. See figures/README.md.
-\newcommand{\figslot}[4][0.68]{%
+\newcommand{\figslot}[4][0.78]{%
   \begin{figure}[H]
     \centering
     \IfFileExists{figures/#2}{%
@@ -107,7 +108,7 @@
   \end{figure}%
 }
 
-\newcommand{\figslotlarge}[4][0.9]{%
+\newcommand{\figslotlarge}[4][1.0]{%
   \begin{figure}[H]
     \centering
     \IfFileExists{figures/#2}{%

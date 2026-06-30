@@ -8,64 +8,29 @@ flowchart TB
     end
 
     subgraph REPO["Repositories — src/seedbank/infrastructure/db/repositories/"]
-        direction TB
-        subgraph REPO1["User & Auth"]
-            direction LR
-            R_USER["UserRepository"]
-            R_OAUTH["OAuthAccountRepository"]
-            R_RT["RefreshTokenRepository"]
-        end
-        subgraph REPO2["Core Scans & Detections"]
-            direction LR
-            R_SB["ScanBatchRepository"]
-            R_SI["ScanImageRepository"]
-            R_INF["InferenceRepository"]
-            R_SD["SeedDetectionRepository"]
-        end
-        subgraph REPO3["Models & Suppliers"]
-            direction LR
-            R_MA["ModelArtifactRepository"]
-            R_SUP["SupplierRepository"]
-        end
+        direction LR
+        AuthRepos["User & Auth Repositories<br/>(UserRepository, OAuthAccountRepository, RefreshTokenRepository)"]
+        ModelRepos["Model & Supplier Repositories<br/>(ModelArtifactRepository, SupplierRepository)"]
+        ScanRepos["Scan & Detection Repositories<br/>(ScanBatchRepository, ScanImageRepository, InferenceRepository, SeedDetectionRepository)"]
     end
 
     subgraph INFRA["Infrastructure adapters"]
-        direction TB
-        subgraph INFRA1["Core Services Integration"]
-            direction LR
-            ML["infrastructure/ml<br/>(ML models/pipeline)"]
-            STO["storage/MinioStorage"]
-            CACHE["cache/Redis"]
-        end
-        subgraph INFRA2["External Auth & Analytics"]
-            direction LR
-            OAUTH["oauth/google.py"]
-            ANA["analytics/clickhouse"]
-        end
+        direction LR
+        CoreAdapters["Core Adapters<br/>(infrastructure/ml, MinioStorage, Redis)"]
+        ExtAdapters["External Integrations<br/>(oauth/google.py, analytics/clickhouse)"]
     end
 
-    ORM[("SQLAlchemy 2.0 AsyncSession<br/>infrastructure/db/models.py")]
+    ORM[("SQLAlchemy 2.0 AsyncSession<br/>(PostgreSQL)")]
 
-    S_AUTH --> R_USER
-    S_AUTH --> R_OAUTH
-    S_AUTH --> R_RT
-    S_AUTH --> OAUTH
+    S_AUTH --> AuthRepos
+    S_AUTH --> ExtAdapters
 
-    S_REG --> R_MA
-    S_TR --> R_MA
-    S_AN --> R_SB
-    S_AN --> R_SI
-    S_AN --> STO
-    S_AN -. "send_task" .-> CACHE
-    S_BAT --> R_SB
-    S_BAT --> R_SI
+    S_REG --> ModelRepos
+    S_TR --> ModelRepos
+    S_AN --> ScanRepos
+    S_AN --> CoreAdapters
+    S_BAT --> ScanRepos
 
-    R_USER --> ORM
-    R_OAUTH --> ORM
-    R_RT --> ORM
-    R_MA --> ORM
-    R_SUP --> ORM
-    R_SB --> ORM
-    R_SI --> ORM
-    R_INF --> ORM
-    R_SD --> ORM
+    AuthRepos --> ORM
+    ModelRepos --> ORM
+    ScanRepos --> ORM

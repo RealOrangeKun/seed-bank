@@ -21,7 +21,7 @@ There are four primary components. The frontend is a React application \cite{rea
 
 \autoref{fig:deployment} shows how the containers connect.
 
-\figslot{10-deployment.pdf}{Deployment view: the React frontend, the FastAPI backend, the PostgreSQL database, and the ClickHouse analytics warehouse.}{fig:deployment}
+\figslot[1.1]{10-deployment.pdf}{Deployment view: the React frontend, the FastAPI backend, the PostgreSQL database, and the ClickHouse analytics warehouse.}{fig:deployment}
 
 \section{Key implementation details}
 
@@ -88,7 +88,7 @@ resolves to the same model, and a developer can override the choice with an
 explicit model on a single request. Figure~\ref{fig:model-resolution} shows the
 decision.
 
-\figslot{16-model-resolution.pdf}{Model resolution: the resolver selects the model
+\figslot[1.2]{16-model-resolution.pdf}{Model resolution: the resolver selects the model
 promoted to production for a segment, falls back to the global production model
 when only that is available, or reports that no model is ready.}{fig:model-resolution}
 
