@@ -162,7 +162,7 @@ erDiagram
         uuid user_id FK
         uuid supplier_id FK
         string status "pending/running/succeeded/failed/partial"
-        string source "api/web/sdk"
+        string source "api/web/sdk/mobile/mobile_realtime"
         timestamptz submitted_at
         timestamptz started_at
         timestamptz finished_at

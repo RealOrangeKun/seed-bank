@@ -14,13 +14,10 @@ flowchart TB
         subgraph Net["bridge network: seedbank-net"]
             direction TB
 
-            subgraph App["Always-on profile"]
+            subgraph App["Default profile (make up)"]
                 API[api<br/>image: seedbank/api:0.1.0<br/>target: runtime-cpu<br/>port: 127.0.0.1:8000]
-                WCPU[worker-cpu<br/>image: seedbank/worker-cpu:0.1.0<br/>target: runtime-cpu<br/>queues: default,cdc,housekeeping]
-            end
-
-            subgraph GPU["profile: gpu"]
-                WGPU[worker-inference<br/>image: seedbank/worker-inference:0.1.0<br/>target: runtime-gpu<br/>queues: inference,evaluation<br/>requires: nvidia runtime]
+                WCPU[worker-cpu<br/>image: seedbank/worker-cpu:0.1.0<br/>target: runtime-cpu<br/>queues: default,cdc,housekeeping,experiments,dwh]
+                WINF[worker-inference<br/>image: seedbank/worker-inference:0.1.0<br/>target: runtime-inference-cpu-full dev / runtime-gpu prod<br/>queues: inference,evaluation]
             end
 
             subgraph Data["Stateful — always on"]
@@ -30,17 +27,19 @@ flowchart TB
                 CH[(clickhouse:24.10-alpine<br/>:8123<br/>vol: clickhouse-data)]
             end
 
-            subgraph Tooling["Tooling"]
-                ADM["adminer:4.8.1<br/>:8080<br/>profile: dev"]
+            subgraph Tooling["Opt-in profiles"]
+                ADM["adminer:4.8.1 :8080<br/>ch-ui :3488<br/>profile: dev"]
+                OBS["prometheus :9090<br/>grafana :3000<br/>profile: obs"]
+                FE["frontend (nginx) :5173<br/>profile: frontend"]
             end
         end
 
-        BUILD[/Dockerfile<br/>stages:<br/>builder → runtime-cpu → runtime-gpu/]
+        BUILD[/Dockerfile<br/>stages: builder → runtime-cpu<br/>runtime-inference-cpu / -cpu-full<br/>runtime-gpu/]
     end
 
     BUILD -. "build target" .-> API
     BUILD -. "build target" .-> WCPU
-    BUILD -. "build target" .-> WGPU
+    BUILD -. "build target" .-> WINF
 
     API --> PG
     API --> RD
@@ -51,41 +50,48 @@ flowchart TB
     WCPU --> RD
     WCPU --> MIN
 
-    WGPU --> PG
-    WGPU --> RD
-    WGPU --> MIN
+    WINF --> PG
+    WINF --> RD
+    WINF --> MIN
 
     ADM -.-> PG
+    OBS -.-> API
+    FE -.-> API
 ```
 
 ## Profiles
 
 | Profile | Brings up | Why |
 |---|---|---|
-| (default) | api, worker-cpu, postgres, redis, minio, clickhouse | Full functional stack on a CPU-only laptop. |
-| `gpu` | + worker-inference | Real model inference. Requires `nvidia-container-toolkit`. |
-| `dev` | + adminer | Local DB browser. Off in CI. |
+| (default) | api, worker-cpu, worker-inference, postgres, redis, minio, clickhouse | Full functional stack on a CPU-only laptop (worker-inference uses CPU torch wheels by default). |
+| `dev` | + adminer + ch-ui | Local Postgres + ClickHouse DB browsers. Off in CI. |
+| `obs` | + prometheus + grafana | Metrics scrape + dashboards. |
+| `frontend` | + frontend (nginx) | Built React SPA on :5173. |
 
-Activated via `docker compose --profile gpu up` or `make up-gpu`.
+Activated via `make up` (default), `make up-dev`, `make up-obs`, or `make up-front`. GPU is enabled by the prod overlay (`compose.prod.yaml`), not a compose profile.
 
 ## Build stages (`Dockerfile`)
 
 ```mermaid
 flowchart LR
     SRC[/repo source/]
-    B[builder<br/>python:3.12-slim<br/>+ poetry install]
-    CPU[runtime-cpu<br/>python:3.12-slim<br/>copies wheels<br/>+ src/]
-    GPU[runtime-gpu<br/>nvidia/cuda:…-runtime<br/>+ python<br/>+ wheels<br/>+ src/]
+    B[builder stages<br/>python:3.12-slim<br/>uv sync per runtime]
+    CPU[runtime-cpu<br/>python:3.12-slim<br/>copies venv<br/>+ src/]
+    INF[runtime-inference-cpu / -cpu-full<br/>python:3.12-slim<br/>+ CPU torch / +ultralytics<br/>+ src/]
+    GPU[runtime-gpu<br/>nvidia/cuda:12.4-runtime<br/>+ GPU torch<br/>+ src/]
 
     SRC --> B
     B --> CPU
+    B --> INF
     B --> GPU
 ```
 
 `api` and `worker-cpu` share the **same** `runtime-cpu` image — the
 only difference is the `command:` line in compose. `worker-inference`
-is a separate image (`runtime-gpu`) so the CUDA layer doesn't bloat
-the API container.
+is a separate image so the torch stack doesn't bloat the API
+container: in dev it builds `runtime-inference-cpu-full` (CPU torch +
+ultralytics), and the prod overlay swaps the target to `runtime-gpu`
+(CUDA).
 
 ## Operational properties
 

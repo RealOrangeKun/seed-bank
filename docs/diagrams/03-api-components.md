@@ -84,7 +84,6 @@ flowchart TB
 
     S_KEY --> R_AK
     S_REG --> R_MA
-    S_REG --> ANA
     S_TR --> R_MA
     S_AN --> R_SB
     S_AN --> R_SI

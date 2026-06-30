@@ -1,7 +1,6 @@
 classDiagram
     class AnalysisService {
-        +start_batch(files, opts) ScanBatch
-        +get_batch(id) ScanBatch
+        +create_and_dispatch(files, opts) ScanBatch
     }
     class ModelResolver {
         +select_model(kind, seed_type) UUID
@@ -9,8 +8,9 @@ classDiagram
     class ModelManager {
         -lru: OrderedDict
         -locks: dict
-        +get(model_id) LoadedModel
-        -evict()
+        +load(model_id, builder_key, artifact_uri) Module
+        +load_yolo(model_id, artifact_uri) object
+        -_evict_if_needed(kind)
     }
     class InferenceBackend {
         <<Protocol>>
@@ -18,20 +18,23 @@ classDiagram
         +classify(crop, cfg) Classification
     }
     class TorchLocalBackend
-    class YoloBackend
+    class UltralyticsYoloBackend
     class RoboflowBackend
     class ModelBuilder {
         <<registry>>
         +build(builder_key) Module
     }
     class Detection {
-        +box: BoundingBox
-        +confidence: Decimal
-        +class_name: str
+        +bbox: BoundingBox
+        +class_id: int
+        +class_name: str|None
+        +confidence: float
     }
     class Classification {
         +label: str
-        +confidence: Decimal
+        +confidence: float
+        +raw_score: float|None
+        +defects: tuple
     }
     class BoundingBox {
         +x: float
@@ -44,11 +47,10 @@ classDiagram
     }
 
     InferenceBackend <|.. TorchLocalBackend
-    InferenceBackend <|.. YoloBackend
+    InferenceBackend <|.. UltralyticsYoloBackend
     InferenceBackend <|.. RoboflowBackend
     TorchLocalBackend --> ModelManager : loads via
     ModelManager --> ModelBuilder : builds module
-    AnalysisService --> ModelResolver : selects model
     AnalysisService --> ScanBatchRepository : persists state
     TorchLocalBackend ..> Detection : returns
     TorchLocalBackend ..> Classification : returns

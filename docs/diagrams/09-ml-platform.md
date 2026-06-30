@@ -36,7 +36,7 @@ Status enum: `infrastructure/db/enums.py::ModelStatus`.
 
 ## Model resolution decision tree
 
-`services/model_resolver.py::ModelResolver.resolve_model`. Called by
+`services/model_resolver.py::ModelResolver.select_model`. Called by
 both the worker (one detect call + one classify call per image) and
 the experiment runner. There is no A/B / weighted-split routing: the
 resolver returns the **`production`** model for the segment, with a
@@ -44,7 +44,7 @@ global (seed-type-agnostic) production fallback.
 
 ```mermaid
 flowchart TD
-    REQ["resolve_model(kind, seed_type_id)"]
+    REQ["select_model(kind, seed_type_id)"]
 
     OVR{"per-request<br/>model_id<br/>override?"}
     OVRSCOPE{"caller in<br/>{ai_developer, admin}?<br/>+ artifact.status ∈<br/>{staging, production}?"}
