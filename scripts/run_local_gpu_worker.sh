@@ -21,7 +21,6 @@ export CELERY_RESULT_BACKEND="redis://localhost:6379/2"
 export MINIO_ENDPOINT="localhost:9000"
 export MINIO_PUBLIC_ENDPOINT="localhost:9000"
 export CLICKHOUSE_HOST="localhost"
-export MLFLOW_TRACKING_URI="http://localhost:5000"
 
 exec .venv/bin/celery -A seedbank.workers.celery_app worker \
   --loglevel=info -Q inference,evaluation \

@@ -21,12 +21,10 @@ erDiagram
     USERS ||--o{ EXPERIMENTS : "runs"
 
     SEED_TYPES ||--o{ MODEL_ARTIFACTS : "scopes"
-    SEED_TYPES ||--o{ TRAFFIC_SPLITS : "scopes"
     SEED_TYPES ||--o{ SEED_DETECTIONS : "labels"
 
     SUPPLIERS ||--o{ SCAN_BATCHES : "branded"
 
-    MODEL_ARTIFACTS ||--o{ TRAFFIC_SPLITS : "served by"
     MODEL_ARTIFACTS ||--o{ MODEL_METRICS : "scored by"
     MODEL_ARTIFACTS ||--o{ EXPERIMENTS : "evaluated"
     MODEL_ARTIFACTS ||--o{ INFERENCES : "produced"
@@ -116,7 +114,6 @@ erDiagram
         string artifact_uri "minio://"
         jsonb config
         string status "registered/staging/production/archived"
-        string mlflow_run_id
     }
 
     MODEL_METRICS {
@@ -126,17 +123,6 @@ erDiagram
         string metric_name
         numeric metric_value
         timestamptz computed_at
-    }
-
-    TRAFFIC_SPLITS {
-        uuid id PK
-        string kind
-        uuid seed_type_id FK
-        uuid model_id FK
-        smallint weight "0..100"
-        bool is_active
-        timestamptz valid_from
-        timestamptz valid_until
     }
 
     DATASETS {
@@ -160,7 +146,6 @@ erDiagram
         uuid dataset_id FK
         bigint duration_ms
         jsonb summary_metrics
-        string mlflow_run_id
     }
 
     EXPERIMENT_RESULTS {
@@ -177,7 +162,7 @@ erDiagram
         uuid user_id FK
         uuid supplier_id FK
         string status "pending/running/succeeded/failed/partial"
-        string source "api/web/sdk"
+        string source "api/web/sdk/mobile/mobile_realtime"
         timestamptz submitted_at
         timestamptz started_at
         timestamptz finished_at
@@ -243,6 +228,3 @@ erDiagram
   would lose the last digit in arithmetic and break the audit trail.
 - **`audit_log`** is append-only and indexed by `(actor_id,
   occurred_at)`. Soft deletes don't apply.
-- **`traffic_splits.valid_from / valid_until`** is the temporal
-  validity window — promotions are inserts, never destructive
-  updates, so an experiment timeline can be reconstructed.

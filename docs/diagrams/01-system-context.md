@@ -28,7 +28,7 @@ flowchart LR
     %% Edges
     EU -- "POST /analyze<br/>GET /batches/{id}" --> API
     AID -- "POST /models, PATCH /models/{id}<br/>POST /experiments" --> API
-    AD  -- "PATCH /users/{id}, /traffic, /api-keys" --> API
+    AD  -- "PATCH /users/{id}, /api-keys" --> API
 
     API -- "OIDC code flow" --> GOO
     API -- "OIDC code flow" --> GH

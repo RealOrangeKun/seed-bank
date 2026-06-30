@@ -414,7 +414,7 @@ class WidgetRead(BaseModel):
 - Length / range limits on every string and number.
 - No raw `dict[str, Any]` in responses unless the field is genuinely free-form metadata, in which case constrain its top-level shape.
 - Never reuse one schema for input and output. Different concerns, different validation, different fields.
-- **Wrap every response.** Single resources → `Envelope[XOut]` (`{"data": ...}`); paginated collections → `Page[XOut]` (`{"data": [...], "meta": {page, page_size, total, has_more}}`); small bounded segments (e.g. traffic splits for one `(kind, seed_type_id)`) → `Envelope[list[XOut]]`. The generics live in `schemas/common.py` along with the `paginate(...)` helper. `/healthz`, `/readyz`, and `/metrics` are the **only** documented exemptions — Kubernetes and Prometheus expect raw shapes there.
+- **Wrap every response.** Single resources → `Envelope[XOut]` (`{"data": ...}`); paginated collections → `Page[XOut]` (`{"data": [...], "meta": {page, page_size, total, has_more}}`); small bounded segments (e.g. a model's offline metrics) → `Envelope[list[XOut]]`. The generics live in `schemas/common.py` along with the `paginate(...)` helper. `/healthz`, `/readyz`, and `/metrics` are the **only** documented exemptions — Kubernetes and Prometheus expect raw shapes there.
 
 ## Errors
 
@@ -436,7 +436,7 @@ class ValidationError(DomainError): ...       # -> 422 (domain-level, not Pydant
 class AuthError(DomainError): ...             # -> 401
 class ForbiddenError(DomainError): ...        # -> 403
 class RateLimitError(DomainError): ...        # -> 429
-class ExternalServiceError(DomainError): ...  # -> 502/503 (MinIO, MLflow, etc.)
+class ExternalServiceError(DomainError): ...  # -> 502/503 (MinIO, ClickHouse, etc.)
 class ModelNotReadyError(DomainError): ...    # -> 503 (no production model loaded)
 ```
 

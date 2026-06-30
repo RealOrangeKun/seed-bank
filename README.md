@@ -2,12 +2,11 @@
 
 **v1.0.0** — Seed quality analysis platform: point a camera (web or mobile) at
 a batch of seeds and get a good/bad breakdown back, powered by a real ML
-pipeline (detection + quality classification, model registry, A/B traffic
-splits, experiments).
+pipeline (detection + quality classification, model registry, experiments).
 
 > The legacy prototype is archived under `legacy/`. The platform is now an
 > async FastAPI service with a real DB design, an ML registry, MinIO object
-> storage, Celery + Redis, ClickHouse OLAP, MLflow, a bilingual (EN/AR + RTL)
+> storage, Celery + Redis, ClickHouse OLAP, a bilingual (EN/AR + RTL)
 > React web app, and a React Native (Expo) mobile app.
 
 ## What's here
@@ -25,7 +24,7 @@ for the details of each client.
 
 ```bash
 make env             # generate .env from .env.example
-make up               # full stack: api + workers + postgres + redis + minio + clickhouse + mlflow
+make up               # full stack: api + workers + postgres + redis + minio + clickhouse
 make migrate          # apply Alembic migrations
 make seed             # demo users + sample data (see Demo credentials below)
 make up-front         # optional: frontend on :5173 via the Docker nginx image
@@ -77,7 +76,7 @@ legacy/              # archived prototype, do not import from here
 ## Status
 
 **v1.0.0 (beta)** — backend (auth, ML platform, unified inference path,
-experiments + MLflow, the OLTP→ClickHouse DWH, observability) plus a fully
+experiments, the OLTP→ClickHouse DWH, observability) plus a fully
 localized web app and a new mobile app are all in place and manually verified
 end-to-end. See [`docs/system-overview.md`](docs/system-overview.md) for the
 full architecture and [`docs/revamp-status.md`](docs/revamp-status.md) for the

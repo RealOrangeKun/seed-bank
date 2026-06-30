@@ -16,7 +16,7 @@ sequenceDiagram
     participant SIR as ScanImageRepository
     participant Min as MinIO
     participant Q as Redis (broker)
-    participant W as worker-cpu
+    participant W as worker-inference
 
     Client->>API: POST /api/v1/analyze<br/>multipart files=[…]
     API->>API: rate limit check<br/>parse Form fields
@@ -33,7 +33,7 @@ sequenceDiagram
     Svc->>Svc: insert audit_log "analyze.dispatched"
     Svc->>SBR: commit() ← rows visible
     loop per image
-        Svc->>Q: send_task("seedbank.analyze_image",<br/>queue=inference, args=[image_id, override, seed_type_id])
+        Svc->>Q: send_task("seedbank.analyze_image",<br/>queue=inference, args=[image_id, override, seed_type_id, mode])
     end
     Svc-->>API: BatchOut(status=pending, image_count=N)
 
@@ -51,13 +51,13 @@ sequenceDiagram
     participant SS as worker_session_scope
     participant SBR as ScanBatchRepository
     participant SIR as ScanImageRepository
-    participant TR as TrafficRouter
+    participant TR as ModelResolver
     participant ML as DetectPipeline /<br/>ClassifyPipeline
     participant Min as MinIO
     participant INF as InferenceRepository
     participant SDR as SeedDetectionRepository
 
-    W->>SS: open fresh AsyncEngine + AsyncSession
+    W->>SS: open fresh AsyncSession (engine is process-scoped)
     activate SS
 
     W->>SBR: cas_status(batch_id, pending → running, set_started_at)
@@ -66,7 +66,7 @@ sequenceDiagram
     W->>SIR: get(image_id) → ScanImage(width, height, key)
     W->>Min: get_object(key) → bytes
 
-    W->>TR: select_model(kind=DETECTION, seed_type_id, user_id)
+    W->>TR: select_model(kind=DETECTION, seed_type_id)<br/>resolve production model (ModelResolver)
     alt model_id_override given
         W->>TR: resolve override + verify scope (status ∈ {staging, production})
     end
@@ -77,7 +77,7 @@ sequenceDiagram
     W->>SDR: add_many(rows with normalized bbox + confidence)
     W->>SS: commit ← detect persisted
 
-    W->>TR: select_model(kind=CLASSIFICATION, seed_type_id, user_id)
+    W->>TR: select_model(kind=CLASSIFICATION, seed_type_id)
     alt no classifier registered
         note over W: log analyze.classify_skipped<br/>quality stays NULL
     else classifier present
@@ -99,7 +99,7 @@ sequenceDiagram
     end
 
     deactivate SS
-    note over SS: engine.dispose() — required (asyncpg/event-loop)
+    note over SS: session closed; engine disposed on worker shutdown (asyncpg/event-loop)
 ```
 
 ## Polling

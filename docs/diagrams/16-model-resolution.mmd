@@ -1,0 +1,14 @@
+%% Activity diagram - ModelResolver decision flow
+%% Source of truth: src/seedbank/services/model_resolver.py
+flowchart TD
+    start(["Need a model for segment (kind, seed_type_id)"]) --> ovr{"Explicit model_id override?<br/>(ai_developer / admin only)"}
+    ovr -- yes --> chk{"Override in staging/production<br/>AND matches kind?"}
+    chk -- no --> err1["Reject override"]
+    chk -- yes --> useOvr["Use overridden model"]
+    ovr -- no --> seg{"Production model promoted<br/>for this exact segment?"}
+    seg -- yes --> useSeg["Use segment production model"]
+    seg -- no --> hasType{"Was a seed type supplied?"}
+    hasType -- no --> err2["Raise ModelNotReadyError"]
+    hasType -- yes --> glob{"Global (seed-type-agnostic)<br/>production model for this kind?"}
+    glob -- yes --> useGlob["Use global production model"]
+    glob -- no --> err2

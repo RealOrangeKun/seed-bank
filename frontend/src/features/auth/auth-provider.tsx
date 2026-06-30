@@ -57,6 +57,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [loadMe],
   );
 
+  const loginWithTokens = useCallback(
+    async (accessToken: string, refreshToken: string) => {
+      tokenStore.setTokens(accessToken, refreshToken);
+      await loadMe();
+    },
+    [loadMe],
+  );
+
   const logout = useCallback(async () => {
     await authApi.logout();
     setUser(null);
@@ -68,8 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadMe]);
 
   const value = useMemo(
-    () => ({ user, status, login, logout, refreshMe }),
-    [user, status, login, logout, refreshMe],
+    () => ({ user, status, login, loginWithTokens, logout, refreshMe }),
+    [user, status, login, loginWithTokens, logout, refreshMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

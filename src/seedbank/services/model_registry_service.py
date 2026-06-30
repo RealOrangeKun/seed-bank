@@ -60,7 +60,6 @@ class RegisterModelInput:
     seed_type_id: UUID | None = None
     config: dict[str, Any] | None = None
     training_metadata: dict[str, Any] | None = None
-    mlflow_run_id: str | None = None
 
 
 class ModelRegistryService:
@@ -155,7 +154,6 @@ class ModelRegistryService:
             artifact_uri=payload.artifact_uri,
             config=payload.config,
             training_metadata=payload.training_metadata,
-            mlflow_run_id=payload.mlflow_run_id,
             status=ModelStatus.REGISTERED.value,
             created_by=actor_id,
         )

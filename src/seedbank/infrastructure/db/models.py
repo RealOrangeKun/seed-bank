@@ -33,7 +33,6 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
-    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -312,7 +311,6 @@ class ModelArtifact(Base, TimestampMixin):
     artifact_uri: Mapped[str] = mapped_column(String(512), nullable=False)
     config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     training_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    mlflow_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(
         MODEL_STATUS_ENUM, nullable=False, server_default=text("'registered'")
     )
@@ -410,34 +408,6 @@ class DatasetItem(Base):
     dataset: Mapped[Dataset] = relationship(back_populates="items")
 
 
-class TrafficSplit(Base, TimestampMixin):
-    __tablename__ = "traffic_splits"
-
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid7)
-    kind: Mapped[str] = mapped_column(MODEL_KIND_ENUM, nullable=False)
-    seed_type_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("seed_types.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    model_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("model_artifacts.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    weight: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
-    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    __table_args__ = (
-        CheckConstraint("weight >= 0 AND weight <= 100", name="weight_range"),
-        Index("ix_traffic_splits_kind_seed_type_id", "kind", "seed_type_id"),
-        Index("ix_traffic_splits_model_id", "model_id"),
-        Index("ix_traffic_splits_is_active", "is_active"),
-    )
-
-
 # ── Experiments ─────────────────────────────────────────────────────────────
 
 
@@ -463,7 +433,6 @@ class Experiment(Base, TimestampMixin):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     summary_metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    mlflow_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -623,7 +592,8 @@ class Inference(Base):
     """One row per (image, model) inference attempt.
 
     `model_id` is NOT NULL — every inference is traceable to the exact model
-    artifact that produced it. This is the join column for A/B analyses.
+    artifact that produced it. This is the join column that ties every
+    detection to the exact model version that produced it.
     """
 
     __tablename__ = "inferences"
@@ -734,6 +704,5 @@ __all__ = [
     "SeedDetection",
     "SeedType",
     "Supplier",
-    "TrafficSplit",
     "User",
 ]

@@ -1,11 +1,7 @@
--- Bootstrap auxiliary databases that share the Postgres instance with the
--- main `seedbank` DB. Runs once on first container start.
+-- Bootstrap the Postgres instance on first container start.
 --
--- The main `seedbank` DB is created automatically from POSTGRES_DB; we just
--- add `mlflow` here so the MLflow tracking server has its own backing store.
-
-SELECT 'CREATE DATABASE mlflow'
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'mlflow')\gexec
+-- The main `seedbank` DB is created automatically from POSTGRES_DB; we only
+-- need to enable the extensions the application relies on.
 
 -- Required extensions on the application DB.
 \c seedbank

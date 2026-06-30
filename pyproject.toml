@@ -51,7 +51,6 @@ dependencies = [
   "secure>=1.0.1,<2.0",
   # Analytics / ML platform
   "clickhouse-connect>=0.8,<1.0",
-  "mlflow-skinny>=2.18,<3.0",
   # File handling
   "python-magic>=0.4.27,<1.0",
   "pillow>=11.0,<12.0",

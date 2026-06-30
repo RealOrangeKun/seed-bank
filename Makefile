@@ -53,23 +53,23 @@ up-infra: env ## Start ONLY infra (postgres, redis, minio, clickhouse). No build
 	@$(COMPOSE) ps --format "table {{.Service}}\t{{.Health}}\t{{.Ports}}"
 
 up: env ## Start the full lean stack (api + both workers + infra). worker-inference defaults to CPU torch wheels.
-	$(COMPOSE) up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow
+	$(COMPOSE) up -d --build api worker-cpu worker-inference postgres redis minio clickhouse
 	@$(MAKE) wait
 
 up-no-inference: env ## Start without the (heavy) torch worker. Only api + worker-cpu + infra.
-	$(COMPOSE) up -d --build api worker-cpu postgres redis minio clickhouse mlflow
+	$(COMPOSE) up -d --build api worker-cpu postgres redis minio clickhouse
 	@$(MAKE) wait
 
 up-dev: env ## Start the lean stack PLUS DB UIs (adminer for Postgres, ch-ui for the DWH).
-	$(COMPOSE) --profile dev up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow adminer ch-ui
+	$(COMPOSE) --profile dev up -d --build api worker-cpu worker-inference postgres redis minio clickhouse adminer ch-ui
 	@$(MAKE) wait
 
 up-obs: env ## Start the lean stack PLUS prometheus + grafana (obs profile).
-	$(COMPOSE) --profile obs up -d --build api postgres redis minio clickhouse mlflow prometheus grafana
+	$(COMPOSE) --profile obs up -d --build api postgres redis minio clickhouse prometheus grafana
 	@$(MAKE) wait
 
 up-front: env ## Start the lean stack PLUS the built React frontend (nginx on :5173).
-	$(COMPOSE) --profile frontend up -d --build api worker-cpu worker-inference postgres redis minio clickhouse mlflow frontend
+	$(COMPOSE) --profile frontend up -d --build api worker-cpu worker-inference postgres redis minio clickhouse frontend
 	@$(MAKE) wait
 
 front: ## Run the frontend dev server locally (Vite on :5173; needs `make up` for the API).

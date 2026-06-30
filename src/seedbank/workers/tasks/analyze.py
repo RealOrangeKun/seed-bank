@@ -6,7 +6,7 @@ one task per image. This task
 
 1. opens a fresh ``AsyncSession`` (workers must NOT share the API engine),
 2. flips the batch from ``pending`` → ``running`` on first arrival,
-3. resolves a detection model (override or via :class:`TrafficRouter`),
+3. resolves a detection model (override or via :class:`ModelResolver`),
 4. runs detection, persists ``inferences`` + ``seed_detections`` rows,
 5. resolves a classification model and labels every detected crop,
 6. flips the batch to ``succeeded`` / ``partial`` / ``failed`` once every
@@ -80,9 +80,9 @@ from seedbank.infrastructure.ml.pipeline.factory import (
 )
 from seedbank.infrastructure.ml.yolo_taxonomy import classify_name
 from seedbank.infrastructure.storage import get_storage
-from seedbank.services.traffic_router import TrafficRouter
+from seedbank.services.model_resolver import ModelResolver
 from seedbank.workers.celery_app import celery_app
-from seedbank.workers.runtime import get_worker_redis, run_async
+from seedbank.workers.runtime import run_async
 from seedbank.workers.session import worker_session_scope
 from seedbank.workers.tasks.dwh import (
     SYNC_DETECTIONS,
@@ -158,10 +158,6 @@ async def _async_analyze_image(
 ) -> None:
     settings = get_settings()
     storage = get_storage()
-    # The redis client and DB engine are process-scoped (built in the
-    # worker_process_init signal) and bound to the persistent loop —
-    # safe to reuse across tasks; nothing to close here.
-    redis = get_worker_redis()
     async with worker_session_scope() as session:
         repos = _Repos(
             batches=ScanBatchRepository(session),
@@ -215,19 +211,18 @@ async def _async_analyze_image(
         # which Celery retries via ``autoretry_for``.
         image_bytes = await storage.get_object(settings.minio_bucket_images, image.storage_key)
 
-        # 4. Build pipelines + traffic router.
+        # 4. Build pipelines + model resolver.
         detect_pipeline = build_detect_pipeline()
         classify_pipeline = build_classify_pipeline()
-        router = TrafficRouter(session=session, models=repos.models, redis=redis)
+        resolver = ModelResolver(models=repos.models)
 
         # 5. Resolve + run detect. Errors are recorded and re-raised.
         try:
             detect_model = await _resolve_detect_model(
                 repos=repos,
-                router=router,
+                resolver=resolver,
                 model_id_override=model_id_override,
                 seed_type_id=seed_type_id,
-                user_id=batch.user_id,
                 mode=mode,
             )
         except ModelNotReadyError:
@@ -295,12 +290,11 @@ async def _async_analyze_image(
                 classify_failed = await _classify_all_detections(
                     session=session,
                     repos=repos,
-                    router=router,
+                    resolver=resolver,
                     pipeline=classify_pipeline,
                     image=image,
                     image_bytes=image_bytes,
                     detect_inference=detect_inference,
-                    user_id=batch.user_id,
                     batch_id=batch.id,
                 )
             except Exception as exc:
@@ -328,14 +322,13 @@ async def _async_analyze_image(
 async def _resolve_detect_model(
     *,
     repos: _Repos,
-    router: TrafficRouter,
+    resolver: ModelResolver,
     model_id_override: UUID | None,
     seed_type_id: UUID | None,
-    user_id: UUID,
     mode: str | None = None,
 ) -> ModelArtifact:
     """Pick the detection model — explicit override, fast/accurate mode, or the
-    traffic router (in that precedence)."""
+    model resolver (in that precedence)."""
     if model_id_override is not None:
         model = await repos.models.get(model_id_override)
         if model is None:
@@ -350,7 +343,7 @@ async def _resolve_detect_model(
 
     # Curated fast/accurate selection — open to all users (unlike model_id).
     # fast → YOLO one-shot, accurate → Faster R-CNN two-stage. Falls through to
-    # the traffic router if the requested backend has no routable model.
+    # the model resolver if the requested backend has no routable model.
     if mode is not None:
         backend = ModelBackend.YOLO if mode == "fast" else ModelBackend.TORCH_LOCAL
         chosen = await repos.models.find_detection_by_backend(backend)
@@ -358,10 +351,9 @@ async def _resolve_detect_model(
             return chosen
         log.info("analyze.mode_no_model", mode=mode, backend=backend.value)
 
-    model_id = await router.select_model(
+    model_id = await resolver.select_model(
         kind=ModelKind.DETECTION,
         seed_type_id=seed_type_id,
-        user_id=user_id,
     )
     model = await repos.models.get(model_id)
     if model is None:  # pragma: no cover — router promised it exists
@@ -371,19 +363,17 @@ async def _resolve_detect_model(
 
 async def _resolve_classify_model(
     *,
-    router: TrafficRouter,
+    resolver: ModelResolver,
     models: ModelArtifactRepository,
     seed_type_id: UUID | None,
-    user_id: UUID,
     batch_id: UUID,
 ) -> ModelArtifact | None:
     """Pick the classification model. Returns ``None`` (with a log) when no
     classifier is registered for the segment — classification is optional."""
     try:
-        model_id = await router.select_model(
+        model_id = await resolver.select_model(
             kind=ModelKind.CLASSIFICATION,
             seed_type_id=seed_type_id,
-            user_id=user_id,
         )
     except ModelNotReadyError:
         log.info(
@@ -596,12 +586,11 @@ async def _classify_all_detections(
     *,
     session: AsyncSession,
     repos: _Repos,
-    router: TrafficRouter,
+    resolver: ModelResolver,
     pipeline: ClassifyPipeline,
     image: ScanImage,
     image_bytes: bytes,
     detect_inference: Inference,
-    user_id: UUID,
     batch_id: UUID,
 ) -> bool:
     """Classify every detection, routing each seed-type group to its own model.
@@ -637,10 +626,9 @@ async def _classify_all_detections(
     for type_id, group in groups.items():
         try:
             classify_model = await _resolve_classify_model(
-                router=router,
+                resolver=resolver,
                 models=repos.models,
                 seed_type_id=type_id,
-                user_id=user_id,
                 batch_id=batch_id,
             )
         except Exception as exc:
@@ -690,7 +678,7 @@ async def _run_classify_for_detections(
 ) -> None:
     """Crop each detection from the image, classify it, and bulk-update
     the ``quality`` column. Classification adds a fresh ``inferences`` row
-    so the registry can A/B classifiers independently of detectors.
+    so classifiers can be versioned and promoted independently of detectors.
 
     ``detections`` is the pre-grouped list for a single seed type — the caller
     (:func:`_classify_all_detections`) resolved ``classify_model`` to match."""

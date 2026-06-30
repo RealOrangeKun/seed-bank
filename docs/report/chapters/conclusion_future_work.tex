@@ -1,269 +1,154 @@
 \chapter{Conclusion and Future Work}
 
-This chapter closes the report. It first restates what was actually built and
-maps it back to the objectives set out in Chapter~1, then records the lessons
-that came out of building it, and finally lays out the work that would take the
-system from a working platform to something a seed cooperative could run in
-production for a season.
+This chapter closes the report. It restates what was built and maps it back to
+the objectives from Chapter~1, records the lessons that came out of building it,
+and sets out the work that would carry the system from a prototype toward
+something a seed cooperative could run for a real season.
 
-\section{Summary of Achievements}
+\section{Summary of achievements}
 
-The project set out to build a seed-quality intelligence platform: a user
-photographs a batch of seeds, and the system detects each individual seed and
-classifies its quality, then reports aggregate metrics such as seed count,
-good-rate, and a per-crop breakdown. That platform exists and runs. What follows
-is an account of the pieces that were delivered, organised around the objectives
-from Chapter~1.
+The project set out to build an automated seed-quality grading prototype: a user
+photographs a batch of seeds, and the system finds each seed and judges its
+quality, then reports aggregate figures such as seed count and the proportion of
+good seeds. That prototype exists and runs end to end for two crops, coffee and
+maize.
 
-\subsection{An end-to-end, traceable inference platform}
+The core of the system is a two-stage vision pipeline. A detection model scans
+the whole image and returns a bounding box and a crop label for every seed it
+finds. Each detected box is then cut from the image and passed to a classifier
+that decides whether the seed is good or bad \cite{kamilaris2018deepag}. The
+detector is a Faster R-CNN with a ResNet-50 backbone and a Feature Pyramid
+Network \cite{fasterrcnn2015, resnet2015, lin2017fpn}. The classifiers are
+ResNet-18 backbones with a Convolutional Block Attention Module added after the
+final residual stage \cite{cbam2018, resnet2015}, with a separate classifier
+trained for each crop. Splitting detection from classification means the two
+halves can be measured and improved on their own, which mattered through the
+project because the failures in each half had different causes.
 
-The core of the product is a two-stage vision pipeline. A detection model scans
-the whole image and returns a bounding box, a confidence, and a crop class for
-every seed it finds; then each detected box is cut from the source image and fed
-to a binary classifier that returns \texttt{good} or \texttt{bad} with a
-confidence \cite{kamilaris2018deepag}. The detector is a torchvision Faster
-R-CNN \cite{fasterrcnn2015} with a ResNet-50 backbone and a Feature Pyramid
-Network \cite{resnet2015, lin2017fpn}, carrying a three-class head over
-\texttt{background}, \texttt{coffee}, and \texttt{maize}. The classifiers are
-ResNet-18 backbones with a Convolutional Block Attention Module inserted after
-the final residual stage \cite{cbam2018}, one classifier trained per crop type.
-Splitting the problem this way means a detector and a classifier can be
-versioned, swapped, and A/B-tested independently, because detection and
-classification are recorded as separate \texttt{inferences} rows over the same
-image.
+We evaluated both stages on real data, not only on synthetic samples. The
+detector was scored with mean average precision and the classifiers with
+precision, recall, and F1, against held-out images that the models never saw
+during training. The full set of numbers, including the per-class breakdown and
+the confusion matrices, is reported in the evaluation in Chapter~6. The headline
+is that a two-stage detect-then-classify pipeline trained largely on data we
+generated ourselves reaches usable accuracy on genuine photographs of coffee and
+maize seeds. The crop classification borrows the transfer-learning approach that
+has worked across plant-image tasks \cite{mohanty2016plant}, with backbones
+pre-trained on ImageNet \cite{deng2009imagenet} and fine-tuned on our seed
+images.
 
-Traceability was a hard requirement rather than a nice-to-have, and it is
-enforced at the schema level. Every \texttt{seed\_detection} row carries a
-foreign key to the \texttt{inference} that produced it, and every
-\texttt{inference} carries a foreign key to the exact \texttt{model\_artifact}
-that ran. Any single seed label in the system can be traced back to the model
-version and weights that generated it. This chain is what makes the rest of the
-ML platform trustworthy: an A/B result or an offline evaluation score means
-nothing if you cannot say which weights produced which label.
+\subsection{MultiSeedGen: removing the annotation bottleneck}
 
-The request path that ties these together is the unified \texttt{POST /analyze}
-endpoint. An upload lands in MinIO and Postgres, a Celery task picks it up
-\cite{celeryinplay}, the traffic router selects a model for the segment, the
-detector runs, each crop is classified, and the results are persisted with the
-traceability chain intact. Batch state moves through a state machine
-(\texttt{pending} $\rightarrow$ \texttt{running} $\rightarrow$ \texttt{succeeded}/\texttt{partial}/\texttt{failed}),
-and clients poll \texttt{GET /batches/\{id\}} for progress. The failure handling
-is deliberate: if classification crashes after detection has already persisted,
-the batch degrades to \texttt{partial} rather than discarding good detection
-results, and if no model is promoted the user gets a readable message instead of
-a blank error.
-
-\subsection{A model registry with A/B routing and offline evaluation}
-
-Weights are uploaded to MinIO and recorded in the \texttt{model\_artifacts}
-table, each row carrying its kind, backend, builder key, a per-model config
-blob, and a lifecycle status that moves
-\texttt{registered} $\rightarrow$ \texttt{staging} $\rightarrow$ \texttt{production} $\rightarrow$ \texttt{archived}.
-Only staging and production models can serve traffic. The traffic router decides
-which model runs for a given segment: when weighted splits exist in
-\texttt{traffic\_splits} it routes by a sticky per-user bucket so the same user
-always lands on the same model during an experiment, and when no split exists it
-falls back to the production model for that crop type and then to a global
-production model. That fallback is what lets the mobile point-and-shoot flow,
-which sends no crop type, still resolve to a model.
-
-Around the registry sits the experiments subsystem. A labelled dataset stored in
-MinIO and Postgres is the ground truth; an experiment runs a chosen model over
-that dataset offline, computes classification metrics including the confusion
-matrix, logs parameters, metrics, and artifacts to MLflow \cite{mlflow2018}, and
-writes a Markdown report. The model manager keeps a per-process LRU cache of
-loaded modules, serialises concurrent loads of the same model through a lock so
-two workers never duplicate a GPU load, and hot-reloads a model when its artifact
-timestamp advances. A developer can register new weights, evaluate them offline,
-promote them, and route a slice of live traffic to them without a restart.
-
-\subsection{Three clients, bilingual and right-to-left}
-
-The backend serves one API to three clients. The first client is the HTTP API
-itself, a versioned, layered FastAPI service \cite{fastapi, fielding2000rest}
-with JWT and OAuth2 authentication \cite{rfc7519jwt, rfc6749oauth}, role-based
-access control, per-route rate limiting, and RFC~9457 problem-details errors
-\cite{rfc9457problem}. The second is a React web application
-\cite{reactindepth} covering the farmer journey of sign in, photograph, report,
-and history, plus the developer-facing model and analytics pages. The third is an
-Expo / React Native mobile app \cite{reactnativeexpo} with a realtime camera
-capture flow. Both user-facing clients ship in Arabic and English with full
-right-to-left layout, which matters for the intended Egyptian farming audience
-and is not something that can be retrofitted cheaply.
-
-\subsection{Observability and operations}
-
-The platform is instrumented rather than opaque. It exposes Prometheus metrics, a
-Grafana dashboard set, OpenTelemetry tracing \cite{opentelemetry2022}, Sentry
-error reporting, structured logging, and \texttt{/healthz} and \texttt{/readyz}
-probes. Configuration comes from one central \texttt{Settings} object sourced
-from environment variables or file-based secrets, never read piecemeal from the
-process environment. The whole stack ships as a multi-stage Docker build
-\cite{merkel2014docker} with a development compose file and a production overlay.
-ClickHouse \cite{clickhouseolap} backs the analytics pages through a star schema
-so heavy analytical queries stay off the OLTP Postgres \cite{postgresinprod}.
-
-\subsection{MultiSeedGen: closing the labelling gap}
-
-The companion tool, MultiSeedGen, addresses a problem that blocks the detector
+The companion tool, MultiSeedGen, addresses the problem that blocks the detector
 more than any architectural choice does. Training an object detector needs images
-of \emph{many} seeds with a bounding box drawn around each one, and labelling
-those boxes by hand is slow and error-prone. What is comparatively easy to obtain
-is photographs of single seeds. MultiSeedGen turns the cheap input into the
-expensive output: it segments individual seeds out of source photos using a
-cascade of classical masks and learned matting via rembg and an optional Segment
-Anything backend \cite{qin2020u2net, kirillov2023sam}, then composites many of
-those cutouts onto realistic backgrounds and exports a detection dataset in YOLO,
-YOLO-seg, and COCO formats with the bounding boxes generated for free as a
-by-product of placement \cite{dwibedi2017cutpaste, lin2014coco, yolov8}.
+of many seeds with a bounding box drawn around each one, and labelling those
+boxes by hand is slow and error-prone. What is easy to collect is photographs of
+single seeds. MultiSeedGen turns the cheap input into the expensive output. It
+segments individual seeds out of source photos using a mix of classical masking
+and learned matting \cite{qin2020u2net}, with an optional Segment Anything
+backend for harder cases \cite{kirillov2023sam}, then composites many of those
+cutouts onto realistic backgrounds. Because the tool places each cutout itself,
+it knows exactly where every seed sits, so the bounding boxes come for free as a
+by-product of placement. The result is exported as a detection dataset in YOLO
+and COCO formats \cite{dwibedi2017cutpaste, lin2014coco, yolov8}.
 
-Two design decisions make the output usable for training rather than a toy.
-First, the compositor applies domain-matched lighting and camera degradation, a
-deliberate move toward closing the gap between synthetic and real images through
-domain randomisation and augmentation \cite{tobin2017domainrand,
-shorten2019augmentation, buslaev2020albumentations}. Second, output is
-byte-reproducible for a fixed configuration and seed, so a dataset is defined
-entirely by its recipe; an experiment can be rerun exactly, which is the same
-reproducibility discipline the inference platform enforces through its
-traceability chain. The tool ships with a CLI and a FastAPI web UI over the same
-pipeline, and writes provenance and QA reports alongside every run.
+To make the output useful for training rather than a toy, the compositor applies
+domain-matched lighting and camera degradation, a move toward closing the gap
+between synthetic and real images through domain randomisation and augmentation
+\cite{tobin2017domainrand, shorten2019augmentation, buslaev2020albumentations}.
+This is the same cut-and-paste synthesis idea that prior work used to bootstrap
+detectors, applied to the seed-grading setting. Every run also writes a record of
+the configuration that produced it, so a dataset can be regenerated and an
+experiment can be repeated.
 
-Taken together, the two systems form a loop on paper: MultiSeedGen produces the
-labelled detection data the platform's detector is trained on, and the platform
-produces the predictions that, in the future, can tell MultiSeedGen which kinds
-of scenes it is generating too few of. Section~\ref{sec:ch7-future} returns to
-closing that loop in practice.
+Taken together, the two systems form a loop. MultiSeedGen produces the labelled
+detection data the pipeline's detector is trained on, and the pipeline produces
+the predictions that can later tell MultiSeedGen which kinds of scenes it is
+generating too few of. Closing that loop in practice is one of the future
+enhancements in Section~\ref{sec:ch7-future}.
 
-\section{Lessons Learned}
+\subsection{What this validates}
 
-The technical lessons that came out of this project were mostly about discipline
-paying off slowly, and shortcuts charging interest later.
+The objective set in Chapter~1 was to show that seed-quality grading can be
+automated on ordinary hardware rather than the specialised imaging rigs used in
+commercial seed-testing systems. The prototype does this. It runs on commodity
+machines, takes ordinary photographs as input, and produces per-seed quality
+labels with measured accuracy on two distinct crops. Together with MultiSeedGen,
+which makes the training data for new crops cheap to produce, the work shows that
+automated seed-quality grading is feasible without expensive equipment, and that
+the data bottleneck which usually stalls such projects can be worked around.
 
-The strict layered architecture earned its keep. Holding the line on
-\texttt{routers} $\rightarrow$ \texttt{services} $\rightarrow$ \texttt{repositories} $\rightarrow$ ORM
-\cite{cleanarchitecture2017}, with Pydantic schemas at every boundary and the ORM
-never leaking past the service layer, sounded like ceremony at the start. Its
-value showed up when the ML platform grew. Because every backend satisfies the
-same duck-typed protocol and returns framework-free DTOs, adding the YOLO and
-Roboflow backends alongside the default local-torch one was a matter of writing a
-class and registering it in a factory \cite{designpatterns1994},
-with no churn in the services that call them. The one place that skipped the
-pattern, the traffic router querying \texttt{traffic\_splits} ad-hoc instead of
-through a repository, is also the one place that now reads as a wart, which is its
-own kind of confirmation.
+\section{Lessons learned}
 
-The single \texttt{Settings} object was a similar bet that paid off. Routing all
-configuration through one validated object, sourced from environment variables or
-file secrets, meant the production compose overlay could swap in file-based
-secrets without touching application code, and it removed the class of bug where
-two modules read the same setting differently. It is a small rule, applied
-everywhere, and the payoff is that there is exactly one place to look.
+The clearest lesson is that the training data mattered more than the model
+architecture. Most of the early accuracy gains came from collecting more varied
+and cleaner seed images and from fixing labelling mistakes, not from swapping
+backbones or tuning the network. A detector trained on clean, repetitive
+synthetic scenes did well on synthetic test images and poorly on real
+photographs. Adding variety in lighting, background, and seed arrangement closed
+much more of that gap than any change to the model did. This matches the wider
+finding in agricultural deep learning that data quality and quantity tend to
+dominate \cite{kamilaris2018deepag, mohanty2016plant}.
 
-Keeping torch out of the API image turned out to matter more than expected. The
-heavy imports for torch and ultralytics live inside method bodies in the
-inference backends, so the API process never imports torch; only the inference
-worker does. The benefit is a small API container that starts fast and a clean
-separation between the web tier and the GPU tier. The cost is that this invariant
-is easy to break by accident with a careless top-level import, which is why one
-of the planned CI checks is an explicit assertion that the API image contains no
-torch \cite{sqlalchemyguide}.
+Splitting the problem into a detector and a separate classifier was the right
+call. Because detection and classification are independent stages, we could
+diagnose and improve each one without disturbing the other. When the classifier
+confused good and bad maize seeds, we could retrain it alone. When the detector
+missed seeds that overlapped, we could change the detection training data alone.
+Keeping the two halves separate kept the work tractable and kept each metric
+meaningful on its own.
 
-The most expensive lesson was about tests. The suite is not hermetic: the
-app-booting integration tests fail outside Docker because the rate limiter dials
-a real Redis at the compose hostname, and the fakeredis fixture does not
-intercept that client \cite{redisinaction}. Without continuous integration to
-catch it, the suite rotted quietly. A fresh run surfaced two stale assertions
-that referenced renamed internals, and 13 of the integration tests failed for
-this Redis dependency rather than any product defect. The honest position is that
-the committed coverage number is a partial artifact and cannot be trusted until
-the suite runs the same way everywhere. Non-hermetic tests do not announce
-themselves; they pass on the author's machine and quietly stop meaning anything.
+The most expensive lesson came from synthetic data and evaluation. It is easy to
+produce metrics that look excellent and mean nothing, because seeds cut from the
+same source photos can end up in both the training set and the test set. When
+that happens the model is partly tested on seeds it has already seen, and the
+reported accuracy is inflated. We had to build a leakage-safe split that keeps all
+crops derived from one source image on the same side of the train/test divide.
+Before that fix the numbers were optimistic; after it they were lower but
+trustworthy. Synthetic data narrows the labelling bottleneck, but it does not
+remove the distribution shift between generated and real images, and the only
+fair way to measure whether it has helped is to test against real labelled
+photographs rather than against more synthetic data.
 
-The synthetic-to-real domain gap is real and was treated as such. Generating
-plausible-looking multi-seed images is the easy part. Generating images close
-enough to real field photographs that a detector trained on them transfers
-cleanly is the hard part, which is exactly why MultiSeedGen invests in
-camera-matched degradation and domain randomisation rather than clean composites.
-Synthetic data narrows the labelling bottleneck; it does not erase the
-distribution shift, and the right way to measure whether it has helped is to
-evaluate the detector against real labelled scans, not against more synthetic
-data.
-
-Finally, coordinating a backend, two frontends, and a separate data tool was a
-project-management lesson as much as a technical one. Two of the three planned
-clients, two crop classifiers, a detector, and a generator each move at their own
-pace, and the only thing that kept them coherent was treating the API contract
-and the data formats as the fixed interfaces and letting everything else vary
-behind them. The places where that discipline slipped, such as documentation
-pointing at files that had moved and a script referenced in the README that was
-never written, are precisely the places where the contract was implicit rather
-than enforced.
-
-\section{Future Enhancements}
+\section{Future enhancements}
 \label{sec:ch7-future}
 
-The work below is ordered roughly by how much it unblocks. The first item is a
-precondition for trusting almost everything else.
+The prototype proves the concept. Several lines of work would extend it and make
+it more useful in the field.
 
-\paragraph{Make the test suite hermetic and publish a real coverage number.}
-The integration tests must run identically on a developer laptop and in CI. That
-means making the application client use fakeredis end to end, or adding a Redis
-service to the test compose file, so the rate limiter has something to dial
-without a live cluster. A dependency lockfile should be added in the same pass so
-installs are reproducible and library drift stops silently breaking the build.
-Only after that is continuous integration worth standing up, and only then is a
-coverage number meaningful enough to put in a report. The worst-covered areas are
-already known: the worker tasks and the ML backends are barely exercised, and
-MinIO storage and the OAuth callback are mocked everywhere.
+The first is supporting more crops. The pipeline handles coffee and maize today,
+and it was built to extend: a new crop is a new detector class plus a new per-crop
+classifier. On the data side MultiSeedGen extends the same way, since a new crop
+is a new set of source seed photos and a configuration recipe rather than a change
+to the tool. Public seed datasets for crops such as corn could seed this work
+\cite{naagar2025corn, roboflow2025seedquality, roboflow2025maize}.
 
-\paragraph{Presigned and resumable uploads, and batch cancellation.}
-Inference uploads are multipart-only today. Large field photographs and slow
-rural connections argue for presigned uploads that go straight to MinIO, with
-resumable transfers so a dropped connection does not restart a multi-megabyte
-upload from zero. The service and schema for presigned upload already exist; what
-is missing is the route. Batch cancellation belongs in the same effort: a user
-who realises they uploaded the wrong batch should be able to stop a running scan
-rather than wait for it to finish.
+The second is a mobile capture app so a farmer can photograph seeds in the field
+and get a result on the spot. A lightweight detector and classifier, for example
+a compact YOLO model \cite{redmon2016yolo, yolov8} built with a mobile-friendly
+framework \cite{reactnativeexpo}, would let the grading run on the device with no
+round trip, which matters where connectivity is poor.
 
-\paragraph{True change-data-capture to the warehouse.}
-The ClickHouse warehouse is populated by an application-level dual-write: when a
-fact is written to Postgres, a Celery task also writes it to the star schema.
-This works but couples analytics correctness to application code and can drift if
-a write path is added without a matching dual-write. Postgres is already
-configured for logical replication; the enhancement is to consume that
-replication stream and let change-data-capture populate the warehouse, so
-analytics derive from the source of truth instead of a parallel write that has to
-be kept honest by hand.
+The third is narrowing the synthetic-to-real domain gap and validating the
+detector on genuine field photographs. The current models are trained largely on
+generated scenes, so the most important test is a held-out set of real,
+hand-labelled field images. Measuring the detector there, and feeding what we
+learn back into MultiSeedGen's degradation and randomisation, is the direct way to
+shrink the gap between how the system performs on synthetic data and how it
+performs in the field.
 
-\paragraph{More crop types.}
-The platform supports coffee and maize today, and the architecture was built to
-extend. A new crop is a new detector head class, or a retrained detector, plus a
-new per-crop classifier registered through a builder and the model registry. The
-traffic router already routes per crop type, so a new classifier can be promoted
-and A/B-tested in isolation without disturbing the existing crops. On the data
-side, MultiSeedGen extends the same way: a new crop is a new set of source seed
-photos and a config recipe, with no pipeline changes.
+The fourth, and the one that ties the others together, is an active-learning loop.
+Real scans that the system grades with low confidence, or that a user corrects,
+are exactly the cases the current models handle worst, and they describe the
+scenes the generator is underproducing. The loop is to collect those hard real
+scans, feed their characteristics back into MultiSeedGen to regenerate training
+data weighted toward the failure modes, retrain the detector and the affected
+classifier, evaluate the candidate against a held-out set of real labelled scans,
+and ship it only if it improves. Each turn of the loop targets generation at the
+system's measured weaknesses instead of producing more of what it already handles
+well.
 
-\paragraph{On-device inference for the mobile app.}
-The mobile app currently captures images and sends them to the backend for
-inference. For field use with poor connectivity, running a lightweight detector
-and classifier on the device would let a farmer get a result with no round trip.
-This is a natural fit for a quantised YOLO detector \cite{redmon2016yolo,
-yolov8} exported to a mobile runtime, with the server remaining the authority for
-history, A/B routing, and the traceability record once connectivity returns.
-
-\paragraph{An active-learning loop.}
-The most valuable enhancement closes the loop between the two systems. Real scans
-that the platform classifies with low confidence, or that a user corrects, are
-exactly the cases the current models handle worst, and they describe the scenes
-the synthetic generator is underproducing. The loop is: collect those hard real
-scans through the existing traceability chain, feed their characteristics back
-into MultiSeedGen to regenerate training data weighted toward the failure modes,
-retrain the detector and the affected classifier on the augmented set, evaluate
-the candidate offline against a held-out set of real labelled scans, and promote
-it through the registry's existing staging-to-production lifecycle behind a
-traffic split for safety. Each turn of the loop targets generation at the
-platform's measured weaknesses instead of producing more of what it already
-handles well. The registry, the offline-evaluation runner, the traffic router,
-and MultiSeedGen's reproducible recipes are all already in place; what remains is
-the orchestration that connects them.
+Beyond these, taking the prototype to production would mean hardening the surrounding
+software and operations, but the grading capability itself is in place. The work
+in this report shows that automated seed-quality grading on commodity hardware is
+feasible, and that generated training data can carry it most of the way there.

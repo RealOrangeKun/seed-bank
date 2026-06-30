@@ -62,7 +62,6 @@ def _parse_args() -> argparse.Namespace:
     )
     up.add_argument("--threshold", type=float, default=0.5)
     up.add_argument("--image-size", type=int, default=None)
-    up.add_argument("--mlflow-run-id", default=None)
     up.add_argument("--metadata", default=None, help="JSON string with extra training metadata.")
     up.add_argument(
         "--actor-id",
@@ -145,7 +144,6 @@ async def _cmd_upload(args: argparse.Namespace) -> int:
                     seed_type_id=seed_type_id,
                     config=config,
                     training_metadata=extra or None,
-                    mlflow_run_id=args.mlflow_run_id,
                 ),
             )
             print(f"registered model {row.id} ({row.name}:{row.version})")

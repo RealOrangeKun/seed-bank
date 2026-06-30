@@ -8,6 +8,8 @@ export interface AuthContextValue {
   user: MeOut | null;
   status: AuthStatus;
   login: (email: string, password: string) => Promise<void>;
+  /** Complete login from an already-issued token pair (e.g. OAuth callback). */
+  loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }

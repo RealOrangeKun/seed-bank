@@ -26,7 +26,6 @@ flowchart TB
             R_USERS["users.py"]
             R_KEYS["api_keys.py"]
             R_MODELS["models.py"]
-            R_TRAFFIC["traffic.py"]
             R_ANALYZE["analyze.py<br/>POST /analyze"]
             R_BATCH["batches.py<br/>GET /batches<br/>GET /batches/{id}"]
         end
@@ -37,7 +36,7 @@ flowchart TB
             S_AUTH["AuthService"]
             S_KEY["ApiKeyService"]
             S_REG["ModelRegistryService"]
-            S_TR["TrafficRouter"]
+            S_TR["ModelResolver"]
             S_AN["AnalysisService"]
             S_BAT["BatchService"]
         end
@@ -75,7 +74,6 @@ flowchart TB
     R_USERS --> S_AUTH
     R_KEYS --> S_KEY
     R_MODELS --> S_REG
-    R_TRAFFIC --> S_REG
     R_ANALYZE --> S_AN
     R_BATCH --> S_BAT
 
@@ -86,7 +84,6 @@ flowchart TB
 
     S_KEY --> R_AK
     S_REG --> R_MA
-    S_REG --> ANA
     S_TR --> R_MA
     S_AN --> R_SB
     S_AN --> R_SI

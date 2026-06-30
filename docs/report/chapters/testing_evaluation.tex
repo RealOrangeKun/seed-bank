@@ -1,156 +1,43 @@
 \chapter{Testing and Evaluation}
+\label{ch:testing}
 
-This chapter describes how the system is tested and what the tests tell us about
-its behaviour. The backend is the largest and most safety-relevant part of the
-project, so it carries the bulk of the suite, organised as a test pyramid and
-guarded by automated gates that run on every commit and in continuous
-integration. The two client applications and the companion data generator,
-\textbf{MultiSeedGen}, each have their own checks tuned to their risks. The
-chapter closes with what we measured about performance and an honest account of
-what the suite does not yet cover.
+This chapter reports how the system was tested and, more importantly, what the
+trained models actually do on real data. It opens with a short account of the
+software test suite, then spends most of its length on the experiments: the
+datasets, the detection results, the quality-classification results across the
+model variants, and the measured latency of the running prototype. It closes with
+the limitations the numbers expose.
 
 \section{Testing Strategy}
 
-\subsection{The backend test pyramid}
+The backend carries most of the software tests because it is where a wrong change
+does the most damage. The suite is layered. Unit tests check single functions in
+isolation with the database, the object store, and the model backends replaced by
+fakes, so they run in milliseconds and cover the pure logic: request and response
+validation, the batch state transitions, and the authentication token paths.
+Integration tests run against a real PostgreSQL instance started for the test run
+and torn down afterwards, so repository code is checked against the database
+engine it actually uses rather than a mock that might disagree with real SQL.
+End-to-end tests drive the assembled HTTP application and assert on status codes
+and response bodies, exercising routing, authentication, and serialization
+together. On top of these sits a smoke test that boots the full stack, registers
+a model, submits an analyze request, and waits for the batch to finish, which is
+the closest check to a real deployment.
 
-The backend tests are split into tiers by cost and by how much of the real
-system each tier exercises. The cheap tiers run constantly; the expensive ones
-run less often but check the parts that unit tests cannot reach.
+The web client has component tests, including one that switches the interface to
+Arabic and asserts that the layout flips to right-to-left and the choice
+persists. MultiSeedGen has two checks that matter for a data generator: a
+golden-output test that pins the exact bytes of a generated dataset so any change
+to the output is caught, and a determinism test that asserts the same
+configuration and random seed always produce identical output regardless of how
+many worker processes run.
 
-\textbf{Unit tests} are fast and isolated. They exercise one function or one
-class at a time with the slow collaborators replaced by fakes: the database
-session, the object store, and the inference backends are all mocked or stubbed
-so a unit test never opens a socket. This tier covers the parts of the system
-that are pure logic and benefit most from quick feedback, including the
-traffic router's bucketing and fallback rules, the batch state-machine
-transitions, the RFC~9457 error rendering \cite{rfc9457problem}, the Pydantic
-request and response schemas, and the JWT encode and decode paths
-\cite{rfc7519jwt}.
-
-\textbf{Integration tests} run against real backing services rather than fakes.
-The suite uses \texttt{testcontainers} to spin up an actual PostgreSQL
-\cite{postgresinprod} and ClickHouse \cite{clickhouseolap} for the duration of
-the run, then tears them down, so repository code is tested against the same
-database engine it talks to in production rather than against a mock that might
-disagree with real SQL behaviour. Redis is replaced with \texttt{fakeredis} in
-this tier. Because Celery's \texttt{celery\_task\_always\_eager} setting makes
-tasks execute inline in the same process, the worker pipeline and the
-OLTP-to-warehouse dual-write can be driven from an integration test without a
-separate worker container, which also lets worker-side metrics surface on this
-path \cite{celeryinplay}.
-
-\textbf{End-to-end tests} drive the full HTTP contract through the ASGI
-application. They send real requests to the assembled FastAPI app
-\cite{fastapi} and assert on the response envelopes, status codes, and the
-RFC~9457 problem bodies, so the routing, middleware, authentication, and
-serialization are all exercised together exactly as a client would hit them.
-
-On top of the pyramid sits a \textbf{smoke test}, \texttt{scripts/smoke.sh},
-which runs against a live Docker Compose stack \cite{merkel2014docker}. It boots
-the real services, seeds reference data, registers and promotes a model, then
-submits an analyze request and polls the batch until it reaches a terminal
-state. This is the only check that runs the genuine Celery worker with a real
-PyTorch backend against MinIO, so it is the closest thing in the suite to a
-production rehearsal.
-
-\subsection{Pre-commit gates}
-
-Before any change reaches a commit, a set of \texttt{pre-commit} hooks runs
-locally. Ruff handles both formatting and linting, so style and a class of
-likely bugs are caught before review. Mypy runs in strict mode, which means the
-boundary types between layers are checked statically and a function that returns
-the wrong shape is rejected at commit time rather than discovered at runtime.
-Gitleaks scans the staged diff for secrets so that credentials never enter the
-git history. These same checks form the fast feedback loop that the continuous
-integration pipeline mirrors.
-
-\subsection{Continuous integration workflows}
-
-CI is organised as four workflows, each with a clear responsibility, so a red
-build points at a specific kind of failure.
+Table~\ref{tab:ch6-cases} lists representative cases from across the suite. The
+result column reports pass where the behaviour matches the expected contract.
 
 \begin{singlespace}
-\begin{longtable}{@{}p{0.13\textwidth}p{0.78\textwidth}@{}}
-\caption{Continuous integration workflows and what each one guards.}
-\label{tab:ch6-ci}\\
-\toprule
-\textbf{Workflow} & \textbf{What it runs and what it protects} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Workflow} & \textbf{What it runs and what it protects} \\
-\midrule
-\endhead
-\texttt{check} & Ruff lint plus mypy strict type-checking plus the unit tier. The fast gate; mirrors the pre-commit hooks so a clean local commit rarely fails here. \\
-\addlinespace
-\texttt{test} & The full pyramid: unit, integration (with \texttt{testcontainers} bringing up Postgres and ClickHouse), and end-to-end. This is where database and contract regressions are caught. \\
-\addlinespace
-\texttt{build} & Builds the multi-stage Docker images and enforces the CPU/GPU split. A guard asserts that \texttt{torch} is absent from the API image, so the heavy inference dependency can never leak into the lightweight web container. \\
-\addlinespace
-\texttt{smoke} & Brings the Compose stack up, seeds it, and runs \texttt{scripts/smoke.sh} end to end against the live services. \\
-\bottomrule
-\end{longtable}
-\end{singlespace}
-
-The \texttt{build} workflow's torch guard deserves a note. The Dockerfile
-produces separate runtimes so that only the inference worker carries PyTorch and
-torchvision, while the API and the CPU worker run on a much smaller image. If a
-careless import ever pulled torch into the API process, the image would balloon
-by more than a gigabyte and the architectural boundary would be quietly broken.
-The CI assertion makes that mistake fail the build rather than ship.
-
-\subsection{Client and generator testing}
-
-The web application is checked with Vitest and Testing Library for unit and
-component tests, \texttt{tsc} for type-checking, and ESLint for linting, with a
-production \texttt{build} as a final gate \cite{reactindepth}. The component
-tests include the localization system, where the test asserts that switching to
-Arabic flips the document direction to right-to-left, changes the rendered text,
-and persists the choice. The mobile application, built on Expo and React Native
-\cite{reactnativeexpo}, runs \texttt{tsc}, \texttt{expo-doctor} for project
-configuration sanity, and a full \texttt{expo export} bundle so that a packaging
-break is caught before a build is cut.
-
-MultiSeedGen adds two kinds of test that matter for a data generator whose whole
-value is reproducibility. \textbf{Golden byte-manifest tests} pin the exact
-bytes of generated output against committed manifests, so any change that alters
-a single pixel surfaces as a diff a reviewer must consciously accept rather than
-a silent regression. \textbf{Determinism tests} assert the core contract that a
-fixed \texttt{(config, seed)} pair produces byte-identical output regardless of
-the parallel backend or the number of worker processes. This is enforced by
-per-(split, scene-index) random seeding, a content-hashed segmentation cache,
-and pinning OpenCV to a single thread inside every worker, since OpenCV
-reductions are not bit-identical across thread counts.
-
-\subsection{What we report on coverage, and why}
-
-The suite is broad. Across the backend there are about \textbf{52 test files}
-and on the order of \textbf{293 test cases} spanning the unit, integration, and
-end-to-end tiers, plus the smoke test and MultiSeedGen's golden and determinism
-checks. That breadth, together with the CI gates above, is the honest measure of
-how much of the system is exercised.
-
-We deliberately do not print a single aggregate coverage percentage. The figure
-recorded in the repository's \texttt{coverage.xml} is a non-hermetic measurement
-artifact: it comes from a fast \texttt{check}-style run that does not start the
-live services the integration and end-to-end tiers depend on, so the router and
-service code that those tiers do exercise reads as untouched there. Quoting that
-number would understate the real coverage, sometimes badly. A trustworthy
-aggregate therefore depends on first making the suite fully hermetic, so that one
-run can execute every tier and produce one defensible number. That work is
-tracked as future work and is described in Section~\ref{sec:ch6-limits}.
-
-\section{Test Cases and Results}
-
-Table~\ref{tab:ch6-cases} lists representative cases drawn from across the suite.
-The \emph{Result} column reports \emph{Pass} where the design and the
-corresponding tests support the expected behaviour. No numeric accuracy or
-benchmark figures are claimed here, because the suite asserts behaviour and
-contracts rather than model accuracy on a held-out set.
-
-\begin{singlespace}
-\begin{longtable}{@{}p{0.06\textwidth}p{0.12\textwidth}p{0.30\textwidth}p{0.30\textwidth}p{0.07\textwidth}@{}}
-\caption{Representative test cases across the system.}
+\begin{longtable}{@{}p{0.05\textwidth}p{0.13\textwidth}p{0.40\textwidth}p{0.27\textwidth}p{0.06\textwidth}@{}}
+\caption{Representative software test cases.}
 \label{tab:ch6-cases}\\
 \toprule
 \textbf{ID} & \textbf{Area} & \textbf{Scenario} & \textbf{Expected} & \textbf{Result} \\
@@ -162,153 +49,358 @@ contracts rather than model accuracy on a held-out set.
 \endhead
 \bottomrule
 \endfoot
-T-01 & Auth & Login with a correct email and password. & Returns an access token and a refresh token; the login metric records \texttt{ok}. & Pass \\
+T-01 & Auth & Login with valid credentials. & An access token and a refresh token are issued. & Pass \\
 \addlinespace
-T-02 & Auth & A rotated refresh token is presented a second time (replay). & The reused token is rejected and the token chain is invalidated. & Pass \\
+T-02 & Auth & A used refresh token is presented again. & The reused token is rejected and the session is invalidated. & Pass \\
 \addlinespace
-T-03 & Auth & Refresh with a valid current token. & A new access and refresh pair is issued and the old refresh token is retired. & Pass \\
+T-03 & Analyze & A batch of valid images is uploaded. & The batch is created and one analysis task is queued per image. & Pass \\
 \addlinespace
-T-04 & Analyze & Multipart upload of several valid images to \texttt{POST /analyze}. & A \texttt{scan\_batch} is created in \texttt{pending} and one task per image is dispatched after commit. & Pass \\
+T-04 & Analyze & A file that is not a real image is uploaded. & Validation fails and no batch is stored. & Pass \\
 \addlinespace
-T-05 & Analyze & Upload of more than 16 files in one request. & The request is rejected before any image is stored (\texttt{analyze\_max\_files\_per\_request} is 16). & Pass \\
+T-05 & Pipeline & Detection succeeds but classification fails on one image. & Detections are kept and the batch finishes partial, not failed. & Pass \\
 \addlinespace
-T-06 & Analyze & Upload of a file whose bytes are not a real image. & Validation fails on the file and no batch is committed. & Pass \\
+T-06 & Generator & MultiSeedGen runs twice with the same seed and different worker counts. & Both runs produce byte-identical output. & Pass \\
 \addlinespace
-T-07 & Batch state & Two workers race to start the same pending batch. & A compare-and-set moves \texttt{pending} to \texttt{running} exactly once; the loser does not corrupt state. & Pass \\
-\addlinespace
-T-08 & Batch state & Detection succeeds but classification raises for an image. & Detection rows are kept and the batch degrades to \texttt{partial}, never \texttt{failed}. & Pass \\
-\addlinespace
-T-09 & Model routing & A user with an active A/B split submits repeated scans. & The sticky bucket sends the same user to the same model every time. & Pass \\
-\addlinespace
-T-10 & Model routing & Analyze runs with no promoted detection model. & The batch ends \texttt{failed} with a human-readable message, not a blank error. & Pass \\
-\addlinespace
-T-11 & API keys & A personal API key is created. & The key is shown in plaintext once and stored only as a hash. & Pass \\
-\addlinespace
-T-12 & RBAC & An \texttt{end\_user} calls an admin-only route. & The request is forbidden by the role gate. & Pass \\
-\addlinespace
-T-13 & DWH & A batch completes with \texttt{dwh\_enabled} on. & The dual-write task fires and dimension and fact rows reach ClickHouse. & Pass \\
-\addlinespace
-T-14 & MultiSeedGen & Generate twice from one \texttt{(config, seed)} with different worker counts. & Both runs produce byte-identical output. & Pass \\
-\addlinespace
-T-15 & MultiSeedGen & Build a train/val split from the seed pool. & The split is leakage-safe; a source seed never lands in both partitions. & Pass \\
-\addlinespace
-T-16 & MultiSeedGen & Export a dataset in YOLO and COCO formats. & The written annotations and \texttt{data.yaml} match the pinned export schema. & Pass \\
+T-07 & Generator & A train/validation split is built from the seed pool. & No source seed appears in both partitions. & Pass \\
 \end{longtable}
 \end{singlespace}
 
-A few of these cases are worth expanding because they protect the parts of the
-system most likely to fail in subtle ways. T-02, the refresh-token replay case,
-checks that token rotation actually detects reuse rather than merely issuing new
-tokens; a token presented twice invalidates the whole chain, which is what makes
-the rotation scheme worth having \cite{rfc7519jwt}. T-07 and T-08 protect the
-batch state machine: because a multi-image batch is processed by several workers
-at once, the transitions are compare-and-set updates so that exactly one task
-owns each transition, and a classification crash after a successful detection
-degrades the batch to \texttt{partial} instead of throwing away good detection
-results. T-10 matters because the mobile point-and-shoot flow sends no seed type
-and so routes to the global production model; if no model is promoted, the user
-must see a clear failure rather than an empty screen. T-14 and T-15 are the
-contracts that make MultiSeedGen useful as a training-data source: reproducible
-bytes and a split that does not leak the same source seed across partitions.
+\section{Datasets}
+\label{sec:ch6-datasets}
 
-\section{Performance Evaluation}
+The models were trained and evaluated on data drawn from four sources, chosen so
+the system would see more than one capture condition. Public seed datasets are
+usually shot in a controlled lab, and a model trained only on that kind of image
+tends to fail on a photo taken with a phone under ordinary light. Mixing sources
+was the main defence against that.
 
-The project did not run a formal load-testing campaign; the planned load tests
-under \texttt{tests/load/} were not built, so this section reports the
-performance behaviour that the design provides and the concrete figures the
-documentation actually records, rather than synthetic benchmark results.
+The first source is the NAGAR maize dataset, built on the IIIT-Hyderabad corn
+seed benchmark~\cite{naagar2025corn}. We used the balanced variant and removed
+noisy labels to improve quality. For the classifier the data is reduced to two
+classes: good, which is healthy pure corn, and bad, which combines the broken,
+discoloured, and silkcut defects.
 
-The dominant cost in the backend is model inference, and the design keeps it off
-the critical path in two ways. A single image's forward pass runs in a worker
-thread via \texttt{asyncio.to\_thread}, so the event loop stays responsive while
-PyTorch computes. When a batch contains several images, each image is a separate
-Celery task graded in parallel by the \texttt{worker-inference} pool, so a batch
-is processed concurrently rather than one image at a time, and throughput scales
-horizontally by adding more inference workers. This is the same path the
-conveyor-belt scanning use case relies on.
+The second source is a maize dataset from Roboflow with 26{,}350
+images~\cite{roboflow2025seedquality}. Unlike the lab-controlled NAGAR set, it
+spans a wide range of lighting and texture and is already split into binary good
+and bad classes. Combining it with NAGAR produced what we call the hybrid
+dataset.
 
-The honest cost is cold-start CPU inference, which is slow: the first inference
-on a cold CPU process pays the model load and the first forward pass with no warm
-caches. The smoke test allows roughly 75~seconds for a batch to complete on a
-cold CPU, which sets the expectation for an un-warmed deployment. After the first
-run, the process-wide LRU cache in the model manager keeps loaded weights
-resident, so subsequent inferences skip the load cost and run far faster. On the
-observability side, Prometheus histograms expose both HTTP request latency and
-per-image inference latency, so latency can be tracked per route and per model
-backend once a deployment is running \cite{opentelemetry2022}.
+The third source is a smaller but densely annotated detection set of 600
+high-density images used to train and stress-test the localization
+models~\cite{roboflow2025maize}. Every seed carries a bounding box, and the boxes
+are labelled across seven maize classes: broken (2{,}927), damage (3{,}766),
+fungus (1{,}510), immature (1{,}721), shriveled (1{,}618), weeveled (1{,}835),
+and healthy (1{,}706).
 
-For MultiSeedGen, the documentation records two concrete effects. Running the
-rembg background-removal model on a GPU is roughly an order of magnitude faster
-than on CPU, measured at about 11x on an RTX~3060 \cite{qin2020u2net}. Separately,
-the content-hash segmentation cache makes re-runs near-instant: once a source
-seed has been segmented, a later run with the same inputs reuses the cached
-result instead of recomputing it. These figures are collected in
-Table~\ref{tab:ch6-perf}.
+The fourth source is a coffee parchment dataset, the dried endocarp of the coffee
+bean, with good and bad classes. It was added to check whether the design
+generalizes to a second crop with a different shape and spatial arrangement.
+
+\section{Object Detection Results}
+\label{sec:ch6-detection}
+
+The first stage of the pipeline locates each seed. We evaluated Faster
+R-CNN~\cite{fasterrcnn2015} in four configurations, with and without a CBAM
+attention block~\cite{cbam2018}, on maize alone and on maize and coffee together.
+Detection quality is reported as mean average precision at three intersection
+thresholds: mAP@50, the stricter mAP@75, and the COCO average over 0.50 to 0.95.
+Table~\ref{tab:ch6-frcnn} collects the results.
 
 \begin{singlespace}
-\begin{longtable}{@{}p{0.34\textwidth}p{0.30\textwidth}p{0.28\textwidth}@{}}
-\caption{Observed and expected performance figures recorded in the project documentation.}
-\label{tab:ch6-perf}\\
+\begin{longtable}{@{}p{0.40\textwidth}p{0.13\textwidth}p{0.13\textwidth}p{0.13\textwidth}p{0.10\textwidth}@{}}
+\caption{Faster R-CNN detection results across configurations.}
+\label{tab:ch6-frcnn}\\
 \toprule
-\textbf{Aspect} & \textbf{Figure} & \textbf{Source} \\
+\textbf{Configuration} & \textbf{mAP@50} & \textbf{mAP@75} & \textbf{mAP .5:.95} & \textbf{Time (s)} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{Aspect} & \textbf{Figure} & \textbf{Source} \\
+\textbf{Configuration} & \textbf{mAP@50} & \textbf{mAP@75} & \textbf{mAP .5:.95} & \textbf{Time (s)} \\
 \midrule
 \endhead
 \bottomrule
 \endfoot
-Cold-start CPU batch completion & $\approx$ 75~s allowed & Smoke-test budget \\
+Faster R-CNN, maize only          & 0.9780 & 0.6574 & 0.5903 & 0.1511 \\
 \addlinespace
-Warm inference & Much faster after first load & Model-manager LRU cache \\
+Faster R-CNN + CBAM, maize only   & 0.9768 & 0.6576 & 0.5867 & 0.0621 \\
 \addlinespace
-MultiSeedGen rembg, GPU vs CPU & $\approx$ 11x faster on an RTX 3060 & MultiSeedGen docs \\
+Faster R-CNN, maize \& coffee     & 0.9838 & 0.8015 & 0.7038 & 0.1038 \\
 \addlinespace
-MultiSeedGen cached re-run & Near-instant & Content-hash segmentation cache \\
+Faster R-CNN + CBAM, maize \& coffee & 0.9835 & 0.8020 & 0.7211 & 0.1106 \\
+\end{longtable}
+\end{singlespace}
+
+Two patterns stand out. On the single-class maize task, adding CBAM did not help;
+the standard and attention models score within a thousandth of each other on
+mAP@50, so the extra complexity bought nothing on an easy, single-class set. On
+the harder two-crop task the picture changes. Moving from maize-only to mixed
+maize-and-coffee data lifted every metric, and the jump is largest on the strict
+thresholds: mAP@75 rises from about 0.66 to about 0.80 and the COCO average from
+0.59 to 0.70. Adding more variety to the training data helped the detector more
+than any architectural change did. On that mixed set CBAM gave a small but real
+gain on the strictest metric, nudging the COCO average from 0.7038 to 0.7211,
+which fits the idea that attention earns its cost on harder, more varied inputs.
+
+For deployments where speed matters more than the last point of accuracy, we also
+trained a one-stage YOLOv8 detector~\cite{redmon2016yolo,yolov8}. It reaches an
+mAP@50 of 0.941 with a precision of 0.939 and a recall of 0.941, at roughly
+5.5~ms per image, which is far faster than Faster R-CNN and is why the prototype
+offers it as a fast mode.
+
+\section{Seed Quality Classification Results}
+\label{sec:ch6-classification}
+
+The second stage takes each detected seed and labels it good or bad. The
+classifier is a ResNet-18~\cite{resnet2015} that we extended in four steps to
+measure the effect of each change: V1 is the plain baseline, V2 adds a CBAM
+attention block~\cite{cbam2018}, V3 adds global max pooling alongside the usual
+average pooling, and V4 adds a stride change in the final stage. We trained this
+family twice, once on the original NAGAR data and once on the hybrid set that
+adds the Roboflow images. Table~\ref{tab:ch6-clf-summary} shows the headline
+comparison between the baseline on each.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.26\textwidth}p{0.22\textwidth}p{0.11\textwidth}p{0.11\textwidth}p{0.12\textwidth}@{}}
+\caption{Baseline classifier on the NAGAR and hybrid datasets.}
+\label{tab:ch6-clf-summary}\\
+\toprule
+\textbf{Model} & \textbf{Training data} & \textbf{Acc.} & \textbf{F1} & \textbf{Time} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Model} & \textbf{Training data} & \textbf{Acc.} & \textbf{F1} & \textbf{Time} \\
+\midrule
+\endhead
 \bottomrule
+\endfoot
+Baseline ResNet-18 & NAGAR only        & 96.19\% & 0.9626 & 70.05\,s \\
+\addlinespace
+Hybrid ResNet-18   & NAGAR + Roboflow   & 97.39\% & 0.9745 & 143.50\,s \\
+\end{longtable}
+\end{singlespace}
+
+\subsection{Validation performance}
+
+On held-out validation data the four variants all score highly, which is expected
+because validation data comes from the same distribution as training.
+Tables~\ref{tab:ch6-clf-nagar-val} and \ref{tab:ch6-clf-hybrid-val} report the
+variants on the NAGAR and hybrid sets.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.30\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}@{}}
+\caption{Classifier variants on the NAGAR dataset (validation).}
+\label{tab:ch6-clf-nagar-val}\\
+\toprule
+\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+V1 Baseline ResNet-18    & 0.9626 & 0.9623 & 0.9768 & 0.9489 \\
+\addlinespace
+V2 + CBAM                & 0.9760 & 0.9757 & 0.9869 & 0.9653 \\
+\addlinespace
+V3 + CBAM + GMP          & 0.9758 & 0.9755 & 0.9821 & 0.9696 \\
+\addlinespace
+V4 + CBAM + GMP + Stride & 0.9734 & 0.9730 & 0.9797 & 0.9671 \\
+\end{longtable}
+\end{singlespace}
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.30\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}@{}}
+\caption{Classifier variants on the hybrid dataset (validation).}
+\label{tab:ch6-clf-hybrid-val}\\
+\toprule
+\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+V1 Baseline ResNet-18    & 0.9779 & 0.9776 & 0.9846 & 0.9714 \\
+\addlinespace
+V2 + CBAM                & 0.9789 & 0.9786 & 0.9846 & 0.9732 \\
+\addlinespace
+V3 + CBAM + GMP          & 0.9792 & 0.9789 & 0.9822 & 0.9763 \\
+\addlinespace
+V4 + CBAM + GMP + Stride & 0.9767 & 0.9764 & 0.9839 & 0.9696 \\
+\end{longtable}
+\end{singlespace}
+
+Three things are visible. Adding the Roboflow data raises the baseline F1 by
+roughly 1.5 points, from 0.9626 to 0.9779, before any architecture change. CBAM
+(V2) gives the largest single jump in precision on both sets. And V3, which adds
+global max pooling, reaches the highest recall, which makes sense because max
+pooling responds to sharp local defects and so catches more of the bad seeds.
+
+\subsection{Performance on unseen data}
+
+Validation numbers flatter a model. The real test is data the model has never
+seen, drawn from a different distribution, where domain shift bites.
+Tables~\ref{tab:ch6-clf-nagar-test} and \ref{tab:ch6-clf-hybrid-test} report the
+same variants on an out-of-distribution test set.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.30\textwidth}p{0.11\textwidth}p{0.10\textwidth}p{0.13\textwidth}p{0.10\textwidth}p{0.13\textwidth}@{}}
+\caption{Classifier variants trained on NAGAR, evaluated on unseen data (test).}
+\label{tab:ch6-clf-nagar-test}\\
+\toprule
+\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+V1 Baseline & 0.7722 & 0.5832 & 0.7568 & 0.4746 & 0.6766 \\
+\addlinespace
+V2 + CBAM   & 0.7920 & 0.5892 & 0.7768 & 0.4746 & 0.6906 \\
+\addlinespace
+V3 + GMP    & 0.7722 & 0.5162 & 0.7763 & 0.3866 & 0.6442 \\
+\addlinespace
+V4 + Stride & 0.7821 & 0.5349 & 0.8125 & 0.3987 & 0.6585 \\
+\end{longtable}
+\end{singlespace}
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.30\textwidth}p{0.11\textwidth}p{0.10\textwidth}p{0.13\textwidth}p{0.10\textwidth}p{0.13\textwidth}@{}}
+\caption{Classifier variants trained on the hybrid dataset, evaluated on unseen data (test).}
+\label{tab:ch6-clf-hybrid-test}\\
+\toprule
+\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+V1 Baseline & 0.8062 & 0.7477 & 0.6328 & 0.9136 & 0.7769 \\
+\addlinespace
+V2 + CBAM   & 0.8130 & 0.7499 & 0.6470 & 0.8918 & 0.7815 \\
+\addlinespace
+V3 + GMP    & 0.7725 & 0.7259 & 0.5841 & 0.9588 & 0.7492 \\
+\addlinespace
+V4 + Stride & 0.8318 & 0.7687 & 0.6769 & 0.8894 & 0.8003 \\
+\end{longtable}
+\end{singlespace}
+
+The drop from validation to test is large and worth stating plainly. A model
+trained on NAGAR alone falls from an F1 near 0.97 on validation to about 0.58 on
+unseen data, because it learned the lab look of its training set. Training on the
+hybrid set recovers most of that loss: the peak test F1 rises from 0.5892 to
+0.7687, and recall climbs as high as 0.9588 for V3. The lesson is the one the
+detection results pointed at too. Diverse training data, not a cleverer
+architecture, is the main defence against domain shift. Among the hybrid-trained
+variants, V4 is the most balanced, with the highest test accuracy (83.18\%) and
+the best combined score (0.8003).
+
+\subsection{The second crop}
+
+To check that the design carries to a different seed, we ran the same four
+variants on the coffee dataset. Table~\ref{tab:ch6-clf-coffee} reports the test
+results.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.30\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}@{}}
+\caption{Classifier variants on the coffee dataset (test).}
+\label{tab:ch6-clf-coffee}\\
+\toprule
+\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+V1 Baseline ResNet-18    & 0.9056 & 0.8984 & 0.8898 & 0.9219 \\
+\addlinespace
+V2 + CBAM                & 0.9023 & 0.8957 & 0.8988 & 0.9058 \\
+\addlinespace
+V3 + CBAM + GMP          & 0.9101 & 0.9028 & 0.8877 & 0.9335 \\
+\addlinespace
+V4 + CBAM + GMP + Stride & 0.9000 & 0.8921 & 0.8803 & 0.9206 \\
+\end{longtable}
+\end{singlespace}
+
+V3 is the best variant on coffee, with the highest F1 (0.9101) and recall
+(0.9335), the same combination of attention and max pooling that did best on
+maize. That the same design wins on two crops with different shapes is a small
+piece of evidence that the attention blocks belong in the later layers of the
+network, where they filter high-level features rather than low-level edges.
+
+\section{System Performance and Latency}
+\label{sec:ch6-perf}
+
+Accuracy only matters if the system is fast enough to use. We measured the
+prototype end to end on commodity hardware. A batch of three images containing
+more than 200 seeds was processed in about 1.78~seconds, counting the upload, the
+database writes, and the generation of the result report. That is fast enough for
+a quality-control operator to work through samples without waiting on the
+software.
+
+Broken down by stage, the detector averages about 103.8~ms per image, and the
+per-seed quality classifier runs in roughly 0.50 to 0.67~ms per crop, so the
+classification stage is cheap even when an image contains a few hundred seeds. The
+YOLOv8 fast mode brings detection down to about 5.5~ms per image for deployments
+that prioritize speed. Table~\ref{tab:ch6-perf} collects these figures.
+
+\begin{singlespace}
+\begin{longtable}{@{}p{0.46\textwidth}p{0.46\textwidth}@{}}
+\caption{Measured latency of the running prototype.}
+\label{tab:ch6-perf}\\
+\toprule
+\textbf{Stage} & \textbf{Latency} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Stage} & \textbf{Latency} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Full batch (3 images, 200+ seeds, end to end) & $\approx$ 1.78\,s \\
+\addlinespace
+Detection per image (Faster R-CNN)            & $\approx$ 103.8\,ms \\
+\addlinespace
+Detection per image (YOLOv8 fast mode)        & $\approx$ 5.5\,ms \\
+\addlinespace
+Quality classification per seed               & $\approx$ 0.50--0.67\,ms \\
 \end{longtable}
 \end{singlespace}
 
 \section{Limitations and Known Issues}
 \label{sec:ch6-limits}
 
-The system works end to end, but the testing and evaluation tail of the project
-is unfinished, and several known gaps are worth stating plainly.
+The results above also mark the limits of the work. The clearest one is the
+synthetic-to-real domain gap. MultiSeedGen produces realistic composited scenes,
+but a detector trained on them learns the statistics of synthetic images, and
+those never match real trays exactly~\cite{tobin2017domainrand}. The generator
+narrows the gap with domain-randomized lighting and degradation, but closing it
+for a given crop still means validating the trained detector on genuine field
+photographs before trusting it~\cite{kamilaris2018deepag}.
 
-The most consequential testing limitation is that the suite is \textbf{not fully
-hermetic}. Some integration tests boot the assembled application, and the slowapi
-rate limiter inside that app reaches for a live Redis on the Compose hostname,
-which \texttt{fakeredis} does not intercept; outside Docker those tests fail for
-an environmental reason rather than a product bug \cite{redisinaction}. The
-direct consequence is the one discussed in the testing strategy: until the rate
-limiter runs on fakeredis end to end, or CI provides a real Redis service for the
-test job, there is no single coverage number that can be trusted. Making the
-suite hermetic and then establishing a defensible aggregate coverage figure is
-the first item of remaining work.
+The classification results show the same gap from the other side. The fall from a
+validation F1 near 0.97 to a test F1 near 0.58 for the NAGAR-only models is a
+direct measurement of domain shift, and while the hybrid data recovers much of
+it, the test scores are still well below the validation scores. Any deployment to
+a new capture setting should expect to collect and label some local data and
+retrain, rather than assume the validation numbers will hold.
 
-On the product side, image upload is \textbf{multipart-only}. The presigned-upload
-endpoint and batch cancellation were designed but never built, so a client cannot
-upload directly to object storage or abort a running batch. The analytics
-warehouse is populated by an \textbf{application-level dual-write} rather than
-true change-data-capture: when a batch completes, the application dispatches a
-Celery task that writes to ClickHouse, instead of streaming changes off the
-Postgres write-ahead log. The database is configured with logical replication
-enabled so that real CDC can be added later, but that path is not wired today.
-
-Observability is \textbf{opt-in}. OpenTelemetry tracing and Sentry error
-reporting are complete no-ops unless their endpoints are configured, which keeps
-the development stack quiet but means neither is exercised by default. A handful
-of endpoints have a service and a schema behind them but no route yet, including
-password change and experiment-results retrieval, so the underlying capability
-exists but is not reachable over HTTP.
-
-Finally, a limitation specific to MultiSeedGen's purpose: there is a
-\textbf{synthetic-to-real domain gap}. Compositing seeds onto backgrounds with
-matched lighting and camera degradation produces realistic-looking images, but a
-detector trained only on synthetic data can still behave differently on real
-field photographs than its synthetic validation metrics suggest
-\cite{tobin2017domainrand}. The generator narrows the gap with domain-matched
-degradation, but closing it for a given crop still requires validating the
-trained detector against genuine images before trusting it in the field
-\cite{kamilaris2018deepag}.
+Finally, this is a prototype rather than a finished product. It grades two crops
+from top-down photographs taken in reasonable light, and it has not been hardened
+or trialled in the field. The next chapter sets out what would have to change to
+move it past that point.

@@ -31,10 +31,6 @@ services:
     ports: !override
       - "127.0.0.1:58123:8123"
 
-  mlflow:
-    ports: !override
-      - "127.0.0.1:55000:5000"
-
   api:
     ports: !override
       - "127.0.0.1:58080:8000"

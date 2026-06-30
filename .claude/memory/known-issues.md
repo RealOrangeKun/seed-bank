@@ -4,13 +4,14 @@ Traps that have bitten — gotchas, environment quirks, and bugs with a known ca
 and workaround. Each section is a stable anchor that skills and agents link to.
 Indexed from [`MEMORY.md`](MEMORY.md).
 
-_Last updated: 2026-06-26_
+_Last updated: 2026-06-30_
 
 ## Analyze needs a promoted detection model
 
 `POST /analyze` can't run until at least one **detection** model is promoted to
 `production` (and, for quality, a classifier per seed type). With none, the
-traffic router has nothing to route to and the batch goes `failed` with
+model resolver (`services/model_resolver.py`) has nothing to resolve and the
+batch goes `failed` with
 `ModelNotReadyError: No production model …`. Production weights are gitignored
 (MinIO is the source of truth), so a fresh stack and CI start with **zero**
 models.

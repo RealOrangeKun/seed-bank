@@ -165,8 +165,8 @@ ORDER BY hour DESC, p95 DESC;
 ## Conventions
 
 - Gather before you act; restart only once you understand what died.
-- Prefer registry/traffic operations over container restarts — they're atomic
-  and reversible, so a wrong call is easy to undo.
+- Prefer registry / model-promotion operations over container restarts — they're
+  atomic and reversible, so a wrong call is easy to undo.
 
 ### Safe recovery actions (no approval needed)
 
@@ -187,7 +187,7 @@ ORDER BY hour DESC, p95 DESC;
 - Running an Alembic migration in prod (follow the staged-deploy plan in the
   `db-migration` skill).
 - Rotating the JWT secret (invalidates all sessions).
-- Changing a `traffic_splits` row outside a maintenance window.
+- Promoting or archiving a `model_artifacts` row outside a maintenance window.
 
 ## Gotchas
 

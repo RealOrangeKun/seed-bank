@@ -8,7 +8,6 @@
 #   runtime-inference-cpu-full— + [inference-full] (ultralytics + Roboflow).
 #                               Opt-in: only when a YOLO/Roboflow model ships.
 #   runtime-gpu               — CUDA runtime; worker-inference on GPU hosts.
-#   mlflow                    — MLflow server + psycopg2 + boto3.
 #
 # The `api` image must NEVER carry torch — it just orchestrates. Guarded in CI
 # by `.github/workflows/build.yml`; `make image-bloat` prints the largest files.
@@ -216,13 +215,3 @@ COPY --chown=seedbank:seedbank scripts ./scripts
 USER seedbank
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["celery", "-A", "seedbank.workers.celery_app", "worker", "--loglevel=info", "-Q", "inference"]
-
-
-# ── mlflow ──────────────────────────────────────────────────────────────────
-# The official MLflow image ships without `psycopg2` and without `boto3`,
-# but our compose configures Postgres as the backend store and MinIO/S3 as
-# the artifact destination. Add both here so the image runs as configured.
-# Pin versions explicitly so the image is reproducible — bump in lockstep
-# with the upstream MLflow tag.
-FROM ghcr.io/mlflow/mlflow:v2.18.0 AS mlflow
-RUN pip install --no-cache-dir psycopg2-binary==2.9.9 boto3==1.35.36

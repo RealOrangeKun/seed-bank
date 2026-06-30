@@ -31,7 +31,7 @@ reader why the rule exists, not just to block — so spell out the threat.
   the refresh token rather than relying on client-side deletion.
 
 ### Authorization (RBAC)
-- Privileged routers (`/api/v1/models`, `/experiments`, `/traffic`, `/users`)
+- Privileged routers (`/api/v1/models`, `/experiments`, `/users`)
   carry `Depends(require_role(...))`. The `model_id` override on `/analyze` is
   `ai_developer`/`admin` only.
 - Ownership filters live in the **repository** (`WHERE user_id = ...`), not only
@@ -60,7 +60,7 @@ reader why the rule exists, not just to block — so spell out the threat.
   gitignored; `.env.example` holds placeholders.
 - Reset/verify/rotation tokens are single-use and TTL'd.
 
-### Outbound HTTP (Roboflow, OAuth providers, MLflow)
+### Outbound HTTP (Roboflow, OAuth providers)
 - All outbound calls use `httpx.AsyncClient` with a timeout; TLS verification is
   never disabled (`verify=False` is a finding). Third-party JSON is validated
   before use — an upstream change shouldn't crash or mislead us.

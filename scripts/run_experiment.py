@@ -123,7 +123,7 @@ async def _run(args: argparse.Namespace) -> int:
                 return 1
             print(f"  status={row.status}")
             if row.status in _TERMINAL:
-                print(f"duration_ms={row.duration_ms} mlflow_run_id={row.mlflow_run_id}")
+                print(f"duration_ms={row.duration_ms}")
                 print(json.dumps(row.summary_metrics or {}, indent=2, default=str))
                 return 0 if row.status == ExperimentStatus.SUCCEEDED.value else 1
             await asyncio.sleep(args.poll_interval)

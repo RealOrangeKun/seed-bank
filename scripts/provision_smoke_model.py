@@ -3,7 +3,7 @@
 Generates seed-fixed random weights for the ``tiny-detector-smoke-v1`` builder,
 uploads them to the models bucket, registers a ``model_artifacts`` row, and
 promotes it to **global production** (``seed_type_id = NULL``) so
-:meth:`TrafficRouter.select_model` resolves a detector for every scan.
+:meth:`ModelResolver.select_model` resolves a detector for every scan.
 
 This is the seed-bank analogue of HuggingFace's ``tiny-random-*`` fixtures —
 it exists purely to let the ``smoke`` workflow exercise the *real* inference

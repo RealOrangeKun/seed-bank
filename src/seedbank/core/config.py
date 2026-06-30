@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     oauth_github_client_id: SecretStr | None = None
     oauth_github_client_secret: SecretStr | None = None
     oauth_redirect_base_url: str = "http://localhost:8000"
+    # Where the OAuth callback bounces the browser after minting tokens — the
+    # SPA route that reads them from the URL fragment and completes login.
+    oauth_post_login_redirect_url: str = "http://localhost:5173/auth/callback"
 
     # ── Postgres ─────────────────────────────────────────────────────────────
     postgres_dsn: PostgresDsn = Field(  # type: ignore[assignment]
@@ -145,10 +148,6 @@ class Settings(BaseSettings):
     clickhouse_user: str = "seedbank"
     clickhouse_password: SecretStr = SecretStr("seedbank-dev-secret")
     clickhouse_database: str = "seedbank"
-
-    # ── MLflow ───────────────────────────────────────────────────────────────
-    mlflow_tracking_uri: str = "http://mlflow:5000"
-    mlflow_experiment_name: str = "seedbank"
 
     # ── Inference ────────────────────────────────────────────────────────────
     inference_default_backend: Literal["torch_local", "roboflow", "ultralytics_yolo"] = (

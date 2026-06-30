@@ -55,7 +55,6 @@ so `make wait` polls the right address.
 | `redis` | `redis:7-alpine` | Cache + Celery broker + rate-limit backend |
 | `minio` | `minio:RELEASE.2024-11-07` | Object storage (images, models, experiments, datasets) |
 | `clickhouse` | `clickhouse-server:24.10-alpine` | Analytics warehouse (Phase 8) |
-| `mlflow` | `ghcr.io/mlflow/mlflow:v2.18.0` | Experiment tracking + model registry mirror |
 | `adminer` | `adminer:4.8.1` | Web SQL UI for **Postgres**. Opt-in via `--profile dev` |
 | `ch-ui` | `ghcr.io/caioricciuti/ch-ui:v2.5.1` | Web UI for the **ClickHouse DWH** (`:3488`). Opt-in via `--profile dev` |
 
@@ -84,7 +83,6 @@ itself: the built-in **Play** editor at `/play` and a **dashboard** at
 - `minio` — HTTP GET `/minio/health/live`
 - `clickhouse` — HTTP GET `127.0.0.1:8123/ping` (note: not `localhost`,
   alpine resolves that to ::1 first and CH binds IPv4 only)
-- `mlflow` — HTTP GET `/health`
 - `api` — HTTP GET `/readyz`
 
 `/healthz` answers up/down for the process. `/readyz` probes every
@@ -150,8 +148,8 @@ you want a known-clean slate.
   `src/seedbank/workers/tasks/__init__.py`; if your local copy is
   pre-Phase-10 the file is empty and Celery never picks them up.
 - **Analyze batch goes straight to `failed` (`ModelNotReadyError: No
-  production model ...`)**: no detection model is promoted, so the traffic
-  router has nothing to route to. Production weights live in MinIO (never in
+  production model ...`)**: no detection model is promoted, so the model
+  resolver has nothing to resolve. Production weights live in MinIO (never in
   git), so a fresh stack has no model. Provision the CI/dev fixture — a tiny,
   untrained detector — with `make provision-smoke-model` (the `smoke`
   workflow runs this between `make seed` and the smoke check). For a real
@@ -252,9 +250,9 @@ created with `printf '%s' ...` so there's no trailing newline):
 
 | File | Used by |
 |---|---|
-| `postgres_password` | postgres (`POSTGRES_PASSWORD_FILE`); api, workers, mlflow read it via an entrypoint shim |
+| `postgres_password` | postgres (`POSTGRES_PASSWORD_FILE`); api, workers read it via an entrypoint shim |
 | `jwt_secret` | api, workers (Pydantic `secrets_dir`) |
-| `minio_access_key` / `minio_secret_key` | api, workers (Pydantic); minio + mlflow via entrypoint shim |
+| `minio_access_key` / `minio_secret_key` | api, workers (Pydantic); minio via entrypoint shim |
 | `clickhouse_password` | api, workers (Pydantic); clickhouse via entrypoint shim |
 | `roboflow_api_key` | api, workers (Pydantic, optional) |
 | `sentry_dsn` | api, workers (Pydantic, optional — empty file = Sentry off) |
@@ -305,14 +303,13 @@ the inference worker actually pegs CPU during a batch).
 | clickhouse | 2.0 | 4G | Columnar engine wants page-cache headroom |
 | redis | 1.0 | 512M | Small dataset, LRU eviction |
 | minio | 1.0 | 1G | Mostly proxying to disk |
-| mlflow | 0.5 | 512M | UI + REST, rare load |
 | prometheus | 1.0 | 1G | 7-day TSDB on a single api scrape target |
 | grafana | 0.5 | 512M | Single-user admin |
 
 ### Dropped ports
 
 Only **api:8000** and **grafana:3000** are bound externally. Postgres,
-Redis, MinIO (both 9000 + 9001), ClickHouse, MLflow, and Prometheus
+Redis, MinIO (both 9000 + 9001), ClickHouse, and Prometheus
 stay on the internal `seedbank-net` bridge — reach them with
 `docker compose exec` or via Grafana's pre-provisioned datasource.
 
@@ -350,7 +347,7 @@ docker compose -f compose.yaml -f compose.prod.yaml restart api worker-cpu worke
 
 Postgres password rotation is a two-step: `ALTER USER seedbank WITH
 PASSWORD '...'` first, then update `secrets/postgres_password` and
-restart everything that talks to Postgres (api, workers, mlflow).
+restart everything that talks to Postgres (api, workers).
 Skip step 1 and you'll lock yourself out.
 
 A real secret-rotation tool (Vault, sealed-secrets, etc.) is post-Phase-10.

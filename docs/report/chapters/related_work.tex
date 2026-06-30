@@ -1,286 +1,317 @@
 \chapter{Related Work}
 
-This chapter reviews the research and engineering that Seed Bank builds on. It
-moves from the application domain (computer vision for seed and grain quality)
-through the model families the platform uses (object detectors and attention
-classifiers), into the area that mattered most for getting the project off the
-ground (synthetic data for training detectors without hand-labelling), and
-finally to the operational side (managing many model versions in production). The
-last section sets prior work against what this project actually delivers and
-explains where the two differ.
+This chapter sets out the background the project builds on. It starts with how
+seed quality is checked today, by hand, in a working seed bank. It then surveys
+five existing systems that automate part of that job, and notes where each one
+falls short of what we need. From there it moves to the computer-vision ideas
+behind our pipeline (object detectors and attention classifiers), the
+synthetic-data techniques that let us train a detector without labelling
+thousands of seeds by hand, and a short review of where AI sits in agriculture
+more broadly. The chapter closes with a comparison of prior work against what
+Seed Bank delivers.
 
-\section{Automated Seed and Grain Quality Assessment}
+\section{Traditional methods of seed analysis}
 
-Grading seeds and grain by eye is slow and inconsistent between graders, so the
-problem has attracted machine vision for a long time. Early systems took a
-photograph of seeds against a controlled background, segmented each kernel with
-classical image processing (thresholding, edge detection, morphological
-operations), and then fed hand-engineered features to a shallow classifier.
-Typical features were colour histograms, geometric descriptors such as area,
-perimeter, eccentricity and aspect ratio, and texture statistics from
-co-occurrence matrices. These pipelines work when the imaging rig is fixed and
-the seeds are well separated, because every stage assumes a clean, predictable
-input. They degrade quickly once lighting drifts, the background changes, or
-kernels touch and overlap, since the segmentation step has no model of what a
-seed looks like and treats any connected blob as one object.
+Before a seed batch is accepted into a seed bank for long-term storage, it has
+to pass a physical inspection that decides whether the seeds are fit to keep.
+For most of the history of seed banking this has been done entirely by hand,
+relying on the eye and experience of the person doing the grading.
 
-Convolutional networks removed the need to design features by hand. Instead of
-choosing which colour and texture statistics matter, a CNN learns them from
-labelled examples, which is what makes deep models so much more tolerant of the
-messy conditions that break classical pipelines. The survey by Kamilaris and
-Prenafeta-Bold\'u \cite{kamilaris2018deepag} catalogues this shift across
-agriculture: yield prediction, weed and crop classification, fruit counting,
-and quality grading all moved from hand-crafted features to learned
-representations over a few years, with consistent accuracy gains where enough
-labelled data was available. The recurring caveat in that survey is data. Deep
-models need many labelled images, and in agriculture the labels are expensive
-because they require an agronomist, not a crowd worker.
+The standard procedure is a physical examination carried out by a trained
+taxonomist or seed-bank technician. It is often called a purity analysis. The
+technician looks over the seed sample under a magnifying lens, a
+stereomicroscope, or a light table so that small features are easier to see.
+The first job is to separate pure seed from inert matter such as soil, chaff,
+or plant debris, so that what gets stored is actually seed and not background
+material taking up freezer space.
 
-Plant pathology shows the same pattern at finer detail. Mohanty et al.
-\cite{mohanty2016plant} trained CNNs to recognise crop diseases from leaf
-photographs and reached high accuracy on a curated dataset, but the same paper
-reports that accuracy fell sharply on images taken under conditions different
-from the training set. That gap between a clean benchmark and field photographs
-is the central practical problem for any agricultural vision system, and it is
-the reason this project treats data variety as a first-class concern rather than
-an afterthought.
+Once the pure seed is isolated, the technician judges each one against a set of
+physical criteria: size, shape, surface texture, and colour consistency. Seeds
+that look shrivelled, cracked, or discoloured are set aside, as are seeds that
+show signs of insect predation or fungal infection. Only seeds that meet the
+visual standard for health and structural integrity are passed on to the next
+stage. This step matters because a single infected or damaged seed can spoil a
+whole storage container, so the cost of missing a bad seed is high.
 
-Two design lessons carry over into Seed Bank. First, quality assessment of a
-photograph that contains many seeds is really two problems, not one: finding
-each seed, then judging it. Classical single-stage classifiers conflate the two
-and fail on cluttered images. Second, the quality bottleneck is labelled data,
-especially for the detection stage, where every seed in every image needs a
-bounding box. Both lessons shape the architecture described in the following
-sections.
+The weakness of this process is that it is slow, it does not scale, and it
+varies between graders. Two technicians can disagree on a borderline seed, and
+the same technician can drift over a long shift. That inconsistency, together
+with the sheer time it takes, is what motivates an automated alternative.
 
-\section{Object Detection Architectures}
+\section{Existing solutions}
 
-The first stage of the Seed Bank pipeline locates every seed in an image and
-assigns it a crop class. This is object detection, and the field has settled
-into two broad families that trade accuracy against speed.
+To understand the current landscape we looked at five systems, ranging from
+industrial machinery to open-source research code. Each automates some part of
+seed inspection, but most of them target growth potential (germination) or
+species identification rather than the physical quality checks that long-term
+storage actually requires.
+
+\subsection{LemnaTec SeedAIxpert}
+
+The LemnaTec SeedAIxpert \cite{lemnatec2026seedaixpert} is the reference point
+for large corporate seed labs and plant breeders. It is an all-in-one hardware
+and software product built around an imaging cabinet with controlled lighting,
+so that every photograph is taken under identical conditions and the AI software
+can produce reproducible scores. It is designed for high throughput, processing
+large quantities of seed and replacing subjective human grading with
+standardised numbers.
+
+Relevance to our project: the strength of the system is also its barrier, which
+is accessibility. It depends on custom, costly hardware and careful calibration
+that is impractical for a typical university seed bank or a smaller conservation
+effort. Its closed design also means we cannot adapt its algorithms to the
+specific physical defects we care about. Our aim is to reach useful accuracy
+from ordinary photographs without a dedicated imaging rig.
+
+\subsection{PCS Agri Track}
+
+PCS Agri Track \cite{pcsagri2026track} is a commercial product aimed at
+nurseries, built to modernise inventory management and germination tracking.
+Unlike the industrial lab equipment it runs on mobile and web, which lowers the
+barrier to entry. It moves nurseries away from manual counting by digitising
+the tracking process and recording data over time, such as germination curves.
+
+Relevance to our project: the main drawback is its reliance on cloud processing
+and a stable internet connection, which is not always available in the field.
+Users have also reported that the interface is hard to follow and that the
+models generalise poorly, working for common nursery seeds but struggling with
+the diverse or rare species a seed bank holds. It still needs manual
+intervention for edge cases, which undercuts the goal of automation.
+
+\subsection{Seedy}
+
+Seedy \cite{seedy2026app} is a mobile app for hobbyist gardeners, botanists, and
+educators. Its purpose is on-demand seed identification and personal collection
+management. A user photographs a seed with a phone camera, and the app's
+recognition model returns the species along with metadata and growing guides.
+
+Relevance to our project: Seedy shows that mobile seed analysis is both viable
+and easy to use, which supports our own mobile capture flow. Its scope, though,
+is strictly identification. It tells the user what a seed is, not how healthy it
+is. It does not measure physical metrics or scan for damage and disease, which
+is exactly the gap we are trying to fill.
+
+\subsection{GerminationPrediction}
+
+In the academic sphere the GerminationPrediction project of Grimm et al.
+\cite{grimm2024germination} is a useful reference. It is open source, uses a
+Faster R-CNN detector trained on a public dataset of over twenty-three thousand
+images, and automates germination assessment by counting how many seeds in a
+batch have sprouted.
+
+Relevance to our project: this is the closest match technically, since it also
+uses a CNN-based detector. The biological focus is different, though. They
+measure viability (whether a seed will grow), while we measure physical
+integrity (whether a seed is sound enough to store). A seed can be viable enough
+to sprout and still carry cracks or fungal spores that make it risky to store in
+a shared freezer. We borrow their open-source, reproducible approach but retrain
+the focus toward defect detection rather than sprout counting.
+
+\subsection{Multi-View Oil Palm system}
+
+The Multi-View Oil Palm project \cite{oilpalmmvcnn} pushes computer vision past
+the limits of a single image. It uses Multi-View CNNs (MVCNN) to analyse
+irregularly shaped oil palm seeds from several angles, which gives it a 3D
+understanding and strong accuracy on that crop.
+
+Relevance to our project: this work makes a point we take seriously, that a
+single top-down photograph can miss defects hidden on the side or underside of a
+seed. Their multi-view setup gives richer data, but it is specialised for oil
+palm and needs a complex rig to capture multiple angles. We aim for a middle
+ground: high accuracy from accessible single-view photographs, without the
+computational and hardware cost of a multi-view system.
+
+\section{Computer-vision background}
+
+The components below are the model families our pipeline is built from. Seed
+quality assessment of a photograph that contains many seeds is really two
+problems, not one. First find each seed, then judge it. The first stage is
+object detection and the second is per-seed classification. We describe the
+ideas behind each here and leave the wiring and results to later chapters.
 
 \subsection{Two-stage detectors}
 
 Two-stage detectors first propose regions that probably contain an object, then
 classify and refine each proposal. Faster R-CNN \cite{fasterrcnn2015} is the
-reference design: a Region Proposal Network shares convolutional features with
-the detection head and generates candidate boxes cheaply, replacing the slow
-external proposal methods used by earlier R-CNN variants. The shared backbone
-makes the whole detector trainable end to end and fast enough to be practical.
+reference design. A region proposal network shares features with the detection
+head and generates candidate boxes cheaply, which removed the slow external
+proposal step that earlier R-CNN variants depended on. Sharing features lets the
+whole detector train end to end and run fast enough to be practical.
 
-A backbone produces strong features at one scale, but seeds in a photograph vary
-in size depending on how close the camera is and how the kernels are arranged.
-The Feature Pyramid Network \cite{lin2017fpn} addresses this by combining the
-coarse, semantically strong features from deep layers with the fine, high-resolution
-features from shallow layers. This gives the detector a consistent representation
-across scales at little extra cost. The detection model wired into Seed Bank is
-torchvision's \texttt{fasterrcnn\_resnet50\_fpn}: a ResNet-50 backbone
-\cite{resnet2015} with an FPN neck and a three-class head
-(\texttt{background}, \texttt{coffee}, \texttt{maize}). This combination is a
-sensible default when detection accuracy matters more than raw throughput,
-which fits a quality-grading workload where each photo is analysed once and the
-result is stored.
+A backbone produces strong features at a single scale, but seeds in a photograph
+vary in size with camera distance and how the kernels are arranged. The Feature
+Pyramid Network \cite{lin2017fpn} addresses this by combining the coarse,
+semantically strong features from deep layers with the fine, high-resolution
+features from shallow layers, giving the detector a consistent representation
+across scales at little extra cost. This combination is a sensible default when
+detection accuracy matters more than raw speed, which fits a grading workload
+where each photo is analysed once and the result is stored.
 
 \subsection{One-stage detectors}
 
 One-stage detectors skip the proposal step and predict boxes and class scores
-directly from a single pass over the image. YOLO \cite{redmon2016yolo} introduced
-the idea by framing detection as a single regression over a grid, trading some
-localisation accuracy for a large speed gain. Later versions of the family closed
-much of the accuracy gap; the Ultralytics YOLOv8 release \cite{yolov8} is a widely
-used current implementation with strong tooling for training and export. Seed
-Bank does not commit to either family. Its inference layer exposes a YOLO
-backend (\texttt{ultralytics\_yolo}) alongside the torchvision Faster R-CNN
-backend, so a deployment can run a fast one-stage detector where latency is the
-priority, for example a conveyor-belt scanning station, or the more accurate
-two-stage detector elsewhere, without changing any calling code.
+directly in a single pass. YOLO \cite{redmon2016yolo} introduced the idea by
+framing detection as one regression over a grid, trading some localisation
+accuracy for a large speed gain. Later versions of the family closed much of
+that accuracy gap, and YOLOv8 \cite{yolov8} is a widely used current release
+with good tooling for training and export. Seed Bank does not commit to a single
+family. The inference layer can run either a fast one-stage detector where
+latency matters, for example a conveyor-belt scanning station, or the more
+accurate two-stage detector elsewhere, without changing the calling code.
 
-\subsection{Benchmark datasets}
+\subsection{Backbones and benchmarks}
 
-Both families are measured against shared public benchmarks, which is what makes
-results comparable across papers. ImageNet \cite{deng2009imagenet} provides the
-large classification dataset that backbones are pretrained on, and COCO
-\cite{lin2014coco} provides the detection benchmark with its standard mean
-average precision protocol. These datasets matter to Seed Bank in two concrete
-ways: the ResNet backbones it uses are ImageNet-pretrained, and the synthetic
-data generator described in Section~\ref{sec:ch2-synth} writes its annotations in
-COCO format, so generated datasets drop straight into standard detection
-training code.
+Both families rest on a backbone network and are measured against shared public
+benchmarks. Residual networks made very deep classifiers trainable by adding
+identity skip connections, so gradients reach early layers without vanishing
+\cite{resnet2015}. ResNet is the standard backbone choice, and its shallow
+member, ResNet-18, is small enough to run many seed crops per image quickly
+while still benefiting from pretraining. ImageNet \cite{deng2009imagenet}
+provides the large classification dataset that backbones are pretrained on, and
+COCO \cite{lin2014coco} provides the detection benchmark with its standard mean
+average precision protocol. These datasets matter to us in two concrete ways:
+the backbones we use are ImageNet-pretrained, and the synthetic data described
+in Section~\ref{sec:ch2-synth} is written in COCO format so generated datasets
+drop straight into standard detection training code.
 
-\section{Attention in Image Classifiers}
+Once a project trains more than one model it also needs a way to track what was
+trained, with which data, and how each version scored. Seed Bank keeps this
+record itself: each evaluation run stores its metrics in PostgreSQL alongside a
+Markdown report in object storage, so trained models can be recorded and compared
+without standing up a separate experiment-tracking service.
 
-The second stage of the pipeline takes each detected seed, crops it from the
-original image, and decides whether that single seed is good or bad. This is
-binary image classification on a small crop, and the architecture is a ResNet-18
-\cite{resnet2015} backbone with a Convolutional Block Attention Module
-\cite{cbam2018}.
+\subsection{Attention in the classifier}
 
-Residual networks made very deep classifiers trainable by adding identity skip
-connections, so gradients reach early layers without vanishing
-\cite{resnet2015}. ResNet-18 is the shallow member of that family, small enough
-to run many crops per image quickly while still benefiting from ImageNet
-pretraining. For a per-seed classifier that may be invoked dozens of times per
-photograph, the small backbone is the right trade.
+The second stage takes each detected seed, crops it from the original image, and
+decides whether that single seed is good or bad. This is binary classification
+on a small crop, and our classifier is a ResNet-18 backbone with a Convolutional
+Block Attention Module \cite{cbam2018}.
 
-Attention refines what a fixed backbone attends to. CBAM \cite{cbam2018} is a
-lightweight module that learns two attention maps in sequence: a channel map that
-reweights which feature channels matter, and a spatial map that reweights which
-positions matter. It plugs into an existing backbone with almost no parameter
-overhead and consistently improves classification accuracy in the original
-study. In the Seed Bank classifier the CBAM block is inserted after the final
-residual stage (\texttt{layer4}). The network then applies hybrid pooling that
-concatenates global-average and global-max pooled features (512 plus 512 into
-1024 features) before a single-logit head, and a sigmoid converts the logit into
-a good/bad score. The attention block helps the classifier focus on the
-discriminative part of a seed crop, such as a cracked or discoloured region,
-rather than spreading its response over the whole box. A separate classifier is
-trained for each crop type, which is why the detector groups its boxes by seed
-type before the classification stage runs.
+Attention refines what a fixed backbone pays attention to. CBAM is a lightweight
+module that learns two attention maps in sequence: a channel map that reweights
+which feature channels matter, and a spatial map that reweights which positions
+matter. It plugs into an existing backbone with almost no extra parameters and
+improved accuracy consistently in the original study. For a seed crop the
+attention block helps the classifier focus on the part that carries the verdict,
+such as a cracked or discoloured region, rather than spreading its response over
+the whole box. The pooled features then feed a small head that produces a
+good/bad score. We train a separate classifier per crop type, which is why the
+detector groups its boxes by seed type before classification runs.
 
-\section{Synthetic Data and Cut-and-Paste Augmentation}
+\section{Synthetic data and cut-and-paste augmentation}
 \label{sec:ch2-synth}
 
 This is the area that decided whether the project was feasible. Training the
-detector needs images of mixed seeds with a bounding box drawn around every
-single kernel. Producing that by hand is the labelling bottleneck the
-agriculture surveys warn about: an annotator must click out hundreds of small,
-similar, overlapping objects per image, and a useful training set runs to
-thousands of images. The companion tool MultiSeedGen removes that step by
-synthesising labelled detection data instead of collecting it, and its design
-draws directly on the synthetic-data literature.
-
-\subsection{Cut-and-paste compositing}
+detector needs images of mixed seeds with a bounding box around every kernel.
+Producing that by hand is the labelling bottleneck: an annotator has to click
+out hundreds of small, similar, overlapping objects per image, and a useful
+training set runs to thousands of images. The companion tool MultiSeedGen
+removes that step by generating labelled detection data instead of collecting
+it, and its design draws on the synthetic-data literature.
 
 The core technique is cut-and-paste synthesis. Dwibedi et al.
 \cite{dwibedi2017cutpaste} showed that pasting cropped object instances onto
-varied background images produces training data good enough to train competitive
-detectors, because a detector mostly needs to see an object's local appearance in
-many contexts, not a globally coherent scene. The key finding in that work is
-that the paste does not have to look realistic to a human: as long as the local
-patch statistics are varied, the detector generalises to real images. The
-main advantage is that the label comes for free. When the generator places a
-seed cut-out at a known position and scale, it knows the exact bounding box,
-so every synthetic image is perfectly annotated with no human in the loop.
-
-MultiSeedGen implements this for seeds. It segments individual seed cut-outs from
-single-seed source photographs, then composites many of them onto a chosen
-background to build a multi-seed scene, recording a bounding box and class for
-every placed seed. Because placement is controlled, the generator also writes a
-per-image multi-label count CSV and COCO annotations that carry provenance for
-each instance: the source file it came from, and the scale, rotation, shear and
-perspective applied to it. That provenance is unusual for a synthetic dataset and
-makes a generated set auditable rather than opaque.
-
-\subsection{Extracting clean cut-outs}
+varied backgrounds produces training data good enough for competitive
+detectors, because a detector mostly needs to see an object's local appearance
+in many contexts, not a globally coherent scene. The paste does not have to look
+realistic to a human. As long as the local patches are varied, the detector
+still generalises to real images. The payoff is that the label comes for free:
+when the generator places a seed cut-out at a known position and scale, it
+already knows the exact bounding box, so every synthetic image is perfectly
+annotated with no human in the loop.
 
 Cut-and-paste only works if the object crops are clean, with the background
-removed down to the object's true outline. MultiSeedGen offers a cascade of
-segmentation backends for this. Classical methods (border-colour thresholding,
-Otsu, OpenCV GrabCut) handle clean and high-contrast backgrounds with no extra
-dependencies. For harder, feathered edges it falls back to rembg, which runs the
-U\textsuperscript{2}-Net salient-object model \cite{qin2020u2net} to separate
-foreground from background. For the most difficult cases it can use Segment
-Anything \cite{kirillov2023sam}, a promptable segmentation model that produces
-high-quality masks from a box or point prompt. Both learned backends are
-import-guarded and optional, so the default install stays light and only pulls in
-torch when SAM is explicitly enabled. The cut-out quality is gated by a
-confidence score, and low-scoring masks are dropped before they reach the
-compositing stage.
+removed down to the seed's true outline. For the easy cases, classical
+thresholding handles high-contrast backgrounds with no extra dependencies. For
+feathered edges the U\textsuperscript{2}-Net salient-object model
+\cite{qin2020u2net} separates foreground from background, and for the hardest
+cases Segment Anything \cite{kirillov2023sam} produces high-quality masks from a
+box or point prompt. The learned backends are optional, so a basic install stays
+light, and low-quality masks are dropped before they reach the compositing step.
 
-\subsection{Domain randomization and augmentation}
+A detector trained on synthetic images still has to transfer to real
+photographs. The standard answer is domain randomization: vary the synthetic
+data so widely that the real distribution looks like just another sample. Tobin
+et al. \cite{tobin2017domainrand} introduced the idea for simulation, randomising
+textures, lighting, and placement so a model trained only on synthetic data
+transfers to the real world. MultiSeedGen applies the same idea by randomising
+backgrounds, per-seed geometry (scale, rotation, flip, shear, perspective), and
+photometric conditions (gamma, blur, noise, vignetting) so the generated set
+spans far more variation than a hand-collected set would. These transforms sit
+inside the broader augmentation literature surveyed by Shorten and Khoshgoftaar
+\cite{shorten2019augmentation}, which finds that geometric and photometric
+perturbation reduces overfitting across vision tasks, and libraries such as
+Albumentations \cite{buslaev2020albumentations} made these transforms fast and
+annotation-aware, which matters because moving an image must move its boxes with
+it.
 
-A detector trained on synthetic images must transfer to real photographs, and
-the standard answer is to vary the synthetic data so widely that the real
-distribution looks like just another sample. Tobin et al.
-\cite{tobin2017domainrand} introduced domain randomization for exactly this
-purpose, randomising textures, lighting and object placement in simulation so a
-model trained only on synthetic data transfers to the real world without seeing a
-single real image during training. MultiSeedGen applies the same idea to its
-scenes. It randomises backgrounds (solid, gradient, noise, texture, and real
-background crops), per-seed geometry (scale, rotation, flip, shear, perspective
-jitter), and photometric conditions (gamma, blur, motion blur, sensor noise and
-vignetting) so the generated set spans far more variation than a hand-collected
-set would.
+One design point is worth calling out because it is easy to get wrong. The
+generator enforces a deterministic train/validation split in which a source seed
+reserved for validation never appears in any training image. This is the
+leakage-safe split. Without it the model in effect sees the validation seeds
+during training and reports an inflated score, so the split has to be decided at
+the source-seed level rather than the image level.
 
-These transforms sit within the broader image augmentation literature, surveyed
-by Shorten and Khoshgoftaar \cite{shorten2019augmentation}, which establishes
-that geometric and photometric perturbation reduces overfitting and improves
-generalisation across vision tasks. Augmentation libraries such as Albumentations
-\cite{buslaev2020albumentations} made these transforms fast and bbox-aware,
-which matters because moving an image must move its annotations with it.
-MultiSeedGen handles this carefully: geometric warps that would shift a box at
-the scene level (scene-wide shear or perspective) are avoided, and the per-seed
-equivalents are instead applied to each cut-out before placement, so the box is
-recomputed from the warped alpha mask and stays exact. The pipeline also guards
-against the failure modes that quietly poison a synthetic detection set: it clips
-or drops out-of-bounds boxes, limits overlap between placed seeds by an IoU
-threshold, balances classes during sampling, mixes background-only negative
-images to suppress false positives, and enforces a deterministic train/validation
-split where a source seed reserved for validation never appears in any training
-image. The last point prevents data leakage, where the model in effect sees the
-validation seeds during training and reports an inflated score.
+\section{AI in agriculture}
 
-\section{MLOps, Model Registries and Experiment Tracking}
+AI is now a routine part of modern agriculture rather than an experiment. The
+shift is driven by pressure on the sector: arable land is shrinking and climate
+conditions are more volatile, so the older "yield at all costs" mindset has given
+way to a precision-first one, where efficiency and resilience matter as much as
+raw output. The survey by Kamilaris and Prenafeta-Bold\'u
+\cite{kamilaris2018deepag} documents this move across agriculture, from yield
+prediction to weed and crop classification to quality grading, all shifting from
+hand-crafted features to learned representations with steady accuracy gains where
+labelled data was available.
 
-Training a model is the start; serving and managing many model versions over time
-is the part that decides whether a system stays trustworthy. As soon as a project
-trains more than one model, it needs to track what was trained, with which data
-and parameters, how each version scored, and which version is actually serving
-traffic. MLflow \cite{mlflow2018} is a common open-source answer, providing
-experiment tracking (params, metrics and artifacts per run) and a model registry
-with lifecycle stages a model moves through on its way to production.
+In precision farming, models combine satellite imagery, soil-sensor readings,
+and local weather forecasts into field-level prescriptions for how much water or
+input each area needs. Closer to our problem is fine-grained computer vision for
+quality control. Where ordinary detection just identifies a crop type,
+fine-grained methods pick up subtle within-class differences such as hairline
+fractures, surface discoloration, or early-stage fungal damage that often escape
+the human eye. Mohanty et al. \cite{mohanty2016plant} show both the promise and
+the catch: their CNNs reached high accuracy at recognising crop diseases from
+leaf photographs on a curated dataset, but accuracy dropped sharply on images
+taken under conditions different from the training set.
 
-Seed Bank follows this pattern but implements the registry and serving inside its
-own domain so that model identity is tied directly to its results. Every model is
-a row in a \texttt{model\_artifacts} table carrying its kind, backend, weights
-location, builder key, per-model configuration, and a lifecycle status that runs
-\texttt{registered} to \texttt{staging} to \texttt{production} to
-\texttt{archived}, with promotion exposed as an explicit API action. Only staging
-or production models may serve. Offline evaluation runs a model over a labelled
-dataset, computes classification metrics, and logs the run to MLflow with a saved
-report, so a model can be assessed before it is promoted. At serving time a
-traffic router selects the model for a given segment, supports weighted A/B splits
-with a sticky per-user bucket so the same user always lands on the same model, and
-falls back to a production model when no split is configured. Every prediction is
-recorded as an inference row linked to the exact model version that produced it,
-which gives full traceability from a stored seed label back to its model. This is
-the operational discipline that most published vision work, which stops at a
-trained checkpoint, does not address.
+That last result points to the barriers the field still faces. The first is
+capital cost: sensors and autonomous machinery carry a high upfront price that
+keeps smaller operations out. The second is the digital divide, a widening gap
+between fully integrated commercial farms and smallholders. The third is the one
+that shaped our own work most: dataset variability and domain generalization.
+Seed diversity and lighting changes break models trained on a narrow set, and
+the usual fix is to collect local data and retrain for the specific harvest. The
+gap between a clean benchmark and field photographs is the central practical
+problem for any agricultural vision system, and it is the reason we treat data
+variety as a first-class concern rather than an afterthought.
 
-\section{Comparative Analysis}
+\section{Comparative analysis}
 
 The components above are individually well established. What distinguishes this
-project is not a new model but how the pieces are assembled into a traceable,
-operable system, and the decision to remove the data-labelling bottleneck with a
+project is not a new model but how the pieces are assembled into one workable
+pipeline, and the decision to remove the data-labelling bottleneck with a
 purpose-built generator rather than working around it.
 
 Most prior work in seed and grain vision is a single artifact: one classifier or
-one detector, trained in a notebook against a hand-labelled dataset, evaluated
-once, and reported. Such a system answers one question (is this seed good, or
-where are the seeds) but not the combined question the domain actually asks, which
-is how many seeds are in this photo and how many of them are bad. It carries no
-record of which model version produced a given result, so a result cannot be
-reproduced or audited after the fact. It is usually trained on a dataset that was
-labelled by hand, which caps the dataset size and therefore the accuracy. And it
-is a model, not a product: there is no API, no client, and no path to swap a
-model without retraining and redeploying everything.
+one detector, trained against a hand-labelled dataset and evaluated once. Such a
+system answers one question, either "where are the seeds" or "is this seed good",
+but not the combined question the domain actually asks, which is how many seeds
+are in this photo and how many of them are bad. It is usually trained on a
+hand-labelled dataset, which caps the dataset size and therefore the accuracy.
 
-Seed Bank differs on each of these points. It chains a detector and a per-type
-classifier into one pipeline so a single photograph yields a located, per-seed
-good/bad verdict and an aggregate report. Detection and classification are
-recorded as separate inference rows over the same image, so each stage can be
-versioned, swapped, and A/B-tested on its own. Every seed label links back to the
-exact model version that produced it. The same backend serves a web client, a
-mobile point-and-shoot flow, and a conveyor-belt batch mode from one inference
-path. And the data-labelling bottleneck is solved at the source by MultiSeedGen,
-which generates perfectly labelled multi-seed detection data with controlled
-variety and provenance, so the detector can be trained at a scale that
-hand-labelling could not reach. Table~\ref{tab:ch2-compare} summarises the
-contrast.
+Seed Bank differs on each point. It chains a detector and a per-type classifier
+into one detect-then-classify pipeline, so a single photograph yields a located,
+per-seed good/bad verdict and an aggregate report. It supports multiple crop
+types, each with its own classifier, with detections grouped by type before the
+classification stage. And the labelling bottleneck is attacked at the source by
+MultiSeedGen, which generates perfectly labelled multi-seed data with controlled
+variety, so the detector can be trained at a scale that hand-labelling could not
+reach. Table~\ref{tab:ch2-compare} summarises the contrast.
 
 \begin{singlespace}
 \begin{longtable}{p{0.30\textwidth} p{0.31\textwidth} p{0.31\textwidth}}
-\caption{Typical prior work in seed/grain vision versus the Seed Bank platform.}
+\caption{Typical prior work in seed and grain vision versus the Seed Bank platform.}
 \label{tab:ch2-compare} \\
 \toprule
 \textbf{Dimension} & \textbf{Typical prior work} & \textbf{Seed Bank} \\
@@ -298,18 +329,6 @@ Two-stage detect-then-classify pipeline producing per-seed verdicts and an aggre
 Quality question answered &
 ``where are the seeds'' \emph{or} ``is this seed good'' &
 ``how many seeds, and how many are bad'' over a mixed photo \\
-Deployment form &
-A notebook or a single trained checkpoint &
-A served platform with a REST API behind web, mobile and conveyor-belt clients \\
-Model management &
-One fixed model; replacing it means retraining the system &
-Registry with a \texttt{registered}$\rightarrow$\texttt{production} lifecycle, hot reload, and per-segment selection \\
-Comparing models &
-Evaluated once, offline, by hand &
-Offline evaluation against labelled datasets plus weighted A/B splits with sticky per-user routing \\
-Traceability &
-No record of which model produced a result &
-Every seed label links to the exact model version via an inference row \\
 Crop types &
 Usually one species, fixed at training &
 Multiple crop types, each with its own classifier; detections grouped by type \\
@@ -318,14 +337,14 @@ Hand-labelled, which caps dataset size &
 Synthetic cut-and-paste generation with free, exact labels and controlled variety \\
 Data integrity &
 Leakage and label errors are easy to miss &
-Deterministic leak-free split, IoU-limited overlap, box clipping, and per-instance provenance \\
+Leakage-safe split at the source-seed level, with controlled overlap and box clipping \\
 \end{longtable}
 \end{singlespace}
 
 The wider point is that the contribution sits at the system level. Each model
-family here is taken from published work and used as intended; the originality is
-in binding detection, per-type classification, a versioned registry with A/B
-serving, full traceability, and a synthetic-data generator into one platform that
-a non-researcher can run, and in attacking the labelling bottleneck head-on
-rather than living with a small hand-labelled dataset. The chapters that follow
-describe how that system is built.
+family here is taken from published work and used as intended. The originality is
+in binding detection, per-type classification, and a synthetic-data generator
+into one tool that a non-researcher can run, and in attacking the labelling
+bottleneck head-on rather than living with a small hand-labelled dataset. The
+chapters that follow describe how that system is built and how it performs; the
+experimental numbers are reported in the evaluation in Chapter~\ref{ch:testing}.
