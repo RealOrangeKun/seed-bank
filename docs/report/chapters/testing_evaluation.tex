@@ -63,282 +63,178 @@ T-07 & Generator & A train/validation split is built from the seed pool. & No so
 \end{longtable}
 \end{singlespace}
 
-\section{Datasets}
+\subsection{Datasets}
 \label{sec:ch6-datasets}
 
-The models were trained and evaluated on data drawn from four sources, chosen so
-the system would see more than one capture condition. Public seed datasets are
-usually shot in a controlled lab, and a model trained only on that kind of image
-tends to fail on a photo taken with a phone under ordinary light. Mixing sources
-was the main defence against that.
+To ensure robust model training and domain adaptation, we compiled a diverse collection of datasets spanning multiple crop species, including extensive variants of maize~\cite{naagar2025corn, roboflow2025maize}, pepper~\cite{roboflow20Pepper}, garlic~\cite{roboflow20Garlic}, and soybean~\cite{kaggle20SoybeanClass, github20Soypr, kaggle20SoybeanHealthy}, as well as general quality and segregation sets~\cite{roboflow2025seedquality, mendeley20SeedQual, mendeley20SeedDecay, roboflow20Segregation}. Rather than relying solely on these raw images, we utilized the MultiSeedGen application to extract the single seeds and synthesize massive training configurations.
 
-The first source is the NAGAR maize dataset, built on the IIIT-Hyderabad corn
-seed benchmark~\cite{naagar2025corn}. We used the balanced variant and removed
-noisy labels to improve quality. For the classifier the data is reduced to two
-classes: good, which is healthy pure corn, and bad, which combines the broken,
-discoloured, and silkcut defects.
+By applying rigorous geometric and photometric augmentations—such as scale jittering, camera degradation, and perspective warping—the tool generated dense, lab-like multi-seed composites with dynamic bounding boxes that flawlessly mimicked real-life manual annotations. 
 
-The second source is a maize dataset from Roboflow with 26{,}350
-images~\cite{roboflow2025seedquality}. Unlike the lab-controlled NAGAR set, it
-spans a wide range of lighting and texture and is already split into binary good
-and bad classes. Combining it with NAGAR produced what we call the hybrid
-dataset.
+Furthermore, the generated synthetic data was utilized adjacent to the original, high-density maize dataset during training. Because the original maize dataset naturally captured complex, real-world spatial relations and authentic physical occlusions, mixing it with the highly augmented synthetic data allowed the final model to generalize effectively across diverse environments without overfitting to localized lab conditions or synthetic textures.
 
-The third source is a smaller but densely annotated detection set of 600
-high-density images used to train and stress-test the localization
-models~\cite{roboflow2025maize}. Every seed carries a bounding box, and the boxes
-are labelled across seven maize classes: broken (2{,}927), damage (3{,}766),
-fungus (1{,}510), immature (1{,}721), shriveled (1{,}618), weeveled (1{,}835),
-and healthy (1{,}706).
 
-The fourth source is a coffee parchment dataset, the dried endocarp of the coffee
-bean, with good and bad classes. It was added to check whether the design
-generalizes to a second crop with a different shape and spatial arrangement.
+\section{Test Cases and Results}
+\label{sec:ch6-test-cases}
 
-\section{Object Detection Results}
+The testing and evaluation framework is systematically divided into two distinct subsections to independently validate the dual-stage architecture of the data pipeline. 
+
+The first subsection analyzes the performance of the stage-one spatial object detection models benchmarking architectures such as YOLO and Faster R-CNN—by evaluating their general localization metrics, bounding box precision, and ability to successfully isolate dense, overlapping seed clusters within complex backgrounds.
+
+The second subsection presents an analysis of the stage-two quality classification network. This section details the performance of the custom EfficientNet-B2 model in performing fine-grained, multi-label defect categorization, evaluating its true diagnostic capability through standard statistical metrics including precision, recall, F1-score, and overall accuracy across all diverse crop classes.
+
+\subsection{Object Detection Results}
 \label{sec:ch6-detection}
 
-The first stage of the pipeline locates each seed. We evaluated Faster
-R-CNN~\cite{fasterrcnn2015} in four configurations, with and without a CBAM
-attention block~\cite{cbam2018}, on maize alone and on maize and coffee together.
-Detection quality is reported as mean average precision at three intersection
-thresholds: mAP@50, the stricter mAP@75, and the COCO average over 0.50 to 0.95.
-Table~\ref{tab:ch6-frcnn} collects the results.
+For object detection, evaluation is done using mean Average Precision (mAP), which measures how well the model predicts both the correct class and the correct bounding box. In this work, the main reported metrics are mAP@0.50, which measures detection quality at an IoU threshold of 0.50, mAP@0.75, which is a stricter measure requiring more precise localization, and mAP@0.50:0.95, which averages performance over IoU thresholds from 0.50 to 0.95 in steps of 0.05 and gives a more complete view of detector performance. Together, these metrics make it possible to evaluate both general detection accuracy and how precisely the predicted boxes match the ground truth.
 
-\begin{singlespace}
-\begin{longtable}{@{}p{0.40\textwidth}p{0.13\textwidth}p{0.13\textwidth}p{0.13\textwidth}p{0.10\textwidth}@{}}
-\caption{Faster R-CNN detection results across configurations.}
-\label{tab:ch6-frcnn}\\
-\toprule
-\textbf{Configuration} & \textbf{mAP@50} & \textbf{mAP@75} & \textbf{mAP .5:.95} & \textbf{Time (s)} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Configuration} & \textbf{mAP@50} & \textbf{mAP@75} & \textbf{mAP .5:.95} & \textbf{Time (s)} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-Faster R-CNN, maize only          & 0.9780 & 0.6574 & 0.5903 & 0.1511 \\
-\addlinespace
-Faster R-CNN + CBAM, maize only   & 0.9768 & 0.6576 & 0.5867 & 0.0621 \\
-\addlinespace
-Faster R-CNN, maize \& coffee     & 0.9838 & 0.8015 & 0.7038 & 0.1038 \\
-\addlinespace
-Faster R-CNN + CBAM, maize \& coffee & 0.9835 & 0.8020 & 0.7211 & 0.1106 \\
-\end{longtable}
-\end{singlespace}
+The first experiment used a Swin Transformer backbone with a Feature Pyramid Network (FPN). The Swin backbone was chosen because it can learn strong hierarchical features, while the FPN helps combine information from different scales so the model can detect seeds of different sizes in the same image. In theory, this is a strong architecture for object detection, but in practice it overfitted because the dataset was too small and not diverse enough for such a powerful backbone. The model likely learned the training images too well and struggled to generalize to new seed samples.
 
-Two patterns stand out. On the single-class maize task, adding CBAM did not help;
-the standard and attention models score within a thousandth of each other on
-mAP@50, so the extra complexity bought nothing on an easy, single-class set. On
-the harder two-crop task the picture changes. Moving from maize-only to mixed
-maize-and-coffee data lifted every metric, and the jump is largest on the strict
-thresholds: mAP@75 rises from about 0.66 to about 0.80 and the COCO average from
-0.59 to 0.70. Adding more variety to the training data helped the detector more
-than any architectural change did. On that mixed set CBAM gave a small but real
-gain on the strictest metric, nudging the COCO average from 0.7038 to 0.7211,
-which fits the idea that attention earns its cost on harder, more varied inputs.
+\begin{table}[h]
+\centering
+\begin{tabular}{l c}
+\hline
+Metric & Value \\
+\hline
+Training Time (AVG) & 430.08 s \\
+mAP@50 & 0.9487 \\
+mAP@75 & 0.5543 \\
+mAP@0.50:0.95 & 0.5827 \\
+\hline
+\end{tabular}
+\caption{Results for the first test using Swin backbone with FPN.}
+\label{tab:first_test}
+\end{table}
 
-For deployments where speed matters more than the last point of accuracy, we also
-trained a one-stage YOLOv8 detector~\cite{redmon2016yolo,yolov8}. It reaches an
-mAP@50 of 0.941 with a precision of 0.939 and a recall of 0.941, at roughly
-5.5~ms per image, which is far faster than Faster R-CNN and is why the prototype
-offers it as a fast mode.
+In the second experiment, CIoU (Complete Intersection over Union) loss was added to improve bounding box regression. CIoU is designed to make box predictions more accurate by considering overlap, center distance, and aspect ratio, so it was a reasonable attempt to reduce the localization errors seen in the first test. However, the model still overfitted, although the problem was somewhat reduced. This did not fully solve the generalization issue, but it did improve the testing scores compared with normal IoU, especially at stricter thresholds.
 
-\section{Seed Quality Classification Results}
+\begin{table}[h]
+\centering
+\begin{tabular}{l c}
+\hline
+Metric & Value \\
+\hline
+Training Time (AVG) & 729.53 s \\
+mAP@50 & 0.9805 \\
+mAP@75 & 0.7078 \\
+mAP@0.50:0.95 & 0.6585 \\
+\hline
+\end{tabular}
+\caption{Results for the second test using Swin backbone with FPN and CIoU loss.}
+\label{tab:second_test}
+\end{table}
+
+In the third experiment, the backbone was changed to ResNet-50 and Faster R-CNN was used as the detector. This architecture is more classic and stable than the previous setup, and it helped reduce overfitting because it is generally less complex than a transformer-based backbone. Faster R-CNN is a two-stage detector, so it first proposes candidate regions and then classifies them more carefully, which makes it a good choice when accuracy and stability matter more than speed. Even though the testing metrics were lower than the previous experiment, the model performed better on real data, which suggests better practical generalization.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{l c}
+\hline
+Metric & Value \\
+\hline
+Training Time (AVG) &  \\
+mAP@50 & 0.8697 \\
+mAP@75 & 0.5466 \\
+mAP@0.50:0.95 & 0.5253 \\
+\hline
+\end{tabular}
+\caption{Results for the third test using ResNet-50 backbone with Faster R-CNN.}
+\label{tab:third_test}
+\end{table}
+
+In the fourth experiment, PANet was added to the Faster R-CNN architecture with the CIoU. PANet improves information flow between feature levels, which helps the model detect objects more effectively across different scales. This was useful for seed detection because the seeds can appear at different sizes and positions in the image. Adding PANet increased the performance, especially at stricter IoU thresholds, showing that better multi-scale feature fusion can improve localization quality.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{l c}
+\hline
+Metric & Value \\
+\hline
+Training Time (AVG) & 391.98 s \\
+mAP@50 & 0.8524 \\
+mAP@75 & 0.6952 \\
+mAP@0.50:0.95 & 0.6142 \\
+\hline
+\end{tabular}
+\caption{Results for the fourth test using ResNet-50 backbone with Faster R-CNN and PANet.}
+\label{tab:fourth_test}
+\end{table}
+\subsection{YOLOv8 on a Smaller Dataset}
+
+YOLOv8 was also tested as an alternative detector because it is a lighter and faster architecture than the two-stage models. This makes it a better fit for a smaller dataset, where a simpler model can generalize more easily and avoid the overfitting that happened with heavier solutions. YOLOv8 also runs in a single pass, so it is much faster during training and inference, which is useful when speed matters as much as accuracy. In this case, YOLOv8 achieved strong performance while keeping the training time lower than the more complex models.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{l c}
+\hline
+Metric & Value \\
+\hline
+Average Training Time per Epoch & 23.0--23.9 s \\
+Best mAP@50 & 0.975 \\
+Best mAP@75 & 0.943 \\
+Best mAP@0.50:0.95 & 0.937 \\
+\hline
+\end{tabular}
+\caption{YOLOv8 results on the smaller dataset.}
+\label{tab:yolov8_results}
+\end{table}
+
+\subsection{Quality Classification Model Performance (EfficientNet-B2)}
 \label{sec:ch6-classification}
 
-The second stage takes each detected seed and labels it good or bad. The
-classifier is a ResNet-18~\cite{resnet2015} that we extended in four steps to
-measure the effect of each change: V1 is the plain baseline, V2 adds a CBAM
-attention block~\cite{cbam2018}, V3 adds global max pooling alongside the usual
-average pooling, and V4 adds a stride change in the final stage. We trained this
-family twice, once on the original NAGAR data and once on the hybrid set that
-adds the Roboflow images. Table~\ref{tab:ch6-clf-summary} shows the headline
-comparison between the baseline on each.
+The second stage of the pipeline employs the modified EfficientNet-B2 architecture to perform fine-grained, multi-label defect classification. Evaluating the most complex configurations—specifically the 7-class multi-label setups for both the maize and soybean datasets—reveals a stark contrast in generalization capabilities driven entirely by dataset quality.
 
-\begin{singlespace}
-\begin{longtable}{@{}p{0.26\textwidth}p{0.22\textwidth}p{0.11\textwidth}p{0.11\textwidth}p{0.12\textwidth}@{}}
-\caption{Baseline classifier on the NAGAR and hybrid datasets.}
-\label{tab:ch6-clf-summary}\\
-\toprule
-\textbf{Model} & \textbf{Training data} & \textbf{Acc.} & \textbf{F1} & \textbf{Time} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Model} & \textbf{Training data} & \textbf{Acc.} & \textbf{F1} & \textbf{Time} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-Baseline ResNet-18 & NAGAR only        & 96.19\% & 0.9626 & 70.05\,s \\
-\addlinespace
-Hybrid ResNet-18   & NAGAR + Roboflow   & 97.39\% & 0.9745 & 143.50\,s \\
-\end{longtable}
-\end{singlespace}
+The maize model demonstrated highly robust learning, culminating in a peak macro-F1 score of 0.9740. This success is directly attributable to the dataset's composition: the original maize seeds were photographed under natural sunlight with high-quality cameras, organically embedding environmental noise and variable lighting conditions. This allowed the model to generalize effectively. Conversely, the soybean model rapidly converged to an artificially high macro-F1 score of 0.9936, a clear indicator of severe overfitting. Because the soybean source data consisted primarily of pre-segmented bounding boxes captured in sterile, lab-controlled environments, the network merely memorized the clean pixel distributions and failed to learn the robust features necessary to ignore real-world background artifacts.
 
-\subsection{Validation performance}
+\begin{table}[h]
+\centering
+\begin{tabular}{l c c c c c}
+\hline
+Epoch & Train Loss & Val Loss & Macro-F1 & Micro-F1 & Exact Match \
+\hline
+001 & 0.5436 & 0.2695 & 0.8078 & 0.8016 & 0.6224 \
+003 & 0.1436 & 0.1027 & 0.9253 & 0.9242 & 0.8658 \
+005 & 0.0576 & 0.0555 & 0.9641 & 0.9640 & 0.9387 \
+007 & 0.0255 & 0.0447 & \textbf{0.9740} & 0.9740 & 0.9565 \
+\hline
+\end{tabular}
+\caption{Validation results for the 7-class Maize classification model, showing stable convergence.}
+\label{tab:maize_classification}
+\end{table}
 
-On held-out validation data the four variants all score highly, which is expected
-because validation data comes from the same distribution as training.
-Tables~\ref{tab:ch6-clf-nagar-val} and \ref{tab:ch6-clf-hybrid-val} report the
-variants on the NAGAR and hybrid sets.
+\begin{table}[h]
+\centering
+\begin{tabular}{l c c c c c}
+\hline
+Epoch & Train Loss & Val Loss & Macro-F1 & Micro-F1 & Exact Match \
+\hline
+001 & 0.5190 & 0.2614 & 0.8114 & 0.7977 & 0.6464 \
+004 & 0.0740 & 0.0516 & 0.9603 & 0.9597 & 0.9278 \
+008 & 0.0113 & 0.0235 & 0.9889 & 0.9888 & 0.9829 \
+012 & 0.0054 & 0.0203 & \textbf{0.9936} & 0.9936 & 0.9916 \
+\hline
+\end{tabular}
+\caption{Validation results for the 7-class Soybean model, indicating rapid overfitting due to lab-controlled data.}
+\label{tab:soybean_classification}
+\end{table}
 
-\begin{singlespace}
-\begin{longtable}{@{}p{0.30\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}@{}}
-\caption{Classifier variants on the NAGAR dataset (validation).}
-\label{tab:ch6-clf-nagar-val}\\
-\toprule
-\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-V1 Baseline ResNet-18    & 0.9626 & 0.9623 & 0.9768 & 0.9489 \\
-\addlinespace
-V2 + CBAM                & 0.9760 & 0.9757 & 0.9869 & 0.9653 \\
-\addlinespace
-V3 + CBAM + GMP          & 0.9758 & 0.9755 & 0.9821 & 0.9696 \\
-\addlinespace
-V4 + CBAM + GMP + Stride & 0.9734 & 0.9730 & 0.9797 & 0.9671 \\
-\end{longtable}
-\end{singlespace}
+Despite the application of extensive augmentations during the data generation phase, the inherent nature of our two-stage pipeline poses a unique challenge. Because the localization stage extracts and feeds an immensely detailed, high-resolution crop to the classifier, the network preserves a massive amount of local information. If the dataset size is insufficient, the model struggles to abstract these details and frequently hallucinates when exposed to Out-Of-Distribution (OOD) data. The architecture ultimately performs exceptionally well only when it can be pretrained on a highly diverse, domain-specific sample—which is why the maize dataset yielded superior real-world performance.
 
-\begin{singlespace}
-\begin{longtable}{@{}p{0.30\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}@{}}
-\caption{Classifier variants on the hybrid dataset (validation).}
-\label{tab:ch6-clf-hybrid-val}\\
-\toprule
-\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-V1 Baseline ResNet-18    & 0.9779 & 0.9776 & 0.9846 & 0.9714 \\
-\addlinespace
-V2 + CBAM                & 0.9789 & 0.9786 & 0.9846 & 0.9732 \\
-\addlinespace
-V3 + CBAM + GMP          & 0.9792 & 0.9789 & 0.9822 & 0.9763 \\
-\addlinespace
-V4 + CBAM + GMP + Stride & 0.9767 & 0.9764 & 0.9839 & 0.9696 \\
-\end{longtable}
-\end{singlespace}
+This limitation concerning dataset scale and complexity was further evident in the binary classification runs, such as the garlic dataset. With a severely limited pool of only 1,000 to 2,000 images, the binary task was structurally too simplistic. The network quickly memorized the limited variations, overfitting to a 0.9527 macro-F1 score in merely five epochs. Empirical observations from these trials suggest that to fully mitigate overfitting and ensure robust OOD generalization in a two-stage pipeline, datasets must theoretically scale closer to 100,000 images captured under realistic, highly variable environmental conditions.
 
-Three things are visible. Adding the Roboflow data raises the baseline F1 by
-roughly 1.5 points, from 0.9626 to 0.9779, before any architecture change. CBAM
-(V2) gives the largest single jump in precision on both sets. And V3, which adds
-global max pooling, reaches the highest recall, which makes sense because max
-pooling responds to sharp local defects and so catches more of the bad seeds.
-
-\subsection{Performance on unseen data}
-
-Validation numbers flatter a model. The real test is data the model has never
-seen, drawn from a different distribution, where domain shift bites.
-Tables~\ref{tab:ch6-clf-nagar-test} and \ref{tab:ch6-clf-hybrid-test} report the
-same variants on an out-of-distribution test set.
-
-\begin{singlespace}
-\begin{longtable}{@{}p{0.30\textwidth}p{0.11\textwidth}p{0.10\textwidth}p{0.13\textwidth}p{0.10\textwidth}p{0.13\textwidth}@{}}
-\caption{Classifier variants trained on NAGAR, evaluated on unseen data (test).}
-\label{tab:ch6-clf-nagar-test}\\
-\toprule
-\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-V1 Baseline & 0.7722 & 0.5832 & 0.7568 & 0.4746 & 0.6766 \\
-\addlinespace
-V2 + CBAM   & 0.7920 & 0.5892 & 0.7768 & 0.4746 & 0.6906 \\
-\addlinespace
-V3 + GMP    & 0.7722 & 0.5162 & 0.7763 & 0.3866 & 0.6442 \\
-\addlinespace
-V4 + Stride & 0.7821 & 0.5349 & 0.8125 & 0.3987 & 0.6585 \\
-\end{longtable}
-\end{singlespace}
-
-\begin{singlespace}
-\begin{longtable}{@{}p{0.30\textwidth}p{0.11\textwidth}p{0.10\textwidth}p{0.13\textwidth}p{0.10\textwidth}p{0.13\textwidth}@{}}
-\caption{Classifier variants trained on the hybrid dataset, evaluated on unseen data (test).}
-\label{tab:ch6-clf-hybrid-test}\\
-\toprule
-\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Variant} & \textbf{Acc.} & \textbf{F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Combined} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-V1 Baseline & 0.8062 & 0.7477 & 0.6328 & 0.9136 & 0.7769 \\
-\addlinespace
-V2 + CBAM   & 0.8130 & 0.7499 & 0.6470 & 0.8918 & 0.7815 \\
-\addlinespace
-V3 + GMP    & 0.7725 & 0.7259 & 0.5841 & 0.9588 & 0.7492 \\
-\addlinespace
-V4 + Stride & 0.8318 & 0.7687 & 0.6769 & 0.8894 & 0.8003 \\
-\end{longtable}
-\end{singlespace}
-
-The drop from validation to test is large and worth stating plainly. A model
-trained on NAGAR alone falls from an F1 near 0.97 on validation to about 0.58 on
-unseen data, because it learned the lab look of its training set. Training on the
-hybrid set recovers most of that loss: the peak test F1 rises from 0.5892 to
-0.7687, and recall climbs as high as 0.9588 for V3. The lesson is the one the
-detection results pointed at too. Diverse training data, not a cleverer
-architecture, is the main defence against domain shift. Among the hybrid-trained
-variants, V4 is the most balanced, with the highest test accuracy (83.18\%) and
-the best combined score (0.8003).
-
-\subsection{The second crop}
-
-To check that the design carries to a different seed, we ran the same four
-variants on the coffee dataset. Table~\ref{tab:ch6-clf-coffee} reports the test
-results.
-
-\begin{singlespace}
-\begin{longtable}{@{}p{0.30\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.12\textwidth}@{}}
-\caption{Classifier variants on the coffee dataset (test).}
-\label{tab:ch6-clf-coffee}\\
-\toprule
-\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Variant} & \textbf{F1} & \textbf{Combined} & \textbf{Precision} & \textbf{Recall} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-V1 Baseline ResNet-18    & 0.9056 & 0.8984 & 0.8898 & 0.9219 \\
-\addlinespace
-V2 + CBAM                & 0.9023 & 0.8957 & 0.8988 & 0.9058 \\
-\addlinespace
-V3 + CBAM + GMP          & 0.9101 & 0.9028 & 0.8877 & 0.9335 \\
-\addlinespace
-V4 + CBAM + GMP + Stride & 0.9000 & 0.8921 & 0.8803 & 0.9206 \\
-\end{longtable}
-\end{singlespace}
-
-V3 is the best variant on coffee, with the highest F1 (0.9101) and recall
-(0.9335), the same combination of attention and max pooling that did best on
-maize. That the same design wins on two crops with different shapes is a small
-piece of evidence that the attention blocks belong in the later layers of the
-network, where they filter high-level features rather than low-level edges.
+\begin{table}[h]
+\centering
+\begin{tabular}{l c c c c c}
+\hline
+Epoch & Train Loss & Val Loss & Macro-F1 & Micro-F1 & Exact Match \
+\hline
+001 & 0.3381 & 0.1843 & 0.9229 & 0.9229 & 0.9080 \
+003 & 0.1568 & 0.1466 & 0.9419 & 0.9419 & 0.9350 \
+005 & 0.0875 & 0.1159 & \textbf{0.9527} & 0.9527 & 0.9484 \
+\hline
+\end{tabular}
+\caption{Validation results for the binary Garlic classification model, showing immediate overfitting on a small dataset.}
+\label{tab:garlic_classification}
+\end{table}
 
 \section{System Performance and Latency}
 \label{sec:ch6-perf}

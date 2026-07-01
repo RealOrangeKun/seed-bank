@@ -25,45 +25,54 @@ There are four primary components. The frontend is a React application \cite{rea
 
 \section{Key implementation details}
 
+======================================================
+
+\subsection{Computer-vision background}
+
+The computer vision pipeline is built to solve two distinct problems. The first is an inter-class problem: separating different seed types from one another within a mixed photograph. The second is an intra-class problem: addressing the quality differences between individual seeds of the same type. These correspond to object detection and per-seed classification, respectively. The following sections describe the model families used for each stage, leaving the detailed implementation and results to later chapters.
+
+\subsection{Two-stage detectors}
+
+Our detection model uses a ResNet backbone to extract strong visual features from the image, while the FPN and PANet help combine information from different feature levels so the model can detect both small and large objects better. In Faster R-CNN, the Region of Interest (ROI) part selects important areas from the image and classifies them more accurately. During training, CIoU is used to improve bounding box regression by making the predicted box overlap, center distance, and aspect ratio closer to the ground truth. Together, these components make the model more accurate and reliable for object detection.
+ResNet backbone is the feature extractor at the start of the model. It takes the image and learns useful patterns like edges, shapes, and textures, so the detector has a strong representation of what is in the image.
+
+FPN (Feature Pyramid Network) helps the model use features from different scales. This is important because small objects need fine details, while large objects need broader context, so FPN combines information from multiple levels of the network.
+
+PANet (Path Aggregation Network) improves on FPN by strengthening the flow of information between low-level and high-level features. In simple terms, it helps the model pass details more effectively so detection becomes better, especially for objects of different sizes.
+
+ROI (Region of Interest) refers to the important areas in the image that the detector focuses on after proposals are made. In Faster R-CNN, these regions are cropped and analyzed more carefully so the model can classify the object and refine its box.
+
+CIoU (Complete Intersection over Union) is a loss function used to make bounding box predictions better. It does not just compare overlap, but also considers the distance between box centers and the box shape, which makes localization more accurate.
+
+Faster R-CNN architecture is a two-stage object detection model. First, it finds possible object regions, then it classifies them and adjusts the boxes more precisely, which makes it accurate and reliable, though usually slower than one-stage models like YOLO.
+
+\figslot[1.0]{fasterRCNN-architecture.pdf}{The Faster R-CNN detection architecture, showing the ResNet backbone, the FPN for multi-scale features, and the RPN and ROI head for detection and classification.}{fig:detector-arch}
+
+The second stage is quality classification. To perform multi-label defect classification on individual isolated crops, the pipeline utilizes a deep convolutional neural network optimized for fine-grained feature extraction. Rather than relying on a standard off-the-shelf classifier, the architecture is a modified variant of EfficientNet-B2 integrated with a Convolutional Block Attention Module (CBAM) and a hybrid pooling layer.\cite{tan2019efficientnet} 
+
+The system leverages an ImageNet-pretrained EfficientNet-B2 to serve as the primary feature extractor, CBAM Attention Layer is inserted immediately after the final feature map of the backbone. CBAM applies a sequential dual-attention mechanism. 
+
+Channel Attention determines what defect characteristics to emphasize across channels, while Spatial Attention isolates where those defects are located on the physical seed geometry. Crucially, this attention block is wrapped in a residual connection to refine existing backbone features without degrading the network's underlying gradient stream.
+
+Hybrid Pooling Head is the standard global average pooling layer is replaced with a concurrent, hybrid concatenation layout. By running Global Average Pooling (GAP) and Global Max Pooling (GMP) in parallel and splicing their outputs the network simultaneously tracks smooth structural global patterns alongside highly localized, sharp defect signals (such as microscopic fungal patches or fine cracks).
+
+\figslot[1.0]{EfficientNet-architecture.pdf}{The EfficientNet-B2 defect classification architecture}{fig:detector-arch}
+
+\subsection{One-stage detectors}
+
+As a prominent class of one-stage architectures, single-shot detectors bypass the traditional region proposal phase entirely, enabling the simultaneous prediction of bounding box coordinates and corresponding class probabilities within a single forward pass. This unified approach was pioneered by YOLO \cite{redmon2016yolo}, which reformulated the object detection problem as a singular regression task mapped across a global grid framework. While this design strategy exchanges a marginal degree of spatial localization precision for a massive optimization in computational speed, it also yields strong generalization properties. Because the network processes images globally, it effectively learns robust representations that resist overfitting to localized environmental noise, thereby facilitating smoother transfer learning and superior domain adaptation when trained on synthetic datasets. 
+
+
 \subsection{The two-stage detection and classification pipeline}
 
 Checking a photo of seeds is really two separate problems, and the
 implementation treats them as two models run one after the other. The first
 stage is detection. An object detector scans the whole image and returns, for
-every seed it finds, a bounding box, a confidence score, and the crop type. We
-support two crops, coffee and maize, so the detector tells us where each seed is
-and which of the two it is. One photo therefore becomes a set of located,
-labelled seeds.
+every seed it finds, a bounding box, a confidence score, and the crop type, so the detector tells us where each seed is and which of the two it is. One photo therefore becomes a set of located, labelled seeds.
 
-The detector is a Faster R-CNN \cite{fasterrcnn2015} with a ResNet-50 backbone
-\cite{resnet2015} and a Feature Pyramid Network \cite{lin2017fpn}. The feature
-pyramid lets the model find seeds at different sizes in the same image, which
-matters because a photo can hold a hundred seeds at slightly different distances
-from the camera. Faster R-CNN is the accurate option. For situations where speed
-matters more than the last point of accuracy, such as a conveyor-belt feed or a
-phone in the field, there is an optional YOLO mode \cite{redmon2016yolo, yolov8}
-that runs the detection in a single pass and is much faster, at some cost in
-precision.
+The detector is a Faster R-CNN \cite{fasterrcnn2015} with a ResNet-50 backbone \cite{resnet2015} and a Feature Pyramid Network \cite{lin2017fpn}. The feature pyramid lets the model find seeds at different sizes in the same image, which matters because a photo can hold a hundred seeds at slightly different distances from the camera. Faster R-CNN is the accurate option, while the second architecture, PANet, further strengthens feature flow across scales to improve detection of small and overlapping seeds. For situations where speed matters more than the last point of accuracy, such as a conveyor-belt feed or a phone in the field, there is an optional YOLO mode \cite{redmon2016yolo, yolov8} that runs the detection in a single pass and is much faster, at some cost in precision.
 
-The second stage is classification. For each detected seed, the backend crops
-that bounding box out of the original photo and sends the crop to a quality
-classifier, which returns good or bad with a confidence. The classifier is a
-ResNet-18 \cite{resnet2015}, chosen because it is small and fast enough to run
-over the many seeds in a single batch. We made two changes to the standard
-network. First, we inserted a CBAM attention block \cite{cbam2018}, which pushes
-the model to focus on the parts of a seed that signal a defect, such as a dark
-spot or a crack, instead of the overall shape. Second, instead of a single
-global-average pool we use a hybrid of global-average and global-max pooling:
-the average pool captures the general appearance of the seed and the max pool
-keeps sharp local features that an average would smooth away. There is one
-classifier per crop, a coffee classifier and a maize classifier, so detections
-are grouped by crop type and each group goes to its matching model.
-
-Keeping detection and classification as two separate models, rather than one
-model that tries to do everything, is the central design decision. It lets each
-stage use an architecture suited to its job: a detector tuned to tell crops apart
-and locate them, and a smaller classifier tuned to the fine-grained difference
-between a healthy and a defective seed of the same crop.
+The second stage of the pipeline is fine-grained, multi-label classification. For each isolated seed, the system extracts the bounding box crop from the original image and routes it to a specialized quality network, which outputs predictions across a vector of concurrent defect conditions alongside their respective confidence scores. The core architecture leverages an ImageNet-pretrained EfficientNet-B2 backbone \cite{tan2019efficientnet}, selected for its optimal depth-width-resolution scaling balance and high computational throughput when processing dense seed batches.
 
 \subsection{Model management and evaluation}
 
@@ -77,13 +86,12 @@ the application while the models run. This part stayed simple on purpose, since
 the prototype only needs to serve and compare a handful of models.
 
 Choosing which model actually runs for a given request is the job of the model
-resolver. Given a segment --- the kind of model needed (detection or
-classification) and, optionally, the seed type --- it resolves the model promoted
+resolver. Given a segment the kind of model needed (detection or classification) and, optionally, the seed type it resolves the model promoted
 to \texttt{production} for that exact segment; if none has been promoted and a
 seed type was supplied, it falls back to the global, seed-type-agnostic production
 model for that kind; and if nothing is routable it reports that no model is ready
-rather than failing silently. The decision is deterministic and stateless --- there
-is no weighted routing and no per-user bucket --- so the same request always
+rather than failing silently. The decision is deterministic and stateless there
+is no weighted routing and no per-user bucket so the same request always
 resolves to the same model, and a developer can override the choice with an
 explicit model on a single request. Figure~\ref{fig:model-resolution} shows the
 decision.
@@ -129,8 +137,7 @@ onto a background, the cut-and-paste idea from Dwibedi et al.
 \cite{dwibedi2017cutpaste}, varying the backgrounds so the detector does not just
 learn one surface. To stop the synthetic images from looking too clean and too
 similar to each other, MultiSeedGen applies domain-randomized augmentation: it
-randomizes the geometry of each seed, its rotation, scale, and placement, and the
-lighting and colour of the scene \cite{tobin2017domainrand,
+randomizes the geometry of each seed, its rotation, scale, and placement, and the lighting and colour of the scene \cite{tobin2017domainrand,
 shorten2019augmentation, buslaev2020albumentations}. The aim is for a model
 trained on these images to transfer to real photos, since it has seen a wide
 range of arrangements and conditions rather than one narrow style.
@@ -146,7 +153,7 @@ generated data drops straight into training.
 
 \section{Sample screenshots and output samples}
 
-This section shows the running system and the artefacts it produces.
+This section shows the running system and the results it produces.
 
 The end product of the two-stage pipeline is an annotated image.
 \autoref{fig:sample-output} shows the detector's boxes drawn back over a photo,
@@ -171,3 +178,22 @@ which seeds a given method dropped, and why, before running a full generation.
 \figslot{msg-seg-tuner.png}{MultiSeedGen segmentation tuner: kept and skipped
 cut-outs shown together so the segmentation quality can be checked before a full
 run.}{fig:msg-seg-tuner}
+
+
+------------------------
+
+The end product of processing an entire collection sample is the batch classification summary. \autoref{fig:batch-output-summary} illustrates the structured batch report generated after evaluating dense arrays of seeds, tracking unique filenames alongside their total detected element count. This output summarizes the core execution loop by coordinating individual localized crops into a single database format.
+
+\figslot{batch-output-summary.png}{Batch processing summary output: an evaluation overview mapping scanned sample images to their respective total detected seed counts.}{fig:batch-output-summary}
+
+{fig:seed-defect-analytics} displays the analytical dashboard tracking the total percentage of bad seeds and the ratio of individual defect categories across all processed images.
+
+\figslot{seed-defect-analytics.png}{Statistical distribution analytics: analytical graphs illustrating the total percentage of bad seeds and detailed defect categories scanned across the entire batch.}{fig:seed-defect-analytics}
+
+To handle multi-crop families seamlessly, the infrastructure maintains distinct directory paths for optimized weights. \autoref{fig:saved-models-directory} outlines the serialized model store housing active checkpoints for both the object detection layers and the fine-grained multi-label classification backbones. Detections are dynamically grouped by crop type and dispatched to these corresponding weights.
+
+\figslot{saved-models-directory.png}{Saved models repository: the file directory tree showing isolated checkpoint weights grouped by respective crop families and execution stages.}{fig:saved-models-directory}
+
+At a granular level, validation accuracy depends entirely on distinct feature boundaries. \autoref{fig:good-bad-crops} shows a curated compilation of the extracted seed crops, showcasing the structural contrast between healthy seeds and degraded samples. This highlights how the model decouples natural biological variance from physical deformities.
+
+\figslot{good-bad-crops-comparison.png}{Granular sample classification: isolated good seeds and bad seeds side by side, showcasing the clear morphological differences detected by the model.}{fig:good-bad-crops}

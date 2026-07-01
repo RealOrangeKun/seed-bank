@@ -1,0 +1,31 @@
+flowchart TD
+    A[Input Image] --> B[ResNet Backbone]
+    B --> C[FPN]
+    C --> D[PANet]
+    D --> E[RPN: Region Proposal Network]
+    E --> F[RoI Align / RoI Pooling]
+    F --> G[ROI Head]
+    G --> H[Classification Head]
+    G --> I[BBox Regression Head]
+    I --> J[CIoU Loss]
+    H --> K[Final Class Label]
+    I --> L[Final Bounding Box]
+
+    subgraph Backbone_Features[Feature Extraction]
+        B
+        C
+        D
+    end
+
+    subgraph Detection_Stage[Detection Stage]
+        E
+        F
+        G
+        H
+        I
+    end
+
+    subgraph Output[Outputs]
+        K
+        L
+    end
