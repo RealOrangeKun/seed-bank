@@ -92,6 +92,32 @@ class DatasetItemsAddedOut(BaseModel):
     added: int
 
 
+class DatasetUploadUrlIn(BaseModel):
+    """Request body for ``POST /datasets/{id}/upload-url``.
+
+    The browser asks the API to mint a short-lived presigned PUT URL, then
+    uploads the image bytes straight to MinIO (the bytes never traverse the
+    API). ``filename`` is used only to preserve the file extension on the
+    generated object key; the storage key itself is server-chosen.
+    """
+
+    model_config = STRICT_INPUT
+
+    filename: str = Field(min_length=1, max_length=256)
+    content_type: str = Field(min_length=1, max_length=128)
+
+
+class DatasetUploadUrlOut(BaseModel):
+    """A presigned PUT URL plus the storage key the client should record.
+
+    After PUT-ing the bytes to ``upload_url``, the client calls
+    ``POST /datasets/{id}/items`` with ``storage_key`` to register the item.
+    """
+
+    upload_url: str
+    storage_key: str
+
+
 __all__ = [
     "DatasetCreateIn",
     "DatasetItemCreateIn",
@@ -99,4 +125,6 @@ __all__ = [
     "DatasetItemsAddedOut",
     "DatasetItemsBulkIn",
     "DatasetOut",
+    "DatasetUploadUrlIn",
+    "DatasetUploadUrlOut",
 ]

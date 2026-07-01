@@ -3,10 +3,11 @@
 Replaces the three legacy artifacts (combined Faster R-CNN, ResNet18 coffee,
 ResNet18 maize) with the full set shipped in ``seed-bank-app/weights``:
 
-* **Stage-1 detector** — ``faster-rcnn-resnet50-pan-v1`` (20 superclasses),
-  backend ``torch_local``, with the ``class_map`` baked into its config so the
-  worker can route each crop to a specialist.
-* **YOLO one-shot detector** — ``best_YOLO11M.pt``, backend ``yolo``. A
+* **Stage-1 detector** — ``faster-rcnn-resnet50-pan-v4`` (background + 4 seeds:
+  coffee, maize, pepper, garlic), backend ``torch_local``, with the V4
+  ``class_map`` baked into its config so the worker can route each crop to a
+  specialist.
+* **YOLO one-shot detector** — ``yolo-v8-finale-v2.pt``, backend ``yolo``. A
   selectable alternative to the two-stage path (one model, 40 fine classes).
 * **10 EfficientNet-B2 specialists** — one per seed type that has a trained
   Stage-2 checkpoint, backend ``torch_local``, each carrying its ordered
@@ -39,11 +40,7 @@ from seedbank.core.logging import get_logger
 from seedbank.infrastructure.db.enums import ModelBackend, ModelKind, ModelStatus
 from seedbank.infrastructure.db.models import SeedType
 from seedbank.infrastructure.db.repositories import ModelArtifactRepository
-from seedbank.infrastructure.ml.seed_taxonomy import (
-    CLASS_MAP,
-    DETECTOR_BUILDER_KEY,
-    SPECIALISTS,
-)
+from seedbank.infrastructure.ml.seed_taxonomy import SPECIALISTS
 from seedbank.services.model_registry_service import (
     ModelRegistryService,
     RegisterModelInput,
@@ -66,8 +63,20 @@ _SPECIALIST_WEIGHTS: dict[str, str] = {
     "white_matar": "checkpoints_WhiteMatar/best_WhiteMatar.pt",
 }
 
-_DETECTOR_WEIGHTS = "fasterRCNN/FasterRcnn_Finale_V1.pth"
-_YOLO_WEIGHTS = "YOLOv11M/best_YOLO11M.pt"
+# Stage-1 Faster R-CNN V4 detector — background + 4 seed classes. The class id →
+# catalog seed_types.code map is confirmed by the trainer (RCNN_CLASS_MAP):
+# index 1=coffee, 2=maize, 3=pepper(black_pepper), 4=garlic. ``coffee`` has no
+# Stage-2 specialist, so coffee crops grade ``good`` by the default rule.
+_DETECTOR_BUILDER_KEY = "faster-rcnn-resnet50-pan-v4"
+_V4_CLASS_MAP: dict[int, str] = {
+    1: "coffee",
+    2: "maize",
+    3: "black_pepper",
+    4: "garlic",
+}
+
+_DETECTOR_WEIGHTS = "fasterRCNN/Resnet50FPN_PANet_CIoU_ROI_V4.pth"
+_YOLO_WEIGHTS = "YOLOV8/yolo-v8-finale-v2.pt"
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,35 +94,34 @@ class _Plan:
 def _build_plans() -> list[_Plan]:
     plans: list[_Plan] = [
         _Plan(
-            name="Faster R-CNN ResNet50-PAN Superclass Detector",
-            version="v1",
+            name="Faster R-CNN ResNet50-PAN V4 Detector",
+            version="v4",
             kind=ModelKind.DETECTION,
             backend=ModelBackend.TORCH_LOCAL,
-            builder_key=DETECTOR_BUILDER_KEY,
+            builder_key=_DETECTOR_BUILDER_KEY,
             weights_rel=_DETECTOR_WEIGHTS,
             seed_type_code=None,
             config={
-                "builder_key": DETECTOR_BUILDER_KEY,
-                "confidence_threshold": 0.5,
-                # Low NMS IoU: seeds are densely packed, so aggressively dedupe
-                # overlapping boxes on the same seed (applied to roi_heads.nms_thresh).
-                "iou_threshold": 0.1,
+                "builder_key": _DETECTOR_BUILDER_KEY,
+                # Trainer's RCNN_CONF_THRESH / RCNN_NMS_IOU_THRESH.
+                "confidence_threshold": 0.6,
+                "iou_threshold": 0.5,
                 "image_size": 448,
                 "two_stage": True,
                 # JSON object keys must be strings.
-                "class_map": {str(k): v for k, v in CLASS_MAP.items()},
+                "class_map": {str(k): v for k, v in _V4_CLASS_MAP.items()},
             },
         ),
         _Plan(
-            name="YOLOv11M One-Shot Seed Detector",
-            version="v1",
+            name="YOLOv8 One-Shot Seed Detector",
+            version="v2",
             kind=ModelKind.DETECTION,
             backend=ModelBackend.YOLO,
             builder_key="yolo",  # ignored by the ultralytics backend
             weights_rel=_YOLO_WEIGHTS,
             seed_type_code=None,
-            # Low NMS IoU (0.1) to dedupe overlapping boxes on densely packed seeds.
-            config={"confidence_threshold": 0.8, "iou_threshold": 0.1, "image_size": 640},
+            # Trainer's YOLO_CONF_THRESH / YOLO_NMS_IOU_THRESH.
+            config={"confidence_threshold": 0.5, "iou_threshold": 0.8, "image_size": 640},
         ),
     ]
     for spec in SPECIALISTS:

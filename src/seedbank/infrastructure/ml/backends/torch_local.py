@@ -26,6 +26,7 @@ from seedbank.infrastructure.ml.backends.base import (
     Detection,
     DetectionConfig,
 )
+from seedbank.infrastructure.ml.quality_keywords import quality_from_label
 
 if TYPE_CHECKING:  # pragma: no cover
     import torch
@@ -36,25 +37,21 @@ log = get_logger(__name__)
 
 _CLASS_NAMES = {0: "background", 1: "coffee", 2: "maize"}
 
-# Substrings that mark a specialist class as a *healthy* seed. Everything else
-# (cercospora, fungus, broken, weeveled, …) is treated as a defect → "bad".
-_HEALTHY_MARKERS = ("GOOD", "HEALTHY", "INTACT")
-
-
-def _is_healthy_class(name: str) -> bool:
-    upper = name.upper()
-    if "BAD" in upper:
-        return False
-    return any(marker in upper for marker in _HEALTHY_MARKERS)
-
 
 def _multilabel_classification(logits: torch.Tensor, cfg: ClassificationConfig) -> Classification:
     """Collapse an EfficientNet-B2 specialist's per-class sigmoids into the
-    platform's good/bad quality label while preserving the raw defect set.
+    platform's quality label, following the trainer's rule:
 
-    A crop is ``bad`` if any defect class crosses the threshold; if only healthy
-    classes (or nothing) fire, it's ``good``. Confidence is the probability of
-    the dominant class driving that decision.
+    * **exactly one** class above the threshold → that class decides good/bad
+      via the shared keyword rule (:func:`quality_from_label`: defect → bad,
+      else good);
+    * **zero** classes fired (no label) → ``uncertain``;
+    * **two or more** classes fired (multi-label) → ``uncertain``.
+
+    ``uncertain`` is the model's "can't tell" signal and is kept only for
+    observability — the worker stores it (and any ungraded detection) as
+    ``good``, so it still counts toward the good-rate. Confidence is the dominant
+    fired probability.
     """
     import torch
 
@@ -64,20 +61,24 @@ def _multilabel_classification(logits: torch.Tensor, cfg: ClassificationConfig) 
     # degrades gracefully instead of indexing past the end.
     n = min(len(classes), len(probs))
     fired = [(classes[i], probs[i]) for i in range(n) if probs[i] >= cfg.threshold]
-    defects = tuple(name for name, _ in fired if not _is_healthy_class(name))
 
-    if defects:
-        # Bad: confidence = strongest defect signal.
-        top = max((p for name, p in fired if not _is_healthy_class(name)), default=0.0)
+    if len(fired) != 1:
+        # No label or multi-label → uncertain. Keep the fired names as context.
+        top = max((p for _, p in fired), default=(max(probs[:n]) if n else 0.0))
         return Classification(
-            label="bad", confidence=float(top), raw_score=float(top), defects=defects
+            label="uncertain",
+            confidence=float(top),
+            raw_score=float(top),
+            defects=tuple(name for name, _ in fired),
         )
 
-    # No defect crossed the threshold → good. Confidence = strongest healthy
-    # signal, else 1 - strongest (uncertain) signal so it stays in [0, 1].
-    healthy = [p for name, p in fired if _is_healthy_class(name)]
-    conf = max(healthy) if healthy else 1.0 - (max(probs[:n]) if n else 0.0)
-    return Classification(label="good", confidence=float(conf), raw_score=float(conf))
+    # Exactly one class fired: a real class name always grades good/bad.
+    name, prob = fired[0]
+    quality = quality_from_label(name) or "good"
+    defects = (name,) if quality == "bad" else ()
+    return Classification(
+        label=quality, confidence=float(prob), raw_score=float(prob), defects=defects
+    )
 
 
 class TorchLocalBackend:

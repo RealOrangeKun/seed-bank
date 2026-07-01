@@ -62,6 +62,9 @@ export const en = {
   "camera.torch": "Flash",
   "camera.flip": "Flip camera",
   "camera.clearAll": "Clear all",
+  "camera.uploadVideo": "Upload video",
+  "camera.uploadingVideo": "Uploading video…",
+  "camera.videoNote": "Videos are analysed with the fast YOLO detector.",
 
   // Result
   "result.title": "Result",

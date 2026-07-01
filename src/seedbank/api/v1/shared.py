@@ -26,7 +26,12 @@ async def get_shared_batch(
     revoked, or the batch was deleted."""
     batch = await service.get_shared_batch(token=token)
     out = SharedBatchOut.model_validate(batch, from_attributes=True)
-    out = out.model_copy(update={"image_count": len(out.images)})
+    out = out.model_copy(
+        update={
+            "image_count": len(out.images),
+            "good_batch_threshold": service.settings.good_batch_threshold,
+        }
+    )
     return Envelope[SharedBatchOut](data=out)
 
 

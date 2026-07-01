@@ -10,12 +10,15 @@ const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & {
+    animateClose?: boolean;
+  }
+>(({ className, animateClose = true, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+      animateClose && "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
       className,
     )}
     {...props}
@@ -25,14 +28,26 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    overlayClassName?: string;
+    /**
+     * Whether to play the exit animation on close. Disable for dialogs whose
+     * close is triggered alongside a route change (e.g. the mobile nav drawer):
+     * the close commit can coincide with a lazy-route Suspense fallback, which
+     * orphans the exit animation so its `animationend` never fires and Radix's
+     * `Presence` leaves the overlay stuck on screen until the next navigation.
+     * With no exit animation, the overlay unmounts synchronously on close.
+     */
+    animateClose?: boolean;
+  }
+>(({ className, children, overlayClassName, animateClose = true, ...props }, ref) => (
   <DialogPrimitive.Portal>
-    <DialogOverlay />
+    <DialogOverlay animateClose={animateClose} className={overlayClassName} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out sm:rounded-lg",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in sm:rounded-lg",
+        animateClose && "data-[state=closed]:animate-out",
         className,
       )}
       {...props}

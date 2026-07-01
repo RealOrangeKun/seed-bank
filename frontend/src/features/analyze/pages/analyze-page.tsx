@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown, Film, ImageIcon, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Field } from "@/components/shared/field";
 import { FileDropzone } from "@/components/shared/file-dropzone";
 import { PageHeader } from "@/components/shared/page-header";
+import { VideoDropzone } from "@/components/shared/video-dropzone";
 import {
   ModelSelect,
   SeedTypeSelect,
@@ -39,7 +40,9 @@ export function AnalyzePage() {
   const { t, tn } = useI18n();
   const canOverrideModel = hasRole(user, ["ai_developer", "admin"]);
   const navigate = useNavigate();
+  const [tab, setTab] = useState<"images" | "video">("images");
   const [files, setFiles] = useState<File[]>([]);
+  const [video, setVideo] = useState<File | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const analyze = useAnalyze();
 
@@ -74,22 +77,39 @@ export function AnalyzePage() {
   });
 
   const onSubmit = form.handleSubmit(async (values) => {
-    if (files.length === 0) {
+    const isVideo = tab === "video";
+    if (isVideo && !video) {
+      toast.error(t("analyze.needVideo"));
+      return;
+    }
+    if (!isVideo && files.length === 0) {
       toast.error(t("analyze.needImage"));
       return;
     }
     try {
-      const batch = await analyze.mutateAsync({
-        files,
-        // An explicit model override (admin) wins; otherwise fast/accurate mode.
-        mode: canOverrideModel && values.modelId ? undefined : values.mode,
-        supplierId: values.supplierId || undefined,
-        seedTypeId: values.seedTypeId || undefined,
-        modelId: canOverrideModel ? values.modelId || undefined : undefined,
-        countryCode: values.countryCode || undefined,
-        gpsLat: values.gpsLat || undefined,
-        gpsLong: values.gpsLong || undefined,
-      });
+      const batch = await analyze.mutateAsync(
+        isVideo
+          ? {
+              // Video is always YOLO-only on the server; mode / seed type /
+              // model override are ignored, so we don't send them.
+              files: [video as File],
+              supplierId: values.supplierId || undefined,
+              countryCode: values.countryCode || undefined,
+              gpsLat: values.gpsLat || undefined,
+              gpsLong: values.gpsLong || undefined,
+            }
+          : {
+              files,
+              // An explicit model override (admin) wins; otherwise fast/accurate.
+              mode: canOverrideModel && values.modelId ? undefined : values.mode,
+              supplierId: values.supplierId || undefined,
+              seedTypeId: values.seedTypeId || undefined,
+              modelId: canOverrideModel ? values.modelId || undefined : undefined,
+              countryCode: values.countryCode || undefined,
+              gpsLat: values.gpsLat || undefined,
+              gpsLong: values.gpsLong || undefined,
+            },
+      );
       toast.success(t("analyze.started"));
       navigate(`/batches/${batch.id}`);
     } catch (err) {
@@ -102,27 +122,72 @@ export function AnalyzePage() {
       <PageHeader title={t("analyze.title")} description={t("analyze.description")} />
 
       <form onSubmit={onSubmit} className="space-y-6">
-        <Card>
-          <CardContent className="p-5">
-            <FileDropzone
-              files={files}
-              onChange={setFiles}
-              disabled={analyze.isPending}
-            />
-          </CardContent>
-        </Card>
+        <div
+          role="tablist"
+          aria-label={t("analyze.title")}
+          className="inline-flex rounded-lg border bg-muted/40 p-1"
+        >
+          {[
+            { value: "images" as const, label: t("analyze.tabImages"), Icon: ImageIcon },
+            { value: "video" as const, label: t("analyze.tabVideo"), Icon: Film },
+          ].map(({ value, label, Icon }) => {
+            const active = tab === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(value)}
+                className={`inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
 
         <Card>
           <CardContent className="p-5">
-            <Controller
-              control={form.control}
-              name="mode"
-              render={({ field }) => (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium">{t("analyze.mode")}</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {(
-                      [
+            {tab === "images" ? (
+              <FileDropzone
+                files={files}
+                onChange={setFiles}
+                disabled={analyze.isPending}
+              />
+            ) : (
+              <VideoDropzone
+                file={video}
+                onChange={setVideo}
+                disabled={analyze.isPending}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        {tab === "video" ? (
+          <Card>
+            <CardContent className="flex items-start gap-3 p-5 text-sm text-muted-foreground">
+              <Film className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p>{t("analyze.videoNote")}</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-5">
+              <Controller
+                control={form.control}
+                name="mode"
+                render={({ field }) => (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">{t("analyze.mode")}</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[
                         {
                           value: "fast" as const,
                           title: t("analyze.modeFast"),
@@ -133,34 +198,36 @@ export function AnalyzePage() {
                           title: t("analyze.modeAccurate"),
                           hint: t("analyze.modeAccurateHint"),
                         },
-                      ]
-                    ).map((opt) => {
-                      const active = field.value === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          aria-pressed={active}
-                          onClick={() => field.onChange(opt.value)}
-                          className={`rounded-lg border p-4 text-left transition-colors ${
-                            active
-                              ? "border-primary bg-primary/5 ring-1 ring-primary"
-                              : "border-border hover:bg-muted/50"
-                          }`}
-                        >
-                          <span className="block text-sm font-semibold">{opt.title}</span>
-                          <span className="mt-1 block text-xs text-muted-foreground">
-                            {opt.hint}
-                          </span>
-                        </button>
-                      );
-                    })}
+                      ].map((opt) => {
+                        const active = field.value === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => field.onChange(opt.value)}
+                            className={`rounded-lg border p-4 text-left transition-colors ${
+                              active
+                                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                : "border-border hover:bg-muted/50"
+                            }`}
+                          >
+                            <span className="block text-sm font-semibold">
+                              {opt.title}
+                            </span>
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              {opt.hint}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-            />
-          </CardContent>
-        </Card>
+                )}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="space-y-4 p-5">
@@ -177,24 +244,26 @@ export function AnalyzePage() {
 
             {showAdvanced ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  id="seedTypeId"
-                  label={t("analyze.seedType")}
-                  hint={t("analyze.seedTypeHint")}
-                  error={form.formState.errors.seedTypeId?.message}
-                >
-                  <Controller
-                    control={form.control}
-                    name="seedTypeId"
-                    render={({ field }) => (
-                      <SeedTypeSelect
-                        id="seedTypeId"
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-                </Field>
+                {tab !== "video" ? (
+                  <Field
+                    id="seedTypeId"
+                    label={t("analyze.seedType")}
+                    hint={t("analyze.seedTypeHint")}
+                    error={form.formState.errors.seedTypeId?.message}
+                  >
+                    <Controller
+                      control={form.control}
+                      name="seedTypeId"
+                      render={({ field }) => (
+                        <SeedTypeSelect
+                          id="seedTypeId"
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                        />
+                      )}
+                    />
+                  </Field>
+                ) : null}
                 <Field
                   id="supplierId"
                   label={t("analyze.supplier")}
@@ -219,7 +288,11 @@ export function AnalyzePage() {
                   hint={t("analyze.countryCodeHint")}
                   error={form.formState.errors.countryCode?.message}
                 >
-                  <Input id="countryCode" maxLength={2} {...form.register("countryCode")} />
+                  <Input
+                    id="countryCode"
+                    maxLength={2}
+                    {...form.register("countryCode")}
+                  />
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
                   <Field
@@ -237,7 +310,7 @@ export function AnalyzePage() {
                     <Input id="gpsLong" {...form.register("gpsLong")} />
                   </Field>
                 </div>
-                {canOverrideModel ? (
+                {canOverrideModel && tab !== "video" ? (
                   <Field
                     id="modelId"
                     label={t("analyze.modelOverride")}
@@ -267,9 +340,11 @@ export function AnalyzePage() {
         <div className="flex justify-end">
           <Button type="submit" size="lg" disabled={analyze.isPending}>
             {analyze.isPending ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-            {files.length > 0
-              ? `${t("analyze.submit")} · ${tn("images", files.length)}`
-              : t("analyze.submit")}
+            {tab === "video"
+              ? t("analyze.submitVideo")
+              : files.length > 0
+                ? `${t("analyze.submit")} · ${tn("images", files.length)}`
+                : t("analyze.submit")}
           </Button>
         </div>
       </form>

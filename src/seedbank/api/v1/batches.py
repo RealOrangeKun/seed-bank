@@ -18,9 +18,15 @@ import io
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
-from seedbank.api.deps import AnalyticsServiceDep, BatchServiceDep, CurrentUser
+from seedbank.api.deps import (
+    AnalyticsServiceDep,
+    BatchServiceDep,
+    CurrentUser,
+    require_role,
+)
+from seedbank.domain.user import Role
 from seedbank.schemas.analysis import (
     BatchBulkDeleteIn,
     BatchCompareIn,
@@ -103,8 +109,16 @@ async def get_batch(
     out = BatchDetailOut.model_validate(batch)
     # ``image_count`` isn't on the ORM — derive it from the eager-loaded
     # collection so the detail view is consistent with the analyze
-    # response shape.
-    out = out.model_copy(update={"image_count": len(out.images)})
+    # response shape. ``good_batch_threshold`` flows from Settings so the
+    # client's per-image verdict uses one configured cutoff. ``video_url`` is a
+    # presigned playback link for the annotated YOLO video (None for images).
+    out = out.model_copy(
+        update={
+            "image_count": len(out.images),
+            "good_batch_threshold": service.settings.good_batch_threshold,
+            "video_url": await service.presigned_video_url(batch),
+        }
+    )
     return Envelope[BatchDetailOut](data=out)
 
 
@@ -181,6 +195,9 @@ async def delete_batch(
 @router.get(
     "/{batch_id}/export.csv",
     response_class=Response,
+    # Detection-level export is a developer tool; end users get the PDF report
+    # the web app generates from the same data. ai_developer/admin only.
+    dependencies=[Depends(require_role(Role.AI_DEVELOPER))],
     responses={
         200: {
             "content": {"text/csv": {}},
@@ -213,7 +230,12 @@ async def export_batch_csv(
     )
 
 
-@router.get("/{batch_id}/export.json", response_model=Envelope[list[SeedDetectionOut]])
+@router.get(
+    "/{batch_id}/export.json",
+    response_model=Envelope[list[SeedDetectionOut]],
+    # Developer tool — see ``export_batch_csv``. ai_developer/admin only.
+    dependencies=[Depends(require_role(Role.AI_DEVELOPER))],
+)
 async def export_batch_json(
     batch_id: UUID,
     actor: CurrentUser,

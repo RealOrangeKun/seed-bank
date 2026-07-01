@@ -1,4 +1,13 @@
-import { ArrowLeft, Check, Copy, Download, MapPin, Share2, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  Download,
+  FileText,
+  MapPin,
+  Share2,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -39,7 +48,9 @@ import {
 } from "@/components/ui/table";
 import { useI18n } from "@/i18n";
 import { formatDateTime, formatDuration, humanize, shortId } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { ScanImageOut } from "@/lib/api/types";
+import { hasRole, useAuth } from "@/features/auth/use-auth";
 import { useSeedTypes } from "@/features/catalog/api";
 import { useModels } from "@/features/models/api";
 
@@ -55,7 +66,7 @@ import { AnalyzingIndicator } from "../components/analyzing-indicator";
 import { InsightsPanel } from "../components/insights-panel";
 import { OverlayControls, type QualityKey } from "../components/overlay-controls";
 import { SeedTypeBreakdown } from "../components/seed-type-breakdown";
-import { computeInsights } from "../insights";
+import { computeImageInsights, computeInsights, verdictFor } from "../insights";
 
 /** Resolve a seed-type id to its display name, falling back to a dash. */
 type Labeler = (id: string | null | undefined) => string;
@@ -71,16 +82,86 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/**
+ * Per-image good/bad verdict banner. An image is a "good batch" when its share
+ * of good seeds clears the configured threshold; below it is a "bad batch".
+ * Replaces the per-seed clutter for end users — the same info is still
+ * inspectable on hover in the bounding-box overlay.
+ */
+function VerdictBanner({
+  image,
+  threshold,
+}: {
+  image: ScanImageOut;
+  threshold: number;
+}) {
+  const { t } = useI18n();
+  const stats = computeImageInsights(image);
+  const verdict = verdictFor(stats.goodRate, threshold);
+  const label =
+    verdict === "good"
+      ? t("detail.verdictGood")
+      : verdict === "bad"
+        ? t("detail.verdictBad")
+        : t("detail.verdictNone");
+
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3",
+        verdict === "good" && "border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5",
+        verdict === "bad" && "border-destructive/30 bg-destructive/5",
+        verdict === null && "border-border bg-muted/30",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "rounded-full px-2.5 py-1 text-xs font-semibold",
+            verdict === "good" && "bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]",
+            verdict === "bad" && "bg-destructive/15 text-destructive",
+            verdict === null && "bg-muted text-muted-foreground",
+          )}
+        >
+          {label}
+        </span>
+        {stats.goodRate !== null ? (
+          <span className="text-sm font-medium">
+            {t("detail.goodSeedsPct", { pct: Math.round(stats.goodRate * 100) })}
+          </span>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="text-[hsl(var(--success))]">
+          {t("insights.good")}: {stats.good}
+        </span>
+        <span className="text-destructive">
+          {t("insights.bad")}: {stats.bad}
+        </span>
+        {stats.unclassified > 0 ? (
+          <span>
+            {t("detail.unclassified")}: {stats.unclassified}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ImageCard({
   image,
   url,
   seedTypeName,
   modelName,
+  isDeveloper,
+  threshold,
 }: {
   image: ScanImageOut;
   url: string | undefined;
   seedTypeName: Labeler;
   modelName: Labeler;
+  isDeveloper: boolean;
+  threshold: number;
 }) {
   const { t, tn } = useI18n();
   const inferences = image.inferences ?? [];
@@ -90,6 +171,8 @@ function ImageCard({
   const [active, setActive] = useState<Set<QualityKey>>(() => new Set(ALL_QUALITIES));
   const [minConfidence, setMinConfidence] = useState(0);
   const [showLabels, setShowLabels] = useState(false);
+  // Developer-only raw per-seed detail; collapsed by default.
+  const [showDetails, setShowDetails] = useState(false);
 
   const toggleQuality = (key: QualityKey) =>
     setActive((prev) => {
@@ -143,55 +226,72 @@ function ImageCard({
           <Skeleton className="aspect-video w-full" />
         )}
 
-        {inferences.length > 0 ? (
+        {detections.length > 0 ? (
+          <VerdictBanner image={image} threshold={threshold} />
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("detail.noSeedsDetected")}</p>
+        )}
+
+        {/* Raw model + per-seed detail is a developer concern; hidden for
+            end users (the overlay tooltip already exposes per-seed data). */}
+        {isDeveloper && inferences.length > 0 ? (
           <div className="space-y-3">
-            {inferences.map((inf) => {
-              const dets = inf.detections ?? [];
-              return (
-                <div key={inf.id} className="rounded-md border p-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">{humanize(inf.backend)}</Badge>
-                    <span className="inline-flex items-center gap-1">
-                      {modelName(inf.model_id)}
-                      <CopyButton value={inf.model_id} label={t("detail.copyModelId")} />
-                    </span>
-                    <span>·</span>
-                    <span>{formatDuration(inf.latency_ms)}</span>
-                    {inf.error ? (
-                      <span className="text-destructive">· {inf.error}</span>
-                    ) : null}
-                  </div>
-                  {dets.length > 0 ? (
-                    <Table className="mt-2">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{t("detail.colSeedType")}</TableHead>
-                          <TableHead>{t("detail.colQuality")}</TableHead>
-                          <TableHead>{t("detail.colConfidence")}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {dets.map((d) => (
-                          <TableRow key={d.id}>
-                            <TableCell>{seedTypeName(d.seed_type_id)}</TableCell>
-                            <TableCell>
-                              {d.quality ? <StatusBadge status={d.quality} /> : "—"}
-                            </TableCell>
-                            <TableCell>
-                              <ConfidenceBadge value={d.confidence} />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {t("detail.noSeedsDetected")}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDetails((s) => !s)}
+            >
+              {showDetails ? t("detail.hidePerSeed") : t("detail.showPerSeed")}
+            </Button>
+            {showDetails
+              ? inferences.map((inf) => {
+                  const dets = inf.detections ?? [];
+                  return (
+                    <div key={inf.id} className="rounded-md border p-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline">{humanize(inf.backend)}</Badge>
+                        <span className="inline-flex items-center gap-1">
+                          {modelName(inf.model_id)}
+                          <CopyButton value={inf.model_id} label={t("detail.copyModelId")} />
+                        </span>
+                        <span>·</span>
+                        <span>{formatDuration(inf.latency_ms)}</span>
+                        {inf.error ? (
+                          <span className="text-destructive">· {inf.error}</span>
+                        ) : null}
+                      </div>
+                      {dets.length > 0 ? (
+                        <Table className="mt-2">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t("detail.colSeedType")}</TableHead>
+                              <TableHead>{t("detail.colQuality")}</TableHead>
+                              <TableHead>{t("detail.colConfidence")}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {dets.map((d) => (
+                              <TableRow key={d.id}>
+                                <TableCell>{seedTypeName(d.seed_type_id)}</TableCell>
+                                <TableCell>
+                                  {d.quality ? <StatusBadge status={d.quality} /> : "—"}
+                                </TableCell>
+                                <TableCell>
+                                  <ConfidenceBadge value={d.confidence} />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {t("detail.noSeedsDetected")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })
+              : null}
           </div>
         ) : null}
       </CardContent>
@@ -203,13 +303,17 @@ export function BatchDetailPage() {
   const { batchId = "" } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { user } = useAuth();
+  const isDeveloper = hasRole(user, ["ai_developer", "admin"]);
   const batch = useBatch(batchId);
   const isTerminal =
     batch.data && ["succeeded", "partial", "failed"].includes(batch.data.status);
   const imageUrls = useBatchImageUrls(batchId, Boolean(isTerminal));
 
   const seedTypes = useSeedTypes();
-  const models = useModels({ page: 1, pageSize: 100 });
+  // Model names are only rendered in the developer-only per-seed detail, and
+  // `GET /models` is role-gated — so only fetch the list for developers.
+  const models = useModels({ page: 1, pageSize: 100 }, { enabled: isDeveloper });
   const deleteBatch = useDeleteBatch();
   const createShare = useCreateShare();
   const revokeShare = useRevokeShare();
@@ -232,6 +336,7 @@ export function BatchDetailPage() {
 
   const insights = batch.data ? computeInsights(batch.data) : null;
   const hasDetections = insights ? insights.total > 0 : false;
+  const threshold = batch.data?.good_batch_threshold ?? 0.65;
 
   const title = batch.data
     ? t("detail.titleDated", { date: formatDateTime(batch.data.submitted_at) })
@@ -246,6 +351,18 @@ export function BatchDetailPage() {
       toast.error(t("detail.exportFailed"));
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleReport() {
+    if (!batch.data) return;
+    try {
+      // Lazy-load the PDF generator (jsPDF is heavy) so it only ships to the
+      // browser when a user actually downloads a report.
+      const { generateBatchReportPdf } = await import("../report");
+      generateBatchReportPdf(batch.data, threshold, t);
+    } catch {
+      toast.error(t("detail.reportFailed"));
     }
   }
 
@@ -302,6 +419,10 @@ export function BatchDetailPage() {
             </Button>
             {isTerminal && hasDetections ? (
               <>
+                <Button variant="outline" onClick={handleReport}>
+                  <FileText className="h-4 w-4" />
+                  {t("detail.downloadReport")}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={handleShare}
@@ -310,22 +431,24 @@ export function BatchDetailPage() {
                   {createShare.isPending ? <Spinner /> : <Share2 className="h-4 w-4" />}
                   {t("share.button")}
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" disabled={exporting}>
-                      {exporting ? <Spinner /> : <Download className="h-4 w-4" />}
-                      {t("detail.export")}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleExport("csv")}>
-                      {t("detail.downloadCsv")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExport("json")}>
-                      {t("detail.downloadJson")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {isDeveloper ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" disabled={exporting}>
+                        {exporting ? <Spinner /> : <Download className="h-4 w-4" />}
+                        {t("detail.export")}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleExport("csv")}>
+                        {t("detail.downloadCsv")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport("json")}>
+                        {t("detail.downloadJson")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
               </>
             ) : null}
             <Button
@@ -408,17 +531,35 @@ export function BatchDetailPage() {
                   ) : null}
                 </>
               ) : null}
-              <div className="grid gap-4 lg:grid-cols-2">
-                {(batch.data.images ?? []).map((image) => (
-                  <ImageCard
-                    key={image.id}
-                    image={image}
-                    url={urlMap.get(image.id)}
-                    seedTypeName={seedTypeName}
-                    modelName={modelName}
-                  />
-                ))}
-              </div>
+              {batch.data.video_url ? (
+                <Card>
+                  <CardContent className="p-3">
+                    {/* Annotated result video (YOLO): boxes are burned into the
+                        clip server-side, so we just play it back. */}
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <video
+                      src={batch.data.video_url}
+                      controls
+                      playsInline
+                      className="max-h-[70vh] w-full rounded-md bg-black"
+                    />
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {(batch.data.images ?? []).map((image) => (
+                    <ImageCard
+                      key={image.id}
+                      image={image}
+                      url={urlMap.get(image.id)}
+                      seedTypeName={seedTypeName}
+                      modelName={modelName}
+                      isDeveloper={isDeveloper}
+                      threshold={threshold}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           )}
         </>

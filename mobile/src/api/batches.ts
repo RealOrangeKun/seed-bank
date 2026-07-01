@@ -56,6 +56,38 @@ export async function analyzeFrame(frame: CapturedPhoto): Promise<BatchOut> {
   return analyzePhotos([frame], "mobile_realtime");
 }
 
+/** A video picked from the device library, ready to upload. */
+export interface PickedVideo {
+  uri: string;
+  name?: string | null;
+  type?: string | null;
+}
+
+/**
+ * Upload a single video for analysis. The backend samples it into frames and
+ * runs the fast YOLO one-shot detector on each — `mode` is forced server-side,
+ * so we don't send it. Same web-vs-native FormData split as `analyzePhotos`.
+ */
+export async function analyzeVideo(
+  video: PickedVideo,
+  source: "mobile" = "mobile",
+): Promise<BatchOut> {
+  const form = new FormData();
+  const name = video.name ?? "seed-video.mp4";
+  const type = video.type ?? "video/mp4";
+  let part: Blob;
+  if (Platform.OS === "web") {
+    const res = await fetch(video.uri);
+    const blob = await res.blob();
+    part = new File([blob], name, { type: blob.type || type });
+  } else {
+    part = { uri: video.uri, name, type } as unknown as Blob;
+  }
+  form.append("files", part);
+  form.append("source", source);
+  return apiData<BatchOut>("/api/v1/analyze", { method: "POST", form });
+}
+
 /**
  * Poll a batch until it reaches a terminal status (or times out). Used by the
  * realtime screen to await each frame's result before grabbing the next one.

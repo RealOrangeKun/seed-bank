@@ -11,6 +11,7 @@ import { LanguageSwitcher } from "@/i18n/language-switcher";
 import { formatDateTime, formatDuration, toNumber } from "@/lib/format";
 import type { SharedBatchOut } from "../api";
 import { useSharedBatch } from "../api";
+import { verdictFor } from "../insights";
 
 /** Flatten + tally detections across the shared batch's graph. */
 function tally(batch: SharedBatchOut) {
@@ -124,12 +125,32 @@ export function SharedBatchPage() {
                 );
                 const good = dets.filter((d) => d.quality === "good").length;
                 const bad = dets.filter((d) => d.quality === "bad").length;
+                const classified = good + bad;
+                const verdict = verdictFor(
+                  classified ? good / classified : null,
+                  batch.good_batch_threshold ?? 0.65,
+                );
                 return (
                   <Card key={img.id}>
                     <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center justify-between text-base">
+                      <CardTitle className="flex items-center justify-between gap-2 text-base">
                         <span>{t("shared.imageN", { n: i + 1 })}</span>
-                        <Badge variant="secondary">{tn("seeds", dets.length)}</Badge>
+                        <span className="flex items-center gap-2">
+                          {verdict ? (
+                            <span
+                              className={
+                                verdict === "good"
+                                  ? "rounded-full bg-[hsl(var(--success))]/15 px-2.5 py-1 text-xs font-semibold text-[hsl(var(--success))]"
+                                  : "rounded-full bg-destructive/15 px-2.5 py-1 text-xs font-semibold text-destructive"
+                              }
+                            >
+                              {verdict === "good"
+                                ? t("detail.verdictGood")
+                                : t("detail.verdictBad")}
+                            </span>
+                          ) : null}
+                          <Badge variant="secondary">{tn("seeds", dets.length)}</Badge>
+                        </span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>

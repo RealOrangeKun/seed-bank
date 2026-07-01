@@ -63,6 +63,9 @@ export const ar: Record<TranslationKey, string> = {
   "camera.torch": "الفلاش",
   "camera.flip": "تبديل الكاميرا",
   "camera.clearAll": "مسح الكل",
+  "camera.uploadVideo": "رفع فيديو",
+  "camera.uploadingVideo": "جارٍ رفع الفيديو…",
+  "camera.videoNote": "يتم تحليل الفيديو بكاشف YOLO السريع.",
 
   // Result
   "result.title": "النتيجة",

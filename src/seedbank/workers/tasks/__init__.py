@@ -13,6 +13,6 @@ discards messages.
 
 from __future__ import annotations
 
-from seedbank.workers.tasks import analyze, dwh, experiment
+from seedbank.workers.tasks import analyze, analyze_video, dwh, experiment
 
-__all__ = ["analyze", "dwh", "experiment"]
+__all__ = ["analyze", "analyze_video", "dwh", "experiment"]

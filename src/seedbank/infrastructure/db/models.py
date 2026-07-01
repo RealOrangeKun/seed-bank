@@ -490,6 +490,11 @@ class ScanBatch(Base, TimestampMixin, SoftDeleteMixin):
     # Unique so a token resolves to exactly one batch.
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
 
+    # Annotated result video (YOLO video path). NULL for image batches; a
+    # non-null MinIO object key points at an H.264 mp4 with detection boxes
+    # burned in, surfaced to clients as a presigned playback URL.
+    result_video_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     images: Mapped[list[ScanImage]] = relationship(
         back_populates="batch",
         cascade="all, delete-orphan",

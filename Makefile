@@ -153,7 +153,8 @@ seed: migrate-clickhouse ## Seed catalog, suppliers, and demo users.
 	$(COMPOSE) exec api python -m scripts.seed_dev
 
 # Uploads the seed-bank-app weights into MinIO and registers the two-stage
-# detector + 10 EfficientNet-B2 specialists + YOLOv11M, then promotes them.
+# detector (Faster R-CNN V4) + 10 EfficientNet-B2 specialists + YOLOv8, then
+# promotes them.
 # Run after `make seed`. WEIGHTS_DIR can point at an unpacked seed-bank-app.
 WEIGHTS_DIR ?= /weights
 register-models: ## Register the new two-stage + YOLO models (run after `seed`).

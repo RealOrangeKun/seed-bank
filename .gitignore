@@ -66,6 +66,10 @@ legacy/
 seed-bank-app/
 seed-bank-app.rar
 
+# Local model test datasets (e.g. "FASTER RCNN TESTING" / "YOLO TESTING"
+# archives + their extracts) — large local ML fixtures, never tracked.
+data/
+
 # Frontend
 node_modules/
 compose.override.yaml
