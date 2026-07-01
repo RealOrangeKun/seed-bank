@@ -46,7 +46,7 @@ CIoU (Complete Intersection over Union) is a loss function used to make bounding
 
 Faster R-CNN architecture is a two-stage object detection model. First, it finds possible object regions, then it classifies them and adjusts the boxes more precisely, which makes it accurate and reliable, though usually slower than one-stage models like YOLO.
 
-\figslot[1.0]{figures/17-fasterRCNN-architecture.pdf}{The Faster R-CNN detection architecture, showing the ResNet backbone, the FPN for multi-scale features, and the RPN and ROI head for detection and classification.}{fig:detector-arch}
+\figslot[1.0]{17-fasterRCNN-architecture.pdf}{The Faster R-CNN detection architecture, showing the ResNet backbone, the FPN for multi-scale features, and the RPN and ROI head for detection and classification.}{fig:detector-arch}
 
 The second stage is quality classification. To perform multi-label defect classification on individual isolated crops, the pipeline utilizes a deep convolutional neural network optimized for fine-grained feature extraction. Rather than relying on a standard off-the-shelf classifier, the architecture is a modified variant of EfficientNet-B2 integrated with a Convolutional Block Attention Module (CBAM) and a hybrid pooling layer.\cite{tan2019efficientnet} 
 
@@ -56,7 +56,7 @@ Channel Attention determines what defect characteristics to emphasize across cha
 
 Hybrid Pooling Head is the standard global average pooling layer is replaced with a concurrent, hybrid concatenation layout. By running Global Average Pooling (GAP) and Global Max Pooling (GMP) in parallel and splicing their outputs the network simultaneously tracks smooth structural global patterns alongside highly localized, sharp defect signals (such as microscopic fungal patches or fine cracks).
 
-\figslot[1.0]{figures/18-Efficient-net-B2.pdf}{The EfficientNet-B2 defect classification architecture}{fig:classifier-arch}
+\figslot[1.0]{18-Efficient-net-B2.pdf}{The EfficientNet-B2 defect classification architecture}{fig:classifier-arch}
 
 \subsection{One-stage detectors}
 
