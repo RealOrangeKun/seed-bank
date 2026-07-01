@@ -140,6 +140,12 @@ export const en = {
   "analyze.started": "Check started.",
   "analyze.errCountryCode": "Two uppercase letters, e.g. EG",
   "analyze.errUuid": "Must be a valid ID",
+  "analyze.tabImages": "Photos",
+  "analyze.tabVideo": "Video",
+  "analyze.videoNote":
+    "Videos are sampled into frames and analysed with the fast YOLO detector. Scan mode and model override don't apply.",
+  "analyze.needVideo": "Choose a video to analyse.",
+  "analyze.submitVideo": "Analyse video",
 
   // ── File dropzone ─────────────────────────────────────────────────────────
   "dropzone.cta": "Drop seed photos here, or tap to browse",
@@ -147,6 +153,9 @@ export const en = {
   "dropzone.notImage": "{name}: not an image",
   "dropzone.tooLarge": "{name}: larger than {size}",
   "dropzone.clearAll": "Clear all",
+  "dropzone.videoCta": "Drop a seed video here, or tap to browse",
+  "dropzone.videoLimits": "One video, up to {size}",
+  "dropzone.notVideo": "{name}: not a video",
 
   // ── Scan history (batches list) ───────────────────────────────────────────
   "batches.title": "Scan history",
@@ -415,7 +424,8 @@ export const en = {
   "datasets.title": "Datasets",
   "datasets.description": "Frozen image sets with ground truth for model evaluation.",
   "datasets.create": "Create dataset",
-  "datasets.createDesc": "A dataset groups images and ground truth for offline evaluation.",
+  "datasets.createDesc":
+    "A dataset groups images and ground truth for offline evaluation.",
   "datasets.namePlaceholder": "e.g. maize-holdout-2026",
   "datasets.nameRequired": "Name is required",
   "datasets.created": "Dataset created.",
@@ -468,10 +478,12 @@ export const en = {
   "models.updateStatus": "Update status",
   "models.statusSet": "Status set to {status}.",
   "models.statusFailed": "Failed to update status.",
-  "models.terminalStatus": "A {status} model is in a terminal state and cannot change status. Re-register it to put it back into the lifecycle.",
+  "models.terminalStatus":
+    "A {status} model is in a terminal state and cannot change status. Re-register it to put it back into the lifecycle.",
   "models.performance": "Performance",
   "models.offlineMetrics": "Offline metrics",
-  "models.noOfflineMetrics": "No offline metrics yet — run an experiment to populate them.",
+  "models.noOfflineMetrics":
+    "No offline metrics yet — run an experiment to populate them.",
   "models.online": "Online (served traffic)",
   "models.colComputed": "Computed",
   "models.colCount": "Count",

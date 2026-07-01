@@ -139,6 +139,12 @@ export const ar: Record<TranslationKey, string> = {
   "analyze.started": "بدأ الفحص.",
   "analyze.errCountryCode": "حرفان كبيران، مثل EG",
   "analyze.errUuid": "يجب أن يكون معرّفًا صحيحًا",
+  "analyze.tabImages": "صور",
+  "analyze.tabVideo": "فيديو",
+  "analyze.videoNote":
+    "يتم أخذ عيّنات إطارات من الفيديو وتحليلها بكاشف YOLO السريع. لا ينطبق وضع الفحص ولا تجاوز النموذج.",
+  "analyze.needVideo": "اختر فيديو لتحليله.",
+  "analyze.submitVideo": "حلّل الفيديو",
 
   // ── Dropzone ──────────────────────────────────────────────────────────────
   "dropzone.cta": "أفلِت صور البذور هنا، أو اضغط للاختيار",
@@ -146,6 +152,9 @@ export const ar: Record<TranslationKey, string> = {
   "dropzone.notImage": "{name}: ليست صورة",
   "dropzone.tooLarge": "{name}: أكبر من {size}",
   "dropzone.clearAll": "مسح الكل",
+  "dropzone.videoCta": "أفلِت فيديو بذور هنا، أو اضغط للاختيار",
+  "dropzone.videoLimits": "فيديو واحد، حتى {size}",
+  "dropzone.notVideo": "{name}: ليس فيديو",
 
   // ── Scan history ──────────────────────────────────────────────────────────
   "batches.title": "سجل الفحوصات",
@@ -414,7 +423,8 @@ export const ar: Record<TranslationKey, string> = {
   "datasets.title": "مجموعات البيانات",
   "datasets.description": "مجموعات صور ثابتة مع البيانات المرجعية لتقييم النماذج.",
   "datasets.create": "إنشاء مجموعة بيانات",
-  "datasets.createDesc": "تجمع مجموعة البيانات الصور والبيانات المرجعية للتقييم دون اتصال.",
+  "datasets.createDesc":
+    "تجمع مجموعة البيانات الصور والبيانات المرجعية للتقييم دون اتصال.",
   "datasets.namePlaceholder": "مثال: maize-holdout-2026",
   "datasets.nameRequired": "الاسم مطلوب",
   "datasets.created": "تم إنشاء مجموعة البيانات.",
@@ -444,8 +454,7 @@ export const ar: Record<TranslationKey, string> = {
   "models.description": "نماذج مسجّلة وحالتها في دورة الحياة.",
   "models.register": "تسجيل نموذج",
   "models.registerSubmit": "تسجيل",
-  "models.registerDesc":
-    "أنشئ سجل نموذج. يبدأ في حالة «مسجّل» — رقِّه من صفحة التفاصيل.",
+  "models.registerDesc": "أنشئ سجل نموذج. يبدأ في حالة «مسجّل» — رقِّه من صفحة التفاصيل.",
   "models.nameRequired": "الاسم مطلوب",
   "models.versionRequired": "الإصدار مطلوب",
   "models.versionPlaceholder": "v1",
@@ -467,7 +476,8 @@ export const ar: Record<TranslationKey, string> = {
   "models.updateStatus": "تحديث الحالة",
   "models.statusSet": "تم ضبط الحالة على {status}.",
   "models.statusFailed": "تعذّر تحديث الحالة.",
-  "models.terminalStatus": "النموذج بحالة {status} نهائية ولا يمكن تغيير حالته. أعد تسجيله لإعادته إلى دورة الحياة.",
+  "models.terminalStatus":
+    "النموذج بحالة {status} نهائية ولا يمكن تغيير حالته. أعد تسجيله لإعادته إلى دورة الحياة.",
   "models.performance": "الأداء",
   "models.offlineMetrics": "مقاييس دون اتصال",
   "models.noOfflineMetrics": "لا توجد مقاييس دون اتصال بعد — شغّل تجربة لملئها.",

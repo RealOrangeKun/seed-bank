@@ -2,11 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { useRef, useState } from "react";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { analyzePhotos } from "@/api/batches";
+import { analyzePhotos, analyzeVideo } from "@/api/batches";
 import { ApiError } from "@/api/client";
 import type { CapturedPhoto } from "@/api/types";
 import { AppButton, H1, Muted } from "@/components/ui";
@@ -29,6 +30,7 @@ export function CameraScreen() {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // ── Permission gate ────────────────────────────────────────────────────────
@@ -100,6 +102,35 @@ export function CameraScreen() {
     }
   }
 
+  // ── Pick a video from the library → upload (YOLO-only on the server) ─────────
+  async function pickVideo() {
+    if (uploadingVideo) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["videos"],
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setUploadingVideo(true);
+    setError(null);
+    try {
+      const batch = await analyzeVideo({
+        uri: asset.uri,
+        name: asset.fileName,
+        type: asset.mimeType,
+      });
+      navigation.navigate("Result", { batchId: batch.id });
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 0
+          ? t("error.network")
+          : t("camera.uploadError"),
+      );
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <CameraView ref={cameraRef} style={{ flex: 1 }} facing={facing} enableTorch={torch} />
@@ -109,7 +140,7 @@ export function CameraScreen() {
         edges={["top"]}
         style={{ position: "absolute", top: 0, left: 0, right: 0, pointerEvents: "box-none" }}
       >
-        <View style={{ alignItems: "center", paddingTop: spacing.md }}>
+        <View style={{ alignItems: "center", paddingTop: spacing.md, gap: spacing.sm }}>
           <Text
             style={{
               color: "#fff",
@@ -123,6 +154,27 @@ export function CameraScreen() {
           >
             {t("camera.hint")}
           </Text>
+          <Pressable
+            onPress={pickVideo}
+            disabled={uploadingVideo}
+            accessibilityRole="button"
+            accessibilityLabel={t("camera.uploadVideo")}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              paddingHorizontal: spacing.md,
+              paddingVertical: 6,
+              borderRadius: radius.pill,
+              opacity: uploadingVideo ? 0.7 : 1,
+            }}
+          >
+            <Ionicons name="film-outline" size={16} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
+              {uploadingVideo ? t("camera.uploadingVideo") : t("camera.uploadVideo")}
+            </Text>
+          </Pressable>
         </View>
       </SafeAreaView>
 

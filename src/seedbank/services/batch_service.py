@@ -201,6 +201,15 @@ class BatchService:
             urls.append(ImageUrl(image_id=image.id, url=url, expires_at=expires_at))
         return urls
 
+    async def presigned_video_url(self, batch: ScanBatch) -> str | None:
+        """Presigned playback URL for a batch's annotated result video, or
+        ``None`` for image batches (no ``result_video_key``)."""
+        key = batch.result_video_key
+        if not key:
+            return None
+        ttl = timedelta(seconds=self.settings.minio_presign_ttl_seconds)
+        return await self.storage.presigned_get_url(self.settings.minio_bucket_images, key, ttl)
+
     async def delete_for_user(
         self,
         *,

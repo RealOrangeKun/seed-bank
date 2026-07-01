@@ -332,3 +332,92 @@ class TestHappyPath:
         # session directly (batch + images go through repos).
         actions = [getattr(o, "action", None) for o in session.added]
         assert "analyze.dispatched" in actions
+
+
+# ── Video branch ────────────────────────────────────────────────────────────
+
+
+def _video_file(content_type: str = "video/mp4", data: bytes = b"fake-mp4-bytes") -> AnalyzeFile:
+    return AnalyzeFile(filename="clip.mp4", content_type=content_type, data=data)
+
+
+class TestVideoBranch:
+    @pytest.mark.asyncio
+    async def test_single_video_stores_then_commits_then_dispatches_video_task(self) -> None:
+        svc, session, _b, images, storage = _build_service()
+        with patch("seedbank.services.analysis_service.celery_app.send_task") as send:
+            await svc.create_and_dispatch(
+                actor=_make_actor(),
+                files=[_video_file()],
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip="127.0.0.1",
+            )
+        # The raw video is written once; no scan_images are created here (the
+        # worker extracts frames), and exactly one commit happens.
+        storage.put_object.assert_awaited_once()
+        images.add.assert_not_called()
+        assert session.commits == 1
+        task_names = [call.args[0] for call in send.call_args_list]
+        assert "seedbank.analyze_video" in task_names
+        assert "seedbank.dwh.sync_scan_batch" in task_names
+        assert "seedbank.analyze_image" not in task_names
+
+    @pytest.mark.asyncio
+    async def test_video_audit_row_recorded(self) -> None:
+        svc, session, *_ = _build_service()
+        with patch("seedbank.services.analysis_service.celery_app.send_task"):
+            await svc.create_and_dispatch(
+                actor=_make_actor(),
+                files=[_video_file()],
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
+            )
+        actions = [getattr(o, "action", None) for o in session.added]
+        assert "analyze.dispatched_video" in actions
+
+    @pytest.mark.asyncio
+    async def test_video_mixed_with_image_rejected(self) -> None:
+        svc, *_ = _build_service()
+        with pytest.raises(ValidationError):
+            await svc.create_and_dispatch(
+                actor=_make_actor(),
+                files=[
+                    _video_file(),
+                    AnalyzeFile(filename="a.png", content_type="image/png", data=_png_bytes()),
+                ],
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
+            )
+
+    @pytest.mark.asyncio
+    async def test_oversized_video_rejected(self) -> None:
+        svc, *_ = _build_service()
+        oversized = b"\x00" * (svc.settings.analyze_max_video_bytes + 1)
+        with pytest.raises(ValidationError) as ei:
+            await svc.create_and_dispatch(
+                actor=_make_actor(),
+                files=[_video_file(data=oversized)],
+                supplier_id=None,
+                seed_type_id=None,
+                model_id_override=None,
+                gps_lat=None,
+                gps_long=None,
+                country_code=None,
+                ip=None,
+            )
+        assert "max size" in str(ei.value)

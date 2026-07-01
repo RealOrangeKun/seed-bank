@@ -83,6 +83,11 @@ inference = [
   # worker image. 0.60+ ships py3.12 wheels and supports numpy<2.3.
   "numba>=0.60,<1.0",
   "onnxruntime>=1.18,<2.0",
+  # Annotated-video encoding for the YOLO video path. opencv's bundled FFmpeg
+  # has no H.264 encoder, so we use imageio-ffmpeg's static ffmpeg (libx264) to
+  # write a browser/iOS-playable H.264 mp4 (yuv420p).
+  "imageio>=2.34,<3.0",
+  "imageio-ffmpeg>=0.5,<0.7",
 ]
 # Full inference stack — adds the optional YOLO (ultralytics) and Roboflow
 # (inference-sdk) backends. Both are lazily imported (manager.py / backends/
@@ -245,6 +250,9 @@ module = [
   "clickhouse_connect.*",
   "inference_sdk.*",
   "ultralytics.*",
+  "cv2.*",
+  "imageio.*",
+  "imageio_ffmpeg.*",
   "torch.*",
   "torchvision.*",
   "timm.*",

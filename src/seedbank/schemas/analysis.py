@@ -148,6 +148,10 @@ class BatchDetailOut(BatchOut):
     geo_city: str | None = None
     geo_country_code: str | None = None
     images: list[ScanImageOut] = Field(default_factory=list)
+    # Presigned playback URL for the annotated result video (YOLO video path);
+    # NULL for image batches. Set by the service from ``result_video_key`` so
+    # the bytes never traverse the API process.
+    video_url: str | None = None
     # Good-seed-share cutoff for the per-image good/bad verdict. Overridden by
     # the router from ``Settings.good_batch_threshold`` (same pattern as
     # ``image_count``); the default keeps the schema valid on a bare

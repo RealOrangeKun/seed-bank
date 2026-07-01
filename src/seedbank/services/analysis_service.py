@@ -61,9 +61,15 @@ _MIME_TO_EXT: dict[str, str] = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/webm": ".webm",
+    "video/x-msvideo": ".avi",
+    "video/x-matroska": ".mkv",
 }
 
 _ANALYZE_TASK_NAME = "seedbank.analyze_image"
+_ANALYZE_VIDEO_TASK_NAME = "seedbank.analyze_video"
 _ANALYZE_TASK_QUEUE = "inference"
 
 
@@ -121,6 +127,22 @@ class AnalysisService:
         the schema after this method returns.
         """
         self._authorize_override(actor=actor, model_id_override=model_id_override)
+
+        # Video branch: a single video file is analyzed frame-by-frame with the
+        # fast YOLO detector. It can't be mixed with images, and (since it forces
+        # YOLO) ignores the model override / seed-type / accurate-mode knobs.
+        if self._contains_video(files):
+            return await self._create_and_dispatch_video(
+                actor=actor,
+                files=files,
+                supplier_id=supplier_id,
+                gps_lat=gps_lat,
+                gps_long=gps_long,
+                country_code=country_code,
+                source=source,
+                ip=ip,
+            )
+
         self._validate_file_count(files)
 
         # Phase 1 — pure validation. Nothing has been written yet.
@@ -214,6 +236,103 @@ class AnalysisService:
             seed_type_id=str(seed_type_id) if seed_type_id else None,
         )
         return batch
+
+    # ── Video ─────────────────────────────────────────────────────────────────
+
+    def _contains_video(self, files: list[AnalyzeFile]) -> bool:
+        video_mimes = set(self.settings.analyze_allowed_video_mime_types)
+        return any(f.content_type in video_mimes for f in files)
+
+    async def _create_and_dispatch_video(
+        self,
+        *,
+        actor: AuthenticatedUser,
+        files: list[AnalyzeFile],
+        supplier_id: UUID | None,
+        gps_lat: Decimal | None,
+        gps_long: Decimal | None,
+        country_code: str | None,
+        source: str | None,
+        ip: str | None,
+    ) -> ScanBatch:
+        """Store the raw video and dispatch a single ``analyze_video`` task.
+
+        The worker samples frames, writes each as a ``scan_image``, and fans out
+        the regular per-frame ``analyze_image`` task (mode=fast → YOLO), so the
+        whole detection graph / batch state machine / UI is reused unchanged.
+        """
+        if len(files) != 1:
+            raise ValidationError(
+                "Upload a single video on its own — videos can't be mixed with other files."
+            )
+        video = files[0]
+        self._validate_video(video)
+
+        batch = self._build_batch(
+            actor=actor,
+            supplier_id=supplier_id,
+            gps_lat=gps_lat,
+            gps_long=gps_long,
+            country_code=country_code,
+            source=source,
+        )
+        await self.batches.add(batch)
+
+        ext = _MIME_TO_EXT.get(video.content_type, "")
+        video_key = f"batches/{batch.id}/source-video{ext}"
+        # Push to MinIO before commit (same ordering guarantee as the image path).
+        await self.storage.put_object(
+            self.settings.minio_bucket_images,
+            video_key,
+            video.data,
+            video.content_type,
+        )
+
+        self.session.add(
+            AuditLog(
+                actor_id=actor.id,
+                action="analyze.dispatched_video",
+                target_type="scan_batch",
+                target_id=str(batch.id),
+                audit_metadata={
+                    "content_type": video.content_type,
+                    "size_bytes": len(video.data),
+                },
+                ip=ip,
+            )
+        )
+        await self.session.commit()
+
+        celery_app.send_task(
+            _ANALYZE_VIDEO_TASK_NAME,
+            args=[str(batch.id), video_key, video.content_type],
+            queue=_ANALYZE_TASK_QUEUE,
+        )
+
+        # DWH dual-write (best-effort), mirroring the image path.
+        from seedbank.workers.tasks.dwh import SYNC_SCAN_BATCH, dispatch_after_commit
+
+        dispatch_after_commit(SYNC_SCAN_BATCH, str(batch.id))
+
+        log.info(
+            "analyze.created_video",
+            batch_id=str(batch.id),
+            user_id=str(actor.id),
+            content_type=video.content_type,
+            size_bytes=len(video.data),
+        )
+        return batch
+
+    def _validate_video(self, f: AnalyzeFile) -> None:
+        allowed = self.settings.analyze_allowed_video_mime_types
+        if f.content_type not in allowed:
+            raise ValidationError(
+                f"Unsupported video type {f.content_type!r}. Allowed: {', '.join(allowed)}."
+            )
+        max_bytes = self.settings.analyze_max_video_bytes
+        if len(f.data) > max_bytes:
+            name = f.filename or "<unnamed>"
+            raise ValidationError(f"Video {name!r} exceeds max size of {max_bytes} bytes.")
 
     # ── Internals ───────────────────────────────────────────────────────────
 

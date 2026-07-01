@@ -301,8 +301,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Submit images for detection + classification
-         * @description Upload one or more images. The server stores them in MinIO, creates a `scan_batch` (status=`pending`), and dispatches Celery tasks. The response is HTTP 202 with the batch envelope; clients poll `GET /api/v1/batches/{id}` for results.
+         * Submit images (or a video) for detection + classification
+         * @description Upload one or more images, **or** a single video. The server stores them in MinIO, creates a `scan_batch` (status=`pending`), and dispatches Celery tasks. The response is HTTP 202 with the batch envelope; clients poll `GET /api/v1/batches/{id}` for results.
+         *
+         *     A video is sampled into frames and analyzed with the fast **YOLO** detector (one frame per sampled image); the `mode`, `model_id`, and `seed_type_id` knobs are ignored for video.
          *
          *     The `model_id` override is restricted to `ai_developer` and `admin`.
          */
@@ -961,6 +963,8 @@ export interface components {
             geo_country_code?: string | null;
             /** Images */
             images?: components["schemas"]["ScanImageOut"][];
+            /** Video Url */
+            video_url?: string | null;
             /**
              * Good Batch Threshold
              * @default 0.65
@@ -1021,7 +1025,7 @@ export interface components {
         Body_analyze_api_v1_analyze_post: {
             /**
              * Files
-             * @description One or more images
+             * @description One or more images, or a single video
              */
             files: string[];
             /** Supplier Id */

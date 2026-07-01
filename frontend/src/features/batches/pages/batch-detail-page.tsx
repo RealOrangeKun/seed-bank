@@ -531,19 +531,35 @@ export function BatchDetailPage() {
                   ) : null}
                 </>
               ) : null}
-              <div className="grid gap-4 lg:grid-cols-2">
-                {(batch.data.images ?? []).map((image) => (
-                  <ImageCard
-                    key={image.id}
-                    image={image}
-                    url={urlMap.get(image.id)}
-                    seedTypeName={seedTypeName}
-                    modelName={modelName}
-                    isDeveloper={isDeveloper}
-                    threshold={threshold}
-                  />
-                ))}
-              </div>
+              {batch.data.video_url ? (
+                <Card>
+                  <CardContent className="p-3">
+                    {/* Annotated result video (YOLO): boxes are burned into the
+                        clip server-side, so we just play it back. */}
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <video
+                      src={batch.data.video_url}
+                      controls
+                      playsInline
+                      className="max-h-[70vh] w-full rounded-md bg-black"
+                    />
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {(batch.data.images ?? []).map((image) => (
+                    <ImageCard
+                      key={image.id}
+                      image={image}
+                      url={urlMap.get(image.id)}
+                      seedTypeName={seedTypeName}
+                      modelName={modelName}
+                      isDeveloper={isDeveloper}
+                      threshold={threshold}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           )}
         </>

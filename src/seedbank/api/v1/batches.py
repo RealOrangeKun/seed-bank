@@ -110,11 +110,13 @@ async def get_batch(
     # ``image_count`` isn't on the ORM — derive it from the eager-loaded
     # collection so the detail view is consistent with the analyze
     # response shape. ``good_batch_threshold`` flows from Settings so the
-    # client's per-image verdict uses one configured cutoff.
+    # client's per-image verdict uses one configured cutoff. ``video_url`` is a
+    # presigned playback link for the annotated YOLO video (None for images).
     out = out.model_copy(
         update={
             "image_count": len(out.images),
             "good_batch_threshold": service.settings.good_batch_threshold,
+            "video_url": await service.presigned_video_url(batch),
         }
     )
     return Envelope[BatchDetailOut](data=out)

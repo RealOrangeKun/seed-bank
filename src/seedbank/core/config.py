@@ -175,6 +175,27 @@ class Settings(BaseSettings):
     analyze_allowed_mime_types: list[str] = Field(
         default_factory=lambda: ["image/jpeg", "image/png", "image/webp"]
     )
+    # ── Video analyze (YOLO-only) ────────────────────────────────────────────
+    # A video is analyzed by the inference worker: the YOLO one-shot detector
+    # runs over its frames and the detection boxes are burned into a re-encoded
+    # H.264 mp4 that the apps play back. The two-stage path is too slow per
+    # frame, so video is YOLO-only.
+    analyze_allowed_video_mime_types: list[str] = Field(
+        default_factory=lambda: [
+            "video/mp4",
+            "video/quicktime",
+            "video/webm",
+            "video/x-msvideo",
+            "video/x-matroska",
+        ]
+    )
+    analyze_max_video_bytes: int = 200 * 1024 * 1024
+    # Hard cap on frames YOLO actually runs on. A longer clip is strided
+    # (``vid_stride``) so the annotated video still spans the whole video.
+    analyze_video_max_frames: int = Field(default=300, ge=1, le=2000)
+    # Cap on how many processed frames contribute detection rows for the
+    # good/bad stats (the annotated video still shows every processed frame).
+    analyze_video_max_stats_frames: int = Field(default=40, ge=1, le=500)
     # Test-only: when true, Celery tasks run inline in the calling process
     # (instead of being sent to a broker). Must remain False in prod.
     celery_task_always_eager: bool = False

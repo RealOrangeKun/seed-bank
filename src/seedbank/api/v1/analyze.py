@@ -40,12 +40,15 @@ _LIMIT_ANALYZE = f"{get_settings().rate_limit_analyze_per_minute}/minute"
     "",
     response_model=Envelope[BatchOut],
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Submit images for detection + classification",
+    summary="Submit images (or a video) for detection + classification",
     description=(
-        "Upload one or more images. The server stores them in MinIO, creates "
-        "a `scan_batch` (status=`pending`), and dispatches Celery tasks. The "
-        "response is HTTP 202 with the batch envelope; clients poll "
-        "`GET /api/v1/batches/{id}` for results.\n\n"
+        "Upload one or more images, **or** a single video. The server stores "
+        "them in MinIO, creates a `scan_batch` (status=`pending`), and "
+        "dispatches Celery tasks. The response is HTTP 202 with the batch "
+        "envelope; clients poll `GET /api/v1/batches/{id}` for results.\n\n"
+        "A video is sampled into frames and analyzed with the fast **YOLO** "
+        "detector (one frame per sampled image); the `mode`, `model_id`, and "
+        "`seed_type_id` knobs are ignored for video.\n\n"
         "The `model_id` override is restricted to `ai_developer` and `admin`."
     ),
 )
@@ -55,7 +58,7 @@ async def analyze(
     response: Response,
     actor: CurrentUser,
     service: AnalysisServiceDep,
-    files: Annotated[list[UploadFile], File(description="One or more images")],
+    files: Annotated[list[UploadFile], File(description="One or more images, or a single video")],
     supplier_id: Annotated[UUID | None, Form()] = None,
     seed_type_id: Annotated[UUID | None, Form()] = None,
     model_id: Annotated[UUID | None, Form()] = None,
@@ -123,8 +126,11 @@ async def analyze(
 
     out = BatchOut.model_validate(batch)
     # ScanBatch ORM has no image_count column; the service ships it back
-    # implicitly via len(payloads). Set it on the schema instance.
-    out = out.model_copy(update={"image_count": len(payloads)})
+    # implicitly via len(payloads). For a video the frames don't exist yet
+    # (the worker extracts them), so report 0 until polling fills it in.
+    video_mimes = set(get_settings().analyze_allowed_video_mime_types)
+    image_count = sum(1 for p in payloads if p.content_type not in video_mimes)
+    out = out.model_copy(update={"image_count": image_count})
     return Envelope[BatchOut](data=out)
 
 

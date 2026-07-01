@@ -37,6 +37,12 @@
           "cameraPermission": "Seed Bank uses the camera to photograph seeds for quality analysis."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Seed Bank needs access to your library to upload a seed video for analysis."
+        }
+      ],
       "expo-font",
       "expo-asset"
     ],
