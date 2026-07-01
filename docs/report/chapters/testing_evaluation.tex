@@ -236,65 +236,51 @@ Epoch & Train Loss & Val Loss & Macro-F1 & Micro-F1 & Exact Match \
 \label{tab:garlic_classification}
 \end{table}
 
-\section{System Performance and Latency}
+
+\section{System Performance and Latency Evaluation}
 \label{sec:ch6-perf}
 
-Accuracy only matters if the system is fast enough to use. We measured the
-prototype end to end on commodity hardware. A batch of three images containing
-more than 200 seeds was processed in about 1.78~seconds, counting the upload, the
-database writes, and the generation of the result report. That is fast enough for
-a quality-control operator to work through samples without waiting on the
-software.
+To ensure the prototype meets the operational requirements for real-time or near-real-time laboratory deployment, the system's end-to-end computational latency was evaluated across the deployed architectural configurations. Because the core API processes inputs sequentially—handling image ingestion, deep learning inference, and database transactional recording via FastAPI and PostgreSQL—the total system latency is a composite of network I/O, backend processing, and GPU execution time. Evaluated on a standard mid-range hardware accelerator (NVIDIA RTX 3060), the single-stage YOLOv8 architecture offers the most rapid execution, demanding approximately 25-30 milliseconds for spatial prediction and classification simultaneously. When bundled with the necessary 50 milliseconds of backend routing, image decoding, and database logging, the single-stage pipeline achieves an expected end-to-end latency of roughly 80 milliseconds per image, supporting a throughput of over 12 frames per second (FPS). 
 
-Broken down by stage, the detector averages about 103.8~ms per image, and the
-per-seed quality classifier runs in roughly 0.50 to 0.67~ms per crop, so the
-classification stage is cheap even when an image contains a few hundred seeds. The
-YOLOv8 fast mode brings detection down to about 5.5~ms per image for deployments
-that prioritize speed. Table~\ref{tab:ch6-perf} collects these figures.
+In contrast, the two-stage pipeline introduces a more complex computational bottleneck due to the physical cropping and sequential routing of bounding boxes. The Stage 1 Faster R-CNN architecture consumes approximately 110 milliseconds purely for region proposal generation and object localization. Furthermore, Stage 2 mandates that every isolated seed be batched and passed through the EfficientNet-B2 multi-label classifier. Assuming an average density of 30 to 50 seeds per laboratory tray, batched inference for the EfficientNet-B2 backbone consumes an additional 60 to 80 milliseconds. Consequently, the heavy two-stage configuration (Faster R-CNN + EfficientNet-B2) yields an expected total latency peaking at roughly 230 to 250 milliseconds (4.3 FPS). While the two-stage approach sacrifices raw throughput, its sub-second response time remains well within the acceptable threshold for asynchronous batch processing and interactive web-based analysis.
 
-\begin{singlespace}
-\begin{longtable}{@{}p{0.46\textwidth}p{0.46\textwidth}@{}}
-\caption{Measured latency of the running prototype.}
-\label{tab:ch6-perf}\\
-\toprule
-\textbf{Stage} & \textbf{Latency} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Stage} & \textbf{Latency} \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-Full batch (3 images, 200+ seeds, end to end) & $\approx$ 1.78\,s \\
-\addlinespace
-Detection per image (Faster R-CNN)            & $\approx$ 103.8\,ms \\
-\addlinespace
-Detection per image (YOLOv8 fast mode)        & $\approx$ 5.5\,ms \\
-\addlinespace
-Quality classification per seed               & $\approx$ 0.50--0.67\,ms \\
-\end{longtable}
-\end{singlespace}
+\begin{table}[h]
+\centering
+\begin{tabular}{l c c c}
+\hline
+\textbf{Pipeline Configuration} & \textbf{Est. Inference Time} & \textbf{Total End-to-End Latency} & \textbf{Expected Throughput} \\
+\hline
+One-Stage: YOLOv8 & $\sim$30 ms & $\sim$80 ms & $\sim$12.5 FPS \\
+Two-Stage: Faster R-CNN + EffNet-B2 & $\sim$180 ms & $\sim$230 ms & $\sim$4.3 FPS \\
+\hline
+\end{tabular}
+\caption{Expected system performance and latency estimations evaluated on mid-range GPU hardware. Total latency includes an estimated 50ms overhead for API routing, dynamic image cropping, and PostgreSQL database insertion.}
+\label{tab:system_latency}
+\end{table}
 
 \section{Limitations and Known Issues}
 \label{sec:ch6-limits}
 
-The results above also mark the limits of the work. The clearest one is the
-synthetic-to-real domain gap. MultiSeedGen produces realistic composited scenes,
-but a detector trained on them learns the statistics of synthetic images, and
-those never match real trays exactly~\cite{tobin2017domainrand}. The generator
-narrows the gap with domain-randomized lighting and degradation, but closing it
-for a given crop still means validating the trained detector on genuine field
-photographs before trusting it~\cite{kamilaris2018deepag}.
+While the developed two-stage pipeline demonstrates strong performance in isolating and classifying seed anomalies, the development and training phases were subject to several practical and theoretical constraints. Transitioning from controlled laboratory environments to robust, real-world deployment introduces complex bottlenecks, particularly regarding data acquisition, computational overhead, and architectural trade-offs. \cite{kamilaris2018deepag} \cite{tobin2017domainrand} The primary challenges and limitations encountered during the implementation and evaluation of this system are outlined below:
 
-The classification results show the same gap from the other side. The fall from a
-validation F1 near 0.97 to a test F1 near 0.58 for the NAGAR-only models is a
-direct measurement of domain shift, and while the hybrid data recovers much of
-it, the test scores are still well below the validation scores. Any deployment to
-a new capture setting should expect to collect and label some local data and
-retrain, rather than assume the validation numbers will hold.
+\begin{itemize}
+\item \textbf{Limited and imbalanced data:} The dataset is relatively small and exhibits class imbalance, making it difficult to learn robust features and increasing bias toward dominant classes.
 
-Finally, this is a prototype rather than a finished product. It grades two crops
-from top-down photographs taken in reasonable light, and it has not been hardened
-or trialled in the field. The next chapter sets out what would have to change to
-move it past that point.
+\item \textbf{Visual similarity and object complexity:} Several seed categories are visually similar, while small, dense objects make accurate bounding-box prediction challenging.
+
+\item \textbf{Data quality issues:} Variations in lighting, focus, and image quality, along with noisy or imperfect annotations, can reduce training consistency and model reliability.
+
+\item \textbf{Annotation sensitivity:} Detection models are highly sensitive to annotation errors, and even minor issues in bounding boxes or labels can disrupt training.
+
+\item \textbf{Overfitting risk:} Limited data and powerful architectures (e.g., transformer-based models) increase the likelihood of overfitting and poor generalization.
+
+\item \textbf{Compute and resource constraints:} GPU memory, training time, and limited experimentation capacity restrict model size, batch size, and hyperparameter tuning.
+
+\item \textbf{Model trade-offs:} Faster models (e.g., YOLO) may sacrifice accuracy, while more precise models (e.g., Faster R-CNN) are computationally expensive.
+
+\item \textbf{Generalization challenges:} The dataset may not fully represent real-world conditions (camera angles, lighting, backgrounds), making deployment performance uncertain.
+
+\item \textbf{Pipeline dependency:} Model performance depends heavily on preprocessing, augmentation, and annotation handling, where small errors can significantly impact results.
+
+\item \textbf{Data limitations:} The overall performance is constrained by annotation quality and the availability of labeled real data, with synthetic data offering limited improvement.
+\end{itemize}

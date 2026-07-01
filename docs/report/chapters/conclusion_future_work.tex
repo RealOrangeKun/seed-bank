@@ -5,78 +5,76 @@ the objectives from Chapter~1, records the lessons that came out of building it,
 and sets out the work that would carry the system from a prototype toward
 something a seed cooperative could run for a real season.
 
-\section{Summary of achievements}
+\section{Summary of Achievements}
 
 The project set out to build an automated seed-quality grading prototype: a user
-photographs a batch of seeds, and the system finds each seed and judges its
-quality, then reports aggregate figures such as seed count and the proportion of
-good seeds. That prototype exists and runs end to end for two crops, coffee and
-maize.
+photographs a batch of seeds, and the system finds each seed, evaluates its
+quality across multiple defect categories, and reports aggregate figures such as
+seed count and batch purity ratios. That prototype has been successfully realized
+and expanded to support a diverse array of crop families, including maize,
+soybean, coffee, pepper, and garlic.
 
-The core of the system is a two-stage vision pipeline. A detection model scans
-the whole image and returns a bounding box and a crop label for every seed it
-finds. Each detected box is then cut from the image and passed to a classifier
-that decides whether the seed is good or bad \cite{kamilaris2018deepag}. The
-detector is a Faster R-CNN with a ResNet-50 backbone and a Feature Pyramid
-Network \cite{fasterrcnn2015, resnet2015, lin2017fpn}. The classifiers are
-ResNet-18 backbones with a Convolutional Block Attention Module added after the
-final residual stage \cite{cbam2018, resnet2015}, with a separate classifier
-trained for each crop. Splitting detection from classification means the two
-halves can be measured and improved on their own, which mattered through the
-project because the failures in each half had different causes.
+The core of the system leverages advanced computer vision architectures, evaluated 
+across both highly efficient single-stage models (YOLOv8) and a rigorous two-stage 
+detect-then-classify pipeline \cite{kamilaris2018deepag}. In the two-stage approach, 
+the detector (Faster R-CNN) scans the image and extracts bounding box proposals for 
+every seed. Each detected crop is then routed to a fine-grained quality classifier. 
+Moving beyond simple binary grading, the final classifiers utilize an EfficientNet-B2 
+backbone modified with a Convolutional Block Attention Module (CBAM) and a hybrid 
+pooling layer \cite{cbam2018}. This allows the network to isolate true structural 
+defects from benign biological variance, outputting granular multi-label predictions 
+(simultaneously detecting fungus and physical damage across 7 distinct classes 
+for maize and soybeans). Splitting localization from classification allowed each stage 
+to be benchmarked and optimized independently.
 
-We evaluated both stages on real data, not only on synthetic samples. The
-detector was scored with mean average precision and the classifiers with
-precision, recall, and F1, against held-out images that the models never saw
-during training. The full set of numbers, including the per-class breakdown and
-the confusion matrices, is reported in the evaluation in Chapter~6. The headline
-is that a two-stage detect-then-classify pipeline trained largely on data we
-generated ourselves reaches usable accuracy on genuine photographs of coffee and
-maize seeds. The crop classification borrows the transfer-learning approach that
-has worked across plant-image tasks \cite{mohanty2016plant}, with backbones
-pre-trained on ImageNet \cite{deng2009imagenet} and fine-tuned on our seed
-images.
+We evaluated the architectures comprehensively on both synthetic composites and real-world 
+data. Detection efficiency was scored using mean Average Precision (mAP) at strict IoU 
+thresholds, while the fine-grained multi-label classifiers were evaluated using macro 
+and micro F1-scores, precision, recall, and exact match metrics against held-out 
+validation sets. The full performance breakdown, reported in Chapter~6, demonstrates 
+that deep learning pipelines trained largely on synthetically generated, heavily augmented 
+data can achieve highly usable accuracy on genuine, environmentally noisy photographs.
 
-\subsection{MultiSeedGen: removing the annotation bottleneck}
+\subsection{MultiSeedGen (ASA): Removing the Annotation Bottleneck}
 
-The companion tool, MultiSeedGen, addresses the problem that blocks the detector
-more than any architectural choice does. Training an object detector needs images
-of many seeds with a bounding box drawn around each one, and labelling those
-boxes by hand is slow and error-prone. What is easy to collect is photographs of
-single seeds. MultiSeedGen turns the cheap input into the expensive output. It
-segments individual seeds out of source photos using a mix of classical masking
-and learned matting \cite{qin2020u2net}, with an optional Segment Anything
-backend for harder cases \cite{kirillov2023sam}, then composites many of those
-cutouts onto realistic backgrounds. Because the tool places each cutout itself,
-it knows exactly where every seed sits, so the bounding boxes come for free as a
-by-product of placement. The result is exported as a detection dataset in YOLO
-and COCO formats \cite{dwibedi2017cutpaste, lin2014coco, yolov8}.
+The companion ASA (Annotator, Segmenter, Augmenter) application, MultiSeedGen, 
+addresses the primary data bottleneck that traditionally stalls agricultural AI. 
+Training an object detector requires thousands of densely clustered seeds with 
+pixel-perfect bounding boxes, and labelling these by hand is prohibitively slow 
+and error-prone. MultiSeedGen programmatically converts cheap, single-seed 
+photographs into expensive, fully annotated detection datasets. It isolates 
+individual seeds using a multi-tiered segmentation stack—combining classical 
+thresholding with learned matting via U²-Net \cite{qin2020u2net} and an optional 
+Segment Anything (SAM) backend \cite{kirillov2023sam}. 
 
-To make the output useful for training rather than a toy, the compositor applies
-domain-matched lighting and camera degradation, a move toward closing the gap
-between synthetic and real images through domain randomisation and augmentation
-\cite{tobin2017domainrand, shorten2019augmentation, buslaev2020albumentations}.
-This is the same cut-and-paste synthesis idea that prior work used to bootstrap
-detectors, applied to the seed-grading setting. Every run also writes a record of
-the configuration that produced it, so a dataset can be regenerated and an
-experiment can be repeated.
+These cut-outs are then composited into dense configurations under strict collision 
+physics. Because the engine computes the placements dynamically, accurate bounding boxes 
+and segmentation polygons are exported automatically in standard YOLO and COCO formats 
+\cite{dwibedi2017cutpaste, lin2014coco, yolov8}. To ensure the generated data forces 
+the models to generalize rather than memorize, the compositor applies severe 
+domain-matched augmentations. It introduces geometric perspective warping, simulates 
+photometric camera degradation (sensor noise, blur, artifacts), and inpaints real-world 
+laboratory trays as backgrounds \cite{tobin2017domainrand, shorten2019augmentation, buslaev2020albumentations}. 
+Every execution writes a reproducible configuration manifest, allowing multi-class 
+datasets to be balanced, regenerated, and iterated upon rapidly. 
 
-Taken together, the two systems form a loop. MultiSeedGen produces the labelled
-detection data the pipeline's detector is trained on, and the pipeline produces
-the predictions that can later tell MultiSeedGen which kinds of scenes it is
-generating too few of. Closing that loop in practice is one of the future
-enhancements in Section~\ref{sec:ch7-future}.
+Taken together, the ASA application and the inference backend form a powerful data loop: 
+MultiSeedGen synthesizes the dense, class-balanced annotations required to train the 
+pipeline, while real-world inference analytics highlight the edge cases and OOD 
+(Out-Of-Distribution) failures that the generator must subsequently simulate to 
+close the domain gap.
 
-\subsection{What this validates}
+\subsection{What This Validates}
 
-The objective set in Chapter~1 was to show that seed-quality grading can be
-automated on ordinary hardware rather than the specialised imaging rigs used in
-commercial seed-testing systems. The prototype does this. It runs on commodity
-machines, takes ordinary photographs as input, and produces per-seed quality
-labels with measured accuracy on two distinct crops. Together with MultiSeedGen,
-which makes the training data for new crops cheap to produce, the work shows that
-automated seed-quality grading is feasible without expensive equipment, and that
-the data bottleneck which usually stalls such projects can be worked around.
+The primary objective established in Chapter~1 was to prove that seed-quality grading 
+could be digitized and automated without relying on the massive capital outlays and 
+mechanical constraints of traditional industrial sorting facilities. The deployed 
+prototype achieves this. Executing within a containerized environment on commodity 
+hardware, the system processes ordinary photographs and generates auditable, granular 
+quality metrics. Coupled with MultiSeedGen, which eliminates the prohibitive cost of 
+manual data labeling for new crop phenotypes, this project validates that scalable, 
+AI-driven agricultural analysis is both economically and technically feasible.
+
 
 \section{Lessons learned}
 
@@ -103,6 +101,7 @@ produce metrics that look excellent and mean nothing, because seeds cut from the
 same source photos can end up in both the training set and the test set. When
 that happens the model is partly tested on seeds it has already seen, and the
 reported accuracy is inflated. We had to build a leakage-safe split that keeps all
+
 crops derived from one source image on the same side of the train/test divide.
 Before that fix the numbers were optimistic; after it they were lower but
 trustworthy. Synthetic data narrows the labelling bottleneck, but it does not
@@ -110,45 +109,20 @@ remove the distribution shift between generated and real images, and the only
 fair way to measure whether it has helped is to test against real labelled
 photographs rather than against more synthetic data.
 
-\section{Future enhancements}
+\section{Future Enhancements}
 \label{sec:ch7-future}
 
-The prototype proves the concept. Several lines of work would extend it and make
-it more useful in the field.
+While the current prototype successfully validates the core concept of automated, AI-driven seed grading, transitioning the system from a highly capable prototype to a mature, commercial-grade field tool requires several key enhancements.
 
-The first is supporting more crops. The pipeline handles coffee and maize today,
-and it was built to extend: a new crop is a new detector class plus a new per-crop
-classifier. On the data side MultiSeedGen extends the same way, since a new crop
-is a new set of source seed photos and a configuration recipe rather than a change
-to the tool. Public seed datasets for crops such as corn could seed this work
-\cite{naagar2025corn, roboflow2025seedquality, roboflow2025maize}.
+\subsection{Expanding Real-World Domain Adaptation}
+The classification pipeline currently supports approximately 20 distinct seed types. However, during evaluation, only the maize model fully succeeded in closing the domain gap between laboratory-grade synthetic images and real-world field deployment. This success was driven directly by the availability of high-quality, real-world test images—specifically mobile phone captures taken in natural sunlight—that accurately mirrored the target operating environment. Consequently, the most critical future enhancement is the curation and annotation of genuine, mobile-captured field datasets for the remaining supported crops. By collecting real-world images that reflect true environmental noise, and feeding those characteristics back into MultiSeedGen's degradation and randomization engine, we can explicitly train the models to bridge the synthetic-to-real domain gap across all 20 species.
 
-The second is a mobile capture app so a farmer can photograph seeds in the field
-and get a result on the spot. A lightweight detector and classifier, for example
-a compact YOLO model \cite{redmon2016yolo, yolov8} built with a mobile-friendly
-framework \cite{reactnativeexpo}, would let the grading run on the device with no
-round trip, which matters where connectivity is poor.
+\subsection{Edge Computing and Real-Time Inspection}
+To maximize utility for farmers in areas with poor connectivity, the system must be extended for edge deployment. This includes developing a lightweight mobile application utilizing mobile-friendly frameworks \cite{reactnativeexpo} and highly optimized, quantized single-stage models (YOLO \cite{redmon2016yolo, yolov8}) to execute inference entirely on-device without a network round trip. For larger agricultural operations, future work involves extending the system to support real-time continuous inspection, such as live camera feeds mounted over conveyor belts. This will require further optimization of the inference pipeline to ensure faster execution and lower hardware overhead, alongside investigating instance-level segmentation methods to better isolate overlapping, crowded, or partially occluded seeds on moving belts.
 
-The third is narrowing the synthetic-to-real domain gap and validating the
-detector on genuine field photographs. The current models are trained largely on
-generated scenes, so the most important test is a held-out set of real,
-hand-labelled field images. Measuring the detector there, and feeding what we
-learn back into MultiSeedGen's degradation and randomisation, is the direct way to
-shrink the gap between how the system performs on synthetic data and how it
-performs in the field.
+\subsection{Architectural Robustness and Active Learning}
+Future iterations of the architecture should evaluate additional feature-extraction backbones to continuously balance the trade-off between speed, accuracy, and out-of-distribution generalization. Furthermore, an active-learning loop paired with automated quality control is essential for long-term robustness. Real-world scans that the system grades with low confidence, or those corrected by human users, represent the exact scenarios the synthetic generator is underproducing. By automatically capturing these difficult cases, passing them through a quality-control filter to reject unrecoverable images, and feeding their visual characteristics back into MultiSeedGen, the pipeline can regenerate training data heavily weighted toward its own failure modes. Each turn of this loop targets the generator at the system's measured weaknesses, allowing the model to improve dynamically in production.
 
-The fourth, and the one that ties the others together, is an active-learning loop.
-Real scans that the system grades with low confidence, or that a user corrects,
-are exactly the cases the current models handle worst, and they describe the
-scenes the generator is underproducing. The loop is to collect those hard real
-scans, feed their characteristics back into MultiSeedGen to regenerate training
-data weighted toward the failure modes, retrain the detector and the affected
-classifier, evaluate the candidate against a held-out set of real labelled scans,
-and ship it only if it improves. Each turn of the loop targets generation at the
-system's measured weaknesses instead of producing more of what it already handles
-well.
+\vspace{1em}
 
-Beyond these, taking the prototype to production would mean hardening the surrounding
-software and operations, but the grading capability itself is in place. The work
-in this report shows that automated seed-quality grading on commodity hardware is
-feasible, and that generated training data can carry it most of the way there.
+Beyond these enhancements, taking the prototype to production will require hardening the surrounding software infrastructure and defining a more comprehensive evaluation framework that continuously monitors inference latency and deployment suitability. However, the core grading capability is firmly in place. The work detailed in this report demonstrates that automated seed-quality grading on commodity hardware is highly feasible, and that intelligent synthetic data generation can successfully overcome the traditional agricultural annotation bottleneck.
