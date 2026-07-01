@@ -246,14 +246,16 @@ In contrast, the two-stage pipeline introduces a more complex computational bott
 
 \begin{table}[h]
 \centering
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{l c c c}
 \hline
-\textbf{Pipeline Configuration} & \textbf{Est. Inference Time} & \textbf{Total End-to-End Latency} & \textbf{Expected Throughput} \\
+\textbf{Pipeline Configuration} & \textbf{Inference Time} & \textbf{Total Latency} & \textbf{Throughput} \\
 \hline
 One-Stage: YOLOv8 & $\sim$30 ms & $\sim$80 ms & $\sim$12.5 FPS \\
 Two-Stage: Faster R-CNN + EffNet-B2 & $\sim$180 ms & $\sim$230 ms & $\sim$4.3 FPS \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \caption{Expected system performance and latency estimations evaluated on mid-range GPU hardware. Total latency includes an estimated 50ms overhead for API routing, dynamic image cropping, and PostgreSQL database insertion.}
 \label{tab:system_latency}
 \end{table}
