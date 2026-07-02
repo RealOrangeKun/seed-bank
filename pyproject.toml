@@ -143,8 +143,8 @@ packages = ["src/seedbank"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests", "scripts"]
-# Document-build helpers (Word export) are tooling, not application code.
-extend-exclude = ["legacy", "alembic/versions", ".venv", "scripts/make_reference_docx.py", "scripts/_docx_fix_tables.py"]
+# Document-build helpers (Word export, slide-deck export) are tooling, not application code.
+extend-exclude = ["legacy", "alembic/versions", ".venv", "scripts/make_reference_docx.py", "scripts/_docx_fix_tables.py", "docs/presentation/pptx/build_pptx.py"]
 
 [tool.ruff.lint]
 select = [

@@ -1,0 +1,17 @@
+{
+  "name": "seed-bank-slidev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "slidev --port 3030 --open false",
+    "build": "slidev build",
+    "export": "slidev export"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@slidev/cli": "^52.16.0",
+    "@slidev/theme-default": "^0.25.0",
+    "lucide-static": "^1.23.0",
+    "vue": "^3.5.39"
+  }
+}

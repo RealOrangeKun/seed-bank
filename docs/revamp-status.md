@@ -16,7 +16,7 @@ in-repo replacement for the working plan file that drove the revamp and was lost
 | Phase | Scope | Status |
 |---|---|---|
 | 1 — Scaffold | FastAPI app factory; prototype archived to `legacy/` | ✅ done |
-| 2 — Schema | 18-table async SQLAlchemy + Alembic baseline; UUIDv7 PKs (now **17** — `traffic_splits` dropped in `0004_drop_traffic_mlflow`) | ✅ done |
+| 2 — Schema | 18-table async SQLAlchemy + Alembic baseline; UUIDv7 PKs (now **16** — `traffic_splits` dropped in `0004_drop_traffic_mlflow`, `api_keys` dropped in `0005_drop_api_keys`) | ✅ done |
 | 3 — Infra | repositories + clients + lifespan + `/readyz` | ✅ done |
 | 4 — Auth | email/pw + OAuth + RBAC + rate limiting | ✅ done |
 | 5 — ML platform | registry, 3 backends, model manager, `ModelResolver`, `/models` | ✅ done (weighted-A/B traffic-splits **removed**; `TrafficRouter` replaced by `ModelResolver` — production-model resolution with a global fallback, no A/B) |
