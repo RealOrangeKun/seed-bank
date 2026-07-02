@@ -108,7 +108,7 @@ seed-bank/
 │   ├── workers/             # Celery app + tasks (analyze, experiment, dwh)
 │   └── bootstrap/           # One-shot startup helpers (e.g. seed reference data)
 ├── frontend/                # Web app (React 18 + Vite + Tailwind + TanStack Query)
-├── mobile/                  # Mobile app (Expo SDK 52 / React Native, realtime camera)
+├── mobile/                  # Mobile app (Expo SDK 56 / React Native, realtime camera)
 ├── alembic/                 # Postgres migrations
 ├── ops/                     # Prometheus/Grafana/observability config
 ├── scripts/                 # register_model.py, seed_dev.py, smoke.sh, …
@@ -117,7 +117,7 @@ seed-bank/
 ├── docs/                    # This file + diagrams/, adr/, operations.md, revamp-status.md
 ├── compose.yaml             # Dev stack (all services)
 ├── compose.prod.yaml        # Production overlay (file secrets, hardening)
-├── Dockerfile               # Multi-stage (9 stages: 4 builders + 5 runtimes — see §7.4)
+├── Dockerfile               # Multi-stage (8 stages: 4 builders + 4 runtimes — see §7.4)
 ├── Makefile                 # Developer workflow entrypoints
 └── pyproject.toml / uv.lock # Python deps (managed with uv)
 ```
@@ -707,12 +707,12 @@ that mirrors the real detect→classify pipeline.
 
 ## 6. Mobile app (`mobile/`)
 
-A new **Expo SDK 52 / React Native** app focused on farmers in the field —
+A new **Expo SDK 56 / React Native** app focused on farmers in the field —
 realtime camera capture with the same bilingual EN/AR + RTL experience.
 
 ### 6.1 Tech stack
 
-Expo SDK 52 · React Native 0.76 · TypeScript · `expo-camera` (realtime) ·
+Expo SDK 56 · React Native 0.85 · TypeScript · `expo-camera` (realtime) ·
 React Navigation v7 (bottom tabs + native stack) · TanStack Query ·
 `expo-secure-store` (token keystore) · `@react-native-async-storage/async-storage`
 (prefs) · `expo-updates` (RTL reload) · Ionicons.
@@ -1099,7 +1099,7 @@ nothing is a mystery when you meet it in the code or the compose file.
   RTL) · **Vitest** + **Testing Library** · **ESLint**.
 
 **Mobile app**
-- **Expo SDK 52** · **React Native 0.76** (Hermes) · **TypeScript** ·
+- **Expo SDK 56** · **React Native 0.85** (Hermes) · **TypeScript** ·
   **expo-camera** (realtime capture) · **React Navigation v7** (tabs + native
   stack) · **TanStack Query** · **expo-secure-store** (token keystore) ·
   **AsyncStorage** (prefs) · **expo-updates** (RTL reload) · **Ionicons** ·
