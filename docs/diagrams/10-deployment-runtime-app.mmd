@@ -1,0 +1,6 @@
+flowchart TB
+    subgraph App["Default profile (make up) — bridge network: seedbank-net"]
+        API[api<br/>image: seedbank/api:0.1.0<br/>target: runtime-cpu<br/>port: 127.0.0.1:8000]
+        WCPU[worker-cpu<br/>image: seedbank/worker-cpu:0.1.0<br/>target: runtime-cpu<br/>queues: default,cdc,housekeeping,experiments,dwh]
+        WINF[worker-inference<br/>image: seedbank/worker-inference:0.1.0<br/>target: runtime-inference-cpu-full dev / runtime-gpu prod<br/>queues: inference,evaluation]
+    end

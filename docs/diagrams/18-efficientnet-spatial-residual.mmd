@@ -1,0 +1,32 @@
+graph TD
+    %% Define styles
+    classDef attention fill:#f96,stroke:#333,stroke-width:2px;
+    classDef output fill:#bfb,stroke:#333,stroke-width:2px;
+
+    %% Nodes Definition
+    FromChannel["Channel-refined Feature Map<br/>(from Channel Attention Block)"]:::attention
+    Identity["Residual Identity Path<br/>(from backbone feature map)"]:::attention
+
+    subgraph SpatialAttention [CBAM: Spatial Attention Block]
+        AvgPoolS["Channel-wise Mean Pooling"]:::attention
+        MaxPoolS["Channel-wise Max Pooling"]:::attention
+        ConcatS["Channel Concatenation<br/>(2-Channel Map)"]:::attention
+        Conv7x7["7×7 Convolution Layer"]:::attention
+        SigmoidS["Sigmoid Spatial Gate"]:::attention
+        ApplyS["Multiply Spatial Weights"]:::attention
+
+        AvgPoolS --> ConcatS
+        MaxPoolS --> ConcatS
+        ConcatS --> Conv7x7
+        Conv7x7 --> SigmoidS
+        SigmoidS --> ApplyS
+    end
+
+    ResidualSum["Element-wise Addition<br/>(Refined Map + Identity)"]:::attention
+    ToHead["→ Hybrid Pooling Head<br/>(next figure)"]:::output
+
+    %% Inter-connections / Data Flow
+    FromChannel --> AvgPoolS & MaxPoolS
+    ApplyS --> ResidualSum
+    Identity --> ResidualSum
+    ResidualSum --> ToHead

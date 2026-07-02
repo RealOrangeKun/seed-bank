@@ -1,0 +1,25 @@
+erDiagram
+    SUPPLIERS ||--o{ SCAN_BATCHES : "branded"
+    SCAN_BATCHES ||--o{ SCAN_IMAGES : "groups"
+
+    SUPPLIERS {
+        uuid id PK
+        citext name
+        string slug UK
+        bool is_global
+    }
+    SCAN_BATCHES {
+        uuid id PK
+        uuid user_id FK
+        uuid supplier_id FK
+        string status
+        string source
+        timestamptz submitted_at
+    }
+    SCAN_IMAGES {
+        uuid id PK
+        uuid batch_id FK
+        string storage_key
+        int width
+        int height
+    }

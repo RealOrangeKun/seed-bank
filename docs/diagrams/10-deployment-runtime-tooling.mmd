@@ -1,0 +1,19 @@
+%%{init: {'flowchart': { 'subGraphTitleMargin': { 'top': 30, 'bottom': 20 } }}}%%
+flowchart TB
+    subgraph App["Default profile (make up)"]
+        API[api :8000]
+        WCPU[worker-cpu]
+        WINF[worker-inference]
+    end
+
+    PG[(postgres:16-alpine)]
+
+    subgraph Tooling["Opt-in profiles"]
+        ADM[adminer:4.8.1 :8080<br/>ch-ui :3488<br/>profile: dev]
+        OBS[prometheus :9090<br/>grafana :3000<br/>profile: obs]
+        FE[frontend nginx :5173<br/>profile: frontend]
+    end
+
+    ADM -.-> PG
+    OBS -.-> API
+    FE -.-> API

@@ -1,3 +1,4 @@
+%%{init: {'themeVariables': { 'fontSize': '22px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 15 } }}}%%
 flowchart TB
     Client[["HTTP client"]]
 
@@ -5,39 +6,30 @@ flowchart TB
         direction TB
 
         subgraph MW["Middleware<br/>core/, api/middleware.py, api/errors.py"]
+            direction LR
             REQID["request_id"]
             LOG["structured logging"]
             CORS["CORS"]
             RL["rate limiter"]
             EXH["problem-details<br/>exception handler"]
+            REQID ~~~ LOG
+            LOG ~~~ CORS
+            CORS ~~~ RL
+            RL ~~~ EXH
         end
 
         subgraph V1["Routers — src/seedbank/api/v1/"]
+            direction TB
             R_AUTH["auth.py<br/>POST /auth/login<br/>POST /auth/refresh<br/>POST /auth/oauth/{provider}"]
             R_USERS["users.py"]
             R_MODELS["models.py"]
             R_ANALYZE["analyze.py<br/>POST /analyze"]
             R_BATCH["batches.py<br/>GET /batches<br/>GET /batches/{id}"]
         end
-
-        DEPS["api/deps.py<br/>current_user, require_role,<br/>db, redis, minio, repos, services"]
-
-        subgraph SVC["Services — src/seedbank/services/"]
-            S_AUTH["AuthService"]
-            S_REG["ModelRegistryService"]
-            S_TR["ModelResolver"]
-            S_AN["AnalysisService"]
-            S_BAT["BatchService"]
-        end
     end
+
+    NEXT[/→ deps.py and the services layer, next figure/]
 
     Client --> MW
     MW --> V1
-    V1 --> DEPS
-    DEPS --> SVC
-
-    R_AUTH --> S_AUTH
-    R_USERS --> S_AUTH
-    R_MODELS --> S_REG
-    R_ANALYZE --> S_AN
-    R_BATCH --> S_BAT
+    V1 --> NEXT

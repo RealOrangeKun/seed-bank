@@ -1,0 +1,27 @@
+flowchart TB
+    subgraph App["Application layer"]
+        API["api<br/>seedbank/api:0.1.0<br/>uvicorn :8000<br/>1.5 cpu / 768M"]
+        WCPU["worker-cpu<br/>celery -Q default,cdc,housekeeping,experiments,dwh<br/>1 cpu / 512M"]
+        WINF["worker-inference<br/>(target: runtime-inference-cpu-full)<br/>celery -Q inference,evaluation<br/>2 cpu / 4G — prod overlay swaps to runtime-gpu"]
+    end
+
+    subgraph Data["Stateful services"]
+        PG[(postgres:16<br/>:5432<br/>logical replication on)]
+        RD[(redis:7<br/>:6379<br/>db0=cache, db1=broker, db2=results)]
+        MIN[(minio<br/>:9000 api / :9001 console<br/>buckets: seedbank-images, seedbank-models, seedbank-experiments, seedbank-datasets)]
+        CH[(clickhouse:24.10<br/>:8123<br/>OLAP / metrics)]
+    end
+
+    API --> PG
+    API --> RD
+    API --> MIN
+    API --> CH
+    API -. "send_task" .-> RD
+
+    WCPU --> PG
+    WCPU --> RD
+    WCPU --> MIN
+
+    WINF --> PG
+    WINF --> RD
+    WINF --> MIN

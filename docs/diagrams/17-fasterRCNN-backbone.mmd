@@ -1,0 +1,11 @@
+flowchart TD
+    A[Input Image] --> B[ResNet Backbone]
+    B --> C[FPN]
+    C --> D[PANet]
+    D --> M[/Feature Maps → Detection Stage/]
+
+    subgraph Backbone_Features[Feature Extraction]
+        B
+        C
+        D
+    end

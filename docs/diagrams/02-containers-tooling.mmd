@@ -1,0 +1,23 @@
+flowchart TB
+    subgraph App["Application layer"]
+        API["api<br/>seedbank/api:0.1.0<br/>uvicorn :8000<br/>1.5 cpu / 768M"]
+        WCPU["worker-cpu<br/>celery -Q default,cdc,housekeeping,experiments,dwh<br/>1 cpu / 512M"]
+        WINF["worker-inference<br/>(target: runtime-inference-cpu-full)<br/>celery -Q inference,evaluation<br/>2 cpu / 4G — prod overlay swaps to runtime-gpu"]
+    end
+
+    PG[(postgres:16)]
+    CH[(clickhouse:24.10)]
+
+    subgraph Tooling["ML / ops tooling"]
+        ADM["adminer<br/>(profile: dev)"]
+        CHUI["ch-ui<br/>(profile: dev)"]
+        PROM["prometheus<br/>(profile: obs)"]
+        GRAF["grafana<br/>(profile: obs)"]
+        FE["frontend / nginx<br/>(profile: frontend)"]
+    end
+
+    ADM -.-> PG
+    CHUI -.-> CH
+    PROM -.-> API
+    GRAF -.-> PROM
+    FE -.-> API

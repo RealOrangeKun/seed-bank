@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph Targets["Runtime targets (Dockerfile, from the build-stages figure)"]
+        direction LR
+        R1[runtime-cpu]
+        R2[runtime-inference-cpu]
+        R3[runtime-inference-cpu-full]
+        R4[runtime-gpu]
+    end
+
+    subgraph Images["Compose images (default profile)"]
+        direction LR
+        API[api<br/>seedbank/api:0.1.0]
+        WCPU[worker-cpu<br/>seedbank/worker-cpu:0.1.0]
+        WINF[worker-inference<br/>seedbank/worker-inference:0.1.0]
+    end
+
+    R1 -->|build target| API
+    R1 -->|build target| WCPU
+    R2 -.->|dev default| WINF
+    R3 -.->|dev, opt-in full backend| WINF
+    R4 -.->|prod overlay| WINF

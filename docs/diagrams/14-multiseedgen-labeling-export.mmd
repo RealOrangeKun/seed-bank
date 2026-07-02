@@ -1,0 +1,30 @@
+%%{init: {'themeVariables': { 'fontSize': '20px' }}}%%
+flowchart TD
+    from[/Composited scenes from generation/]
+
+    subgraph LBL[Label derivation]
+        direction LR
+        l1[axis-aligned bounding boxes] --> l2[occlusion-aware polygons]
+        l2 --> l3[provenance per box]
+    end
+
+    deg[Camera-matched degradation: noise / JPEG / blur / gamma]
+
+    subgraph EXP[Export]
+        direction LR
+        e1[YOLO boxes] --> e2[YOLO-seg polygons]
+        e2 --> e3[COCO annotations.json]
+        e3 --> e4[data.yaml + run manifest]
+    end
+
+    split[Leakage-safe train/val split: per-class seed holdout]
+    out[/Annotated multi-seed detection dataset/]
+    seedbank[Seed Bank detection model]
+
+    from --> LBL
+    from --> deg
+    deg --> EXP
+    LBL --> EXP
+    EXP --> split
+    split --> out
+    out -.->|trains detector| seedbank

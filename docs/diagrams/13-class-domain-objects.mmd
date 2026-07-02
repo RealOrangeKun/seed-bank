@@ -1,0 +1,31 @@
+classDiagram
+    class AnalysisService {
+        +create_and_dispatch(files, opts) ScanBatch
+    }
+    class ScanBatchRepository {
+        +cas_status(id, frm, to) CasResult
+    }
+    class Detection {
+        +bbox: BoundingBox
+        +class_id: int
+        +class_name: str|None
+        +confidence: float
+    }
+    class Classification {
+        +label: str
+        +confidence: float
+        +raw_score: float|None
+        +defects: tuple
+    }
+    class BoundingBox {
+        +x: float
+        +y: float
+        +w: float
+        +h: float
+    }
+    class TorchLocalBackend
+
+    AnalysisService --> ScanBatchRepository : persists state
+    TorchLocalBackend ..> Detection : returns
+    TorchLocalBackend ..> Classification : returns
+    Detection --> BoundingBox

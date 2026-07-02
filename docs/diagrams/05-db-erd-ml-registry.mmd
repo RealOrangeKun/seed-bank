@@ -1,0 +1,30 @@
+erDiagram
+    USERS ||--o{ MODEL_ARTIFACTS : "registers"
+    SEED_TYPES ||--o{ MODEL_ARTIFACTS : "scopes"
+    MODEL_ARTIFACTS ||--o{ MODEL_METRICS : "scored by"
+
+    SEED_TYPES {
+        uuid id PK
+        string code UK
+        string display_name
+        numeric default_confidence_threshold
+    }
+    MODEL_ARTIFACTS {
+        uuid id PK
+        string name
+        string version
+        string kind
+        string backend
+        uuid seed_type_id FK
+        string artifact_uri
+        jsonb config
+        string status
+    }
+    MODEL_METRICS {
+        uuid id PK
+        uuid model_id FK
+        uuid dataset_id FK
+        string metric_name
+        numeric metric_value
+        timestamptz computed_at
+    }

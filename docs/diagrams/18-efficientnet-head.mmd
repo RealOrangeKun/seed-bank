@@ -1,0 +1,29 @@
+graph TD
+    %% Define styles
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef backbone fill:#bdf,stroke:#333,stroke-width:2px;
+    classDef attention fill:#f96,stroke:#333,stroke-width:2px;
+    classDef pooling fill:#ff9,stroke:#333,stroke-width:2px;
+    classDef output fill:#bfb,stroke:#333,stroke-width:2px;
+
+    %% Nodes Definition
+    FromCBAM["Refined Feature Map<br/>(from CBAM Attention)"]:::attention
+
+    subgraph Head [Hybrid Classification Head]
+        direction TB
+        GAP["Global Average Pooling<br/>(GAP: 1408 × 1 × 1)"]:::pooling
+        GMP["Global Max Pooling<br/>(GMP: 1408 × 1 × 1)"]:::pooling
+        ConcatHead["Vector Splicing / Concatenation<br/>(Combined Dim: 2816)"]:::pooling
+        Drop["Dropout Layer<br/>(Rate: 0.25)"]:::pooling
+        Dense["Linear Projection Layer<br/>(Fully Connected Layer)"]:::output
+    end
+
+    Output["Raw Defect Logits<br/>(7-Way Multi-Label Vector)"]:::output
+
+    %% Inter-connections / Data Flow
+    FromCBAM --> GAP & GMP
+    GAP --> ConcatHead
+    GMP --> ConcatHead
+    ConcatHead --> Drop
+    Drop --> Dense
+    Dense --> Output

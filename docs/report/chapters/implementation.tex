@@ -19,9 +19,25 @@ and makes it easy for a new team member to get started.
 
 There are four primary components. The frontend is a React application \cite{reactindepth} that the user interacts with. The backend is a FastAPI service \cite{fastapi} that takes an image, runs the models, and returns the results. PostgreSQL stores the transactional records so a user can come back later and see the history of what they scanned. Alongside PostgreSQL, a ClickHouse instance acts as the analytics data warehouse, storing detailed inference telemetry and performance metrics for reporting and evaluation. The frontend talks to the backend over a simple HTTP API, and the backend communicates with the databases and object storage, so each part can be developed and tested on its own.
 
-\autoref{fig:deployment} shows how the containers connect.
+The build view is split into two: \autoref{fig:deployment-build-stages} shows
+the multi-stage Dockerfile's 4 builder stages feeding their 4 matching runtime
+stages; \autoref{fig:deployment-build-images} shows which runtime stage each
+of the three Compose images is built from. The runtime view is split into
+three: \autoref{fig:deployment-runtime-app} shows the three containers the
+default profile runs; \autoref{fig:deployment-runtime-datastores} shows those
+same containers wired to the stateful datastores; \autoref{fig:deployment-runtime-tooling}
+shows the same containers alongside the opt-in dev/obs/frontend tooling
+profiles.
 
-\figslot[1.1]{10-deployment.pdf}{Deployment view: the React frontend, the FastAPI backend, the PostgreSQL database, and the ClickHouse analytics warehouse.}{fig:deployment}
+\figslot[1.1]{10-deployment-build-stages.pdf}{Build view: the multi-stage Dockerfile's 4 builder stages feeding their 4 matching runtime stages.}{fig:deployment-build-stages}
+
+\figslot[1.1]{10-deployment-build-images.pdf}{Build view: the three Compose images (\texttt{api}, \texttt{worker-cpu}, \texttt{worker-inference}) and which Dockerfile runtime stage each is built from.}{fig:deployment-build-images}
+
+\figslot[1.1]{10-deployment-runtime-app.pdf}{Runtime view: the \texttt{api}, \texttt{worker-cpu}, and \texttt{worker-inference} containers the default Compose profile runs, all on the \texttt{seedbank-net} bridge network.}{fig:deployment-runtime-app}
+
+\figslot[1.1]{10-deployment-runtime-datastores.pdf}{Runtime view: the three containers wired to the stateful Postgres/Redis/MinIO/ClickHouse datastores.}{fig:deployment-runtime-datastores}
+
+\figslot[1.1]{10-deployment-runtime-tooling.pdf}{Runtime view: the three containers alongside the opt-in dev (Adminer/ch-ui), obs (Prometheus/Grafana), and frontend tooling profiles.}{fig:deployment-runtime-tooling}
 
 \section{Key implementation details}
 
@@ -45,7 +61,13 @@ CIoU (Complete Intersection over Union) is a loss function used to make bounding
 
 Faster R-CNN architecture is a two-stage object detection model. First, it finds possible object regions, then it classifies them and adjusts the boxes more precisely, which makes it accurate and reliable, though usually slower than one-stage models like YOLO.
 
-\figslot[1.0]{17-fasterRCNN-architecture.pdf}{The Faster R-CNN detection architecture, showing the ResNet backbone, the FPN for multi-scale features, and the RPN and ROI head for detection and classification.}{fig:detector-arch}
+\autoref{fig:detector-backbone} shows the shared feature-extraction backbone;
+\autoref{fig:detector-head} shows the detection stage that consumes those
+feature maps to produce the final class label and bounding box.
+
+\figslot[1.1]{17-fasterRCNN-backbone.pdf}{The Faster R-CNN feature-extraction backbone, showing the ResNet backbone feeding the FPN and PANet to produce the multi-scale feature maps passed to the detection stage.}{fig:detector-backbone}
+
+\figslot[1.1]{17-fasterRCNN-detection-head.pdf}{The Faster R-CNN detection stage, showing the RPN and ROI head consuming the backbone's feature maps to produce the final class label and bounding box.}{fig:detector-head}
 
 The second stage is quality classification. To perform multi-label defect classification on individual isolated crops, the pipeline utilizes a deep convolutional neural network optimized for fine-grained feature extraction. Rather than relying on a standard off-the-shelf classifier, the architecture is a modified variant of EfficientNet-B2 integrated with a Convolutional Block Attention Module (CBAM) and a hybrid pooling layer.\cite{tan2019efficientnet} 
 
@@ -55,7 +77,18 @@ Channel Attention determines what defect characteristics to emphasize across cha
 
 Hybrid Pooling Head is the standard global average pooling layer is replaced with a concurrent, hybrid concatenation layout. By running Global Average Pooling (GAP) and Global Max Pooling (GMP) in parallel and splicing their outputs the network simultaneously tracks smooth structural global patterns alongside highly localized, sharp defect signals (such as microscopic fungal patches or fine cracks).
 
-\figslot[1.0]{18-Efficient-net-B2.pdf}{The EfficientNet-B2 defect classification architecture}{fig:classifier-arch}
+The EfficientNet-B2 backbone and CBAM attention block is split into two views
+so each stays readable at print size. \autoref{fig:classifier-backbone} shows
+the backbone feeding the channel attention block; \autoref{fig:classifier-spatial}
+shows the spatial attention block combining with the residual identity path;
+\autoref{fig:classifier-head} shows the hybrid pooling head that turns the
+refined feature map into the final defect logits.
+
+\figslotlarge[1.1]{18-efficientnet-backbone-channel.pdf}{The EfficientNet-B2 backbone feeding the CBAM channel attention block.}{fig:classifier-backbone}
+
+\figslotlarge[1.1]{18-efficientnet-spatial-residual.pdf}{The CBAM spatial attention block, combining the channel-refined feature map with the residual identity path before the hybrid pooling head.}{fig:classifier-spatial}
+
+\figslotlarge[1.1]{18-efficientnet-head.pdf}{The hybrid pooling classification head, combining global average and max pooling on the CBAM-refined feature map before dropout and a final linear projection to defect logits.}{fig:classifier-head}
 
 \subsection{One-stage detectors}
 
@@ -95,7 +128,7 @@ resolves to the same model, and a developer can override the choice with an
 explicit model on a single request. Figure~\ref{fig:model-resolution} shows the
 decision.
 
-\figslot[1.2]{16-model-resolution.pdf}{Model resolution: the resolver selects the model
+\figslotlarge[1.1]{16-model-resolution.pdf}{Model resolution: the resolver selects the model
 promoted to production for a segment, falls back to the global production model
 when only that is available, or reports that no model is ready.}{fig:model-resolution}
 

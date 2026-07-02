@@ -1,0 +1,35 @@
+graph TD
+    %% Define styles
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef backbone fill:#bdf,stroke:#333,stroke-width:2px;
+    classDef attention fill:#f96,stroke:#333,stroke-width:2px;
+    classDef output fill:#bfb,stroke:#333,stroke-width:2px;
+
+    %% Nodes Definition
+    Input["Input Seed Crop<br/>(260 × 260 × 3)"]:::input
+
+    subgraph Backbone [EfficientNet-B2 Feature Extractor]
+        EffNet["Pretrained EfficientNet-B2<br/>(Final Feature Map Layer)"]:::backbone
+    end
+
+    subgraph ChannelAttention [CBAM: Channel Attention Block]
+        AvgPoolC["Global Avg Pooling"]:::attention
+        MaxPoolC["Global Max Pooling"]:::attention
+        SharedMLP["Shared 2-Layer MLP<br/>(1×1 Convolutions)"]:::attention
+        SumC["Summation & Sigmoid Gate"]:::attention
+        ApplyC["Multiply Channel Weights"]:::attention
+
+        AvgPoolC --> SharedMLP
+        MaxPoolC --> SharedMLP
+        SharedMLP --> SumC
+        SumC --> ApplyC
+    end
+
+    ToSpatial["→ Spatial Attention Block<br/>(next figure)"]:::output
+    ToResidual["→ Residual Identity Path<br/>(next figure)"]:::output
+
+    %% Inter-connections / Data Flow
+    Input --> EffNet
+    EffNet --> AvgPoolC & MaxPoolC
+    EffNet --> ToResidual
+    ApplyC --> ToSpatial

@@ -1,0 +1,26 @@
+flowchart TB
+    subgraph App["Default profile (make up)"]
+        API[api<br/>image: seedbank/api:0.1.0<br/>port: 127.0.0.1:8000]
+        WCPU[worker-cpu<br/>queues: default,cdc,housekeeping,experiments,dwh]
+        WINF[worker-inference<br/>queues: inference,evaluation]
+    end
+
+    subgraph Data["Stateful — always on"]
+        PG[(postgres:16-alpine<br/>:5432<br/>vol: postgres-data)]
+        RD[(redis:7-alpine<br/>:6379<br/>vol: redis-data)]
+        MIN[(minio<br/>:9000 / :9001<br/>vol: minio-data)]
+        CH[(clickhouse:24.10-alpine<br/>:8123<br/>vol: clickhouse-data)]
+    end
+
+    API --> PG
+    API --> RD
+    API --> MIN
+    API --> CH
+
+    WCPU --> PG
+    WCPU --> RD
+    WCPU --> MIN
+
+    WINF --> PG
+    WINF --> RD
+    WINF --> MIN

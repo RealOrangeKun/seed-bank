@@ -1,0 +1,27 @@
+%%{init: {'themeVariables': { 'fontSize': '20px' }}}%%
+flowchart TD
+    src[/Single-seed source images/]
+    cfg[/Config: YAML / CLI flags/]
+    tex[/Background / texture photos/]
+
+    subgraph SEG[Segmentation cascade]
+        direction LR
+        s1[auto: border-color -> Otsu -> GrabCut] --> s2[rembg U2-Net / SAM fallback]
+        s2 --> s3[confidence gate + content-hash cache]
+    end
+
+    subgraph COMP[Scene composition]
+        direction LR
+        c1[sample N seeds 6..25] --> c2[place: IoU limit + visibility check]
+        c2 --> c3[label-safe augment: scale/rotate/shear/HSV]
+        c3 --> c4[composite on inpainted background]
+        c4 --> c5[soft directional shadows]
+    end
+
+    next[/Composited scenes → Label derivation and Export/]
+
+    src --> SEG
+    cfg --> SEG
+    SEG --> COMP
+    tex --> COMP
+    COMP --> next

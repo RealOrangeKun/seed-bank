@@ -1,0 +1,23 @@
+flowchart LR
+    BASE[python:3.12-slim-bookworm]
+
+    subgraph CPU["api / worker-cpu path"]
+        direction TB
+        B1[builder] --> R1[runtime-cpu]
+    end
+
+    subgraph INF["worker-inference — CPU paths"]
+        direction TB
+        B2[builder-inference-cpu] --> R2[runtime-inference-cpu]
+        B3[builder-inference-cpu-full] --> R3[runtime-inference-cpu-full]
+    end
+
+    subgraph GPU["worker-inference — GPU path (prod overlay)"]
+        direction TB
+        B4[builder-gpu] --> R4["runtime-gpu<br/>(nvidia/cuda:12.4.1-cudnn base)"]
+    end
+
+    BASE --> B1
+    BASE --> B2
+    BASE --> B3
+    BASE --> B4

@@ -1,0 +1,29 @@
+classDiagram
+    class ModelResolver {
+        +select_model(kind, seed_type) UUID
+    }
+    class ModelManager {
+        -lru: OrderedDict
+        -locks: dict
+        +load(model_id, builder_key, artifact_uri) Module
+        +load_yolo(model_id, artifact_uri) object
+        -_evict_if_needed(kind)
+    }
+    class InferenceBackend {
+        <<Protocol>>
+        +detect(image, cfg) Detection[]
+        +classify(crop, cfg) Classification
+    }
+    class TorchLocalBackend
+    class UltralyticsYoloBackend
+    class RoboflowBackend
+    class ModelBuilder {
+        <<registry>>
+        +build(builder_key) Module
+    }
+
+    InferenceBackend <|.. TorchLocalBackend
+    InferenceBackend <|.. UltralyticsYoloBackend
+    InferenceBackend <|.. RoboflowBackend
+    TorchLocalBackend --> ModelManager : loads via
+    ModelManager --> ModelBuilder : builds module

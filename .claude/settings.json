@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/format-python.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/format-python.sh\"",
             "description": "Run ruff format + check --fix on edited Python files"
           }
         ]
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/typecheck-changed.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-changed.sh\"",
             "description": "Run mypy on edited files under src/seedbank/"
           }
         ]
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-doc-staleness.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/check-doc-staleness.sh\"",
             "description": "Advise re-running docs-sync after a models.py/migration/router edit"
           }
         ]
@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/guard-bash.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.sh\"",
             "description": "Block pushes/force-pushes to main/master and top-level rm -rf; warn on alembic upgrade head"
           }
         ]
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/inject-stack-reminder.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/inject-stack-reminder.sh\"",
             "description": "Reinforce the stack pillars in long sessions"
           }
         ]

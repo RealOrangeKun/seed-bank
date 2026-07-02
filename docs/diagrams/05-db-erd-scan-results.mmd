@@ -1,0 +1,34 @@
+erDiagram
+    SCAN_IMAGES ||--o{ INFERENCES : "scored by"
+    INFERENCES ||--o{ SEED_DETECTIONS : "produces"
+    SEED_TYPES ||--o{ SEED_DETECTIONS : "labels"
+
+    SCAN_IMAGES {
+        uuid id PK
+        uuid batch_id FK
+        string storage_key
+        int width
+        int height
+    }
+    INFERENCES {
+        uuid id PK
+        uuid image_id FK
+        uuid model_id FK
+        int latency_ms
+    }
+    SEED_DETECTIONS {
+        uuid id PK
+        uuid inference_id FK
+        uuid seed_type_id FK
+        string quality
+        numeric confidence
+        numeric box_x_norm
+        numeric box_y_norm
+        numeric box_w_norm
+        numeric box_h_norm
+    }
+    SEED_TYPES {
+        uuid id PK
+        string code UK
+        string display_name
+    }

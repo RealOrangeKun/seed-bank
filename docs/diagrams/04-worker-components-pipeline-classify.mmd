@@ -1,0 +1,22 @@
+%%{init: {'themeVariables': { 'fontSize': '26px' }}}%%
+flowchart TB
+    FROM[/Detect rows committed, from the detection phase/]
+
+    subgraph R2["Phase 2: Classify and finalize"]
+        direction TB
+        RES_CLS["ModelResolver.select_model<br/>kind=CLASSIFICATION"] --> CROP["PIL crop per detection"]
+        CROP --> CLS["ClassifyPipeline.classify"]
+        CLS --> P_QC["InferenceRepository<br/>+ SeedDetectionRepository"]
+        P_QC --> COMMIT2["commit classify rows"]
+        COMMIT2 --> FIN["finalize batch (CAS running → succeeded)"]
+    end
+
+    subgraph EXT["External adapters"]
+        direction LR
+        ML["infrastructure/ml<br/>backends/pipeline"]
+        TR["services/model_resolver"]
+    end
+
+    FROM --> RES_CLS
+    RES_CLS --> TR
+    CLS --> ML

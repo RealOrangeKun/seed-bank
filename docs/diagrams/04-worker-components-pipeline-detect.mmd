@@ -1,0 +1,23 @@
+%%{init: {'themeVariables': { 'fontSize': '26px' }}}%%
+flowchart TB
+    subgraph R1["Phase 1: Detect and persist"]
+        direction TB
+        CAS["CAS pending → running"] --> FETCH["MinIO.get_object<br/>image bytes"]
+        FETCH --> RES_DET["ModelResolver.select_model<br/>kind=DETECTION"]
+        RES_DET --> DET["DetectPipeline.detect"]
+        DET --> P_INF["InferenceRepository<br/>+ SeedDetectionRepository"]
+        P_INF --> COMMIT1["commit detect rows"]
+    end
+
+    subgraph EXT["External adapters"]
+        direction LR
+        MIN[("MinIO")]
+        ML["infrastructure/ml<br/>backends/pipeline"]
+        TR["services/model_resolver"]
+    end
+
+    FETCH --> MIN
+    RES_DET --> TR
+    DET --> ML
+
+    COMMIT1 --> NEXT[/→ Classification and finalize, next figure/]

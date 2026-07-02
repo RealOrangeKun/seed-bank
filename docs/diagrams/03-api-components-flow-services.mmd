@@ -1,0 +1,30 @@
+%%{init: {'themeVariables': { 'fontSize': '22px' } }}%%
+flowchart TB
+    subgraph V1["Routers — src/seedbank/api/v1/ (from the routing figure)"]
+        direction LR
+        R_AUTH["auth.py"]
+        R_USERS["users.py"]
+        R_MODELS["models.py"]
+        R_ANALYZE["analyze.py"]
+        R_BATCH["batches.py"]
+    end
+
+    DEPS["api/deps.py<br/>current_user, require_role,<br/>db, redis, minio, repos, services"]
+
+    subgraph SVC["Services — src/seedbank/services/"]
+        direction TB
+        S_AUTH["AuthService"]
+        S_REG["ModelRegistryService"]
+        S_TR["ModelResolver"]
+        S_AN["AnalysisService"]
+        S_BAT["BatchService"]
+    end
+
+    V1 --> DEPS
+    DEPS --> SVC
+
+    R_AUTH --> S_AUTH
+    R_USERS --> S_AUTH
+    R_MODELS --> S_REG
+    R_ANALYZE --> S_AN
+    R_BATCH --> S_BAT
