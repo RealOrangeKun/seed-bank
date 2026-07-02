@@ -870,197 +870,442 @@ class: center-slide
 
 <!-- SLIDE 28 — From Trained Models to a Real Product -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
 # A Model in a Notebook Helps No One
 
 <div class="pipeline" style="margin:1.2rem 0; gap:1.2rem;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 200 } }">
   <div class="card center" style="flex:1;"><div class="chip-ic" style="margin:0 auto 0.4rem;"><img src="./media/icons/file-text.png" /></div><h3>Trained model</h3><p class="mut">a lone .pth file</p></div>
   <span class="arrow" style="font-size:2rem;">→</span>
-  <div class="card accent center" style="flex:1.2;"><div class="icard" style="justify-content:center;"><div class="chip-ic"><img src="./media/icons/monitor-smartphone.png" /></div><div class="chip-ic"><img src="./media/icons/users.png" /></div></div><h3 style="margin-top:0.4rem;">A platform two audiences use every day</h3></div>
+  <div class="card accent center" style="flex:1.2;"><div class="icard" style="justify-content:center;"><div class="chip-ic"><img src="./media/icons/monitor-smartphone.png" /></div><div class="chip-ic"><img src="./media/icons/users.png" /></div></div><h3 style="margin-top:0.4rem;">A product real users rely on</h3></div>
 </div>
 
-<div class="pills">
+<div class="grid3" style="margin-top:1rem;" v-motion :initial="{ opacity: 0, y: 18 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 350 } }">
+  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.4rem;"><img src="./media/icons/monitor.png" /></div><h3>React Web App</h3><p class="mut">Dashboard, analytics, ML platform</p></div>
+  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.4rem;"><img src="./media/icons/smartphone.png" /></div><h3>Expo Mobile App</h3><p class="mut">Camera capture, realtime grading</p></div>
+  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.4rem;"><img src="./media/icons/server.png" /></div><h3>FastAPI Backend</h3><p class="mut">One API serving both clients</p></div>
+</div>
+
+<div class="pills" style="margin-top:0.9rem;">
+  <span class="pill"><img src="./media/icons/users.png" /> 3 roles: end_user · ai_developer · admin</span>
   <span class="pill"><img src="./media/icons/hand.png" /> Usable</span>
   <span class="pill"><img src="./media/icons/link.png" /> Traceable</span>
   <span class="pill"><img src="./media/icons/shield.png" /> Secure</span>
 </div>
 
 <!--
-This is the seam. Everything so far was research; now we turn it into something a farmer and a QA
-lab actually use — the IS/backend team's contribution. The three anchor words map to the next slides.
-→ Next: let's see it running.
+This is the seam. Everything so far was research; now we turn it into a product.
+The backend serves two client apps (web + mobile). Three user roles control access.
+Three anchor words (usable, traceable, secure) map to the next slides.
 -->
 
 ---
 
-<!-- SLIDE 29 — Live App Showcase -->
+<!-- SLIDE 29A - Live App Showcase: The Farmer Journey -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# Live App Showcase
+# The Farmer Journey
 
-<div class="grid4" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div><div class="diagram"><img src="./media/screenshots/MobileView.png" /></div><p class="mut center" style="font-size:0.78rem; margin-top:0.3rem;">Capture on mobile</p></div>
-  <div><div class="diagram"><img src="./media/screenshots/Dashboard.png" /></div><p class="mut center" style="font-size:0.78rem; margin-top:0.3rem;">Review on web</p></div>
-  <div><div class="diagram"><img src="./media/screenshots/web-batch-detail.png" /></div><p class="mut center" style="font-size:0.78rem; margin-top:0.3rem;">AI insights + boxes</p></div>
-  <div><div class="diagram"><img src="./media/screenshots/Models_managment.png" /></div><p class="mut center" style="font-size:0.78rem; margin-top:0.3rem;">ML platform behind it</p></div>
+<div class="grid2" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
+  <div><div class="diagram"><img src="./media/screenshots/MobileView.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">Capture on Mobile</p></div>
+  <div><div class="diagram"><img src="./media/screenshots/Dashboard.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">Review on Web Dashboard</p></div>
 </div>
 
-<p class="lead center" style="margin-top:0.8rem; font-size:0.92rem;">Capture → analyze → review the insights — with a whole ML platform behind it.</p>
-
 <!--
-Walk the real farmer journey through the screenshots — capture, analyze, review the insights —
-then reveal there's a whole ML platform behind it. Keep captions to one line each.
-→ Next: who uses which part, and in which language.
+The farmer's workflow starts in the field on the mobile app, and shifts to the web dashboard for reviewing their entire crop history.
 -->
 
 ---
 
-<!-- SLIDE 30 — One Platform, Two Audiences, Two Languages -->
+<!-- SLIDE 29B - Live App Showcase: The AI Journey -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# One Platform, Two Audiences — in Two Languages
+# Deep Insights &amp; ML Platform
+
+<div class="grid2" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
+  <div><div class="diagram"><img src="./media/screenshots/web-batch-detail.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">AI Insights &amp; Bounding Boxes</p></div>
+  <div><div class="diagram"><img src="./media/screenshots/Models_managment.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">ML Platform for Developers</p></div>
+</div>
+
+<!--
+Drilling down into a specific batch reveals the bounding boxes and AI insights. And behind the scenes, AI developers use the built-in ML platform to manage datasets and models.
+-->
+
+---
+
+<!-- SLIDE 30 — One Backend, Two Apps, Two Languages -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# One Backend, Two Apps, Two Languages
 
 <div class="grid2" style="margin-top:0.3rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/tractor.png" /></div><div class="tx"><h3>Farmer (end user)</h3><p>Capture · analyze · history · share a read-only report</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/flask-conical.png" /></div><div class="tx"><h3>AI developer / admin</h3><p>Models · datasets · experiments · user management</p></div></div></div>
+  <div class="card accent">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/monitor.png" /></div><div class="tx"><h3>React Web App (Vite + TypeScript)</h3><p>Dashboard, batch detail, analytics, compare, ML platform pages</p></div></div>
+  </div>
+  <div class="card accent">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/smartphone.png" /></div><div class="tx"><h3>Expo Mobile App (React Native)</h3><p>Camera capture, multi-shot review, realtime grading, history</p></div></div>
+  </div>
 </div>
 
-<div class="card amber" style="margin-top:0.9rem;">
-  <div class="icard"><div class="chip-ic" style="background:transparent;"><img src="./media/icons/languages.png" style="width:1.7rem;height:1.7rem;" /></div><div><h3 style="color:var(--leaf-deep);">Fully bilingual — English + Arabic with complete RTL mirroring</h3><p class="mut">Every user-facing string translated; the whole layout flips for Arabic — on web AND mobile, not an afterthought.</p></div></div>
+<div class="grid3" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 18 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 350 } }">
+  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.4rem;"><img src="./media/icons/tractor.png" /></div><h3>end_user</h3><p class="mut">Analyze, history, share reports</p></div>
+  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.4rem;"><img src="./media/icons/flask-conical.png" /></div><h3>ai_developer</h3><p class="mut">Models, datasets, experiments</p></div>
+  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.4rem;"><img src="./media/icons/users.png" /></div><h3>admin</h3><p class="mut">Full platform control</p></div>
+</div>
+
+<div class="card amber" style="margin-top:0.6rem;">
+  <div class="icard"><div class="chip-ic" style="background:transparent;"><img src="./media/icons/languages.png" style="width:1.7rem;height:1.7rem;" /></div><div><h3 style="color:var(--leaf-deep);">Fully bilingual: English + Arabic with complete RTL mirroring</h3><p class="mut">Every user-facing string translated; the whole layout flips for Arabic on both web and mobile.</p></div></div>
 </div>
 
 <!--
-One platform, two role-gated audiences, and it's fully bilingual EN/AR with mirrored RTL on both
-web and mobile — a real accessibility win most projects skip. → Next: what's under the hood.
+One FastAPI backend serves two client applications. Three role-gated user types control
+who sees what. Both apps are fully bilingual EN/AR with RTL layout mirroring.
 -->
 
 ---
 
-<!-- SLIDE 31 — System Architecture -->
+<!-- SLIDE 31 — System Architecture: Application Layer -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# System Architecture
+# How It's Built: Application Layer
 
 <div class="grid2" style="align-items:center; margin-top:0.2rem;">
-  <div class="grid2" style="grid-template-columns:1fr 1fr; gap:0.6rem;" v-motion :initial="{ opacity: 0, scale: 0.93 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
-    <div class="diagram"><img src="./media/diagrams/02-containers-app.png" /></div>
-    <div class="diagram"><img src="./media/diagrams/02-containers-datastores.png" /></div>
+  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.93 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
+    <img src="./media/diagrams/02-containers-app.png" />
   </div>
   <div>
-    <ul>
-      <li><strong>Clients</strong> — React 18 web + Expo mobile (EN/AR)</li>
-      <li><strong>Backend</strong> — FastAPI, async end-to-end, layered (routers → services → repos), JWT + RBAC</li>
-      <li><strong>Datastores</strong> — PostgreSQL (16 tables, UUIDv7) · Redis · MinIO · ClickHouse</li>
-      <li><strong>Workers</strong> — worker-inference (torch) · worker-cpu (no torch)</li>
-    </ul>
-    <div class="pill" style="margin-top:0.5rem;">7 core services · <code>docker compose up</code></div>
+    <div class="card accent" style="margin-bottom:0.5rem;">
+      <div class="icard"><div class="chip-ic"><img src="./media/icons/backend.png" /></div><div class="tx"><h3>FastAPI (async)</h3><p>Routers → Services → Repositories → ORM. Nothing blocks the event loop.</p></div></div>
+    </div>
+    <div class="card accent" style="margin-bottom:0.5rem;">
+      <div class="icard"><div class="chip-ic"><img src="./media/icons/workers.png" /></div><div class="tx"><h3>Two worker types</h3><p><code>worker-inference</code> (GPU, torch) and <code>worker-cpu</code> (analytics, DWH). Split so torch never loads into the lightweight worker.</p></div></div>
+    </div>
+    <div class="card accent">
+      <div class="icard"><div class="chip-ic"><img src="./media/icons/clients.png" /></div><div class="tx"><h3>Two clients, one API</h3><p>React 18 + Vite (web) and Expo SDK 56 (mobile), both hitting <code>/api/v1</code>.</p></div></div>
+    </div>
   </div>
 </div>
 
-<p class="lead center" style="margin-top:0.5rem; font-size:0.85rem;">The deep dive on the high-level view from Slide 12 — clean layering is <em>why</em> each piece is swappable and testable.</p>
+<div class="callout">Inference is heavy, so it never runs inside the request the user is waiting on. The API stays fast.</div>
 
 <!--
-The payoff of the high-level architecture we teased at Slide 12 — clean layered design, async
-end-to-end, seven core services that come up with one command. Don't go deeper than that.
-→ Next: let's follow one photo all the way through.
+How we built it: workers split by dependency weight. The inference worker loads torch (~1.6 GB),
+the CPU worker does not. The API itself never imports torch. Everything is async.
 -->
 
 ---
-class: dense
----
 
-<!-- SLIDE 32 — The Analyze Pipeline, End-to-End -->
+<!-- SLIDE 32 - System Architecture: Datastores -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# The Analyze Pipeline, End-to-End
+# How It's Built: Data Layer
 
-<ol class="steps-2col">
-  <li><code>POST /analyze</code> — photos + optional metadata</li>
-  <li>Validate → upload to MinIO → create batch (pending) → commit</li>
-  <li>Dispatch one background job per image</li>
-  <li><strong>DETECT → CROP → GROUP by type → CLASSIFY</strong> each group</li>
-  <li>State machine: pending → running → succeeded / partial / failed</li>
-  <li>Client polls until a terminal status</li>
-</ol>
-
-<div class="grid2" style="margin-top:0.6rem;">
-  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.93 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }"><img src="./media/diagrams/06-analyze-sequence.png" /><p class="mut center" style="font-size:0.72rem; margin-top:0.2rem;">Analyze sequence</p></div>
-  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.93 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 350 } }"><img src="./media/diagrams/07-batch-state-machine.png" /><p class="mut center" style="font-size:0.72rem; margin-top:0.2rem;">Batch state machine</p></div>
+<div class="grid4" style="margin-top:1.5rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 650, delay: 200 } }">
+  <div class="card center">
+    <div class="chip-ic" style="margin:0 auto 0.8rem; width:3.2rem; height:3.2rem;"><img src="./media/icons/database.png" style="width:1.8rem; height:1.8rem;" /></div>
+    <h3 style="font-size:1.15rem; margin-bottom:0.4rem;">PostgreSQL 16</h3>
+    <p class="mut">The core relational backbone. Stores batches, detections, model metadata, and users.</p>
+  </div>
+  <div class="card center">
+    <div class="chip-ic" style="margin:0 auto 0.8rem; width:3.2rem; height:3.2rem;"><img src="./media/icons/workflow.png" style="width:1.8rem; height:1.8rem;" /></div>
+    <h3 style="font-size:1.15rem; margin-bottom:0.4rem;">Redis 7</h3>
+    <p class="mut">Serves three crucial roles: fast caching, Celery task broker, and Celery results backend.</p>
+  </div>
+  <div class="card center">
+    <div class="chip-ic" style="margin:0 auto 0.8rem; width:3.2rem; height:3.2rem;"><img src="./media/icons/box.png" style="width:1.8rem; height:1.8rem;" /></div>
+    <h3 style="font-size:1.15rem; margin-bottom:0.4rem;">MinIO</h3>
+    <p class="mut">S3-compatible object storage for all binary files: images, model weights, and exported datasets.</p>
+  </div>
+  <div class="card center">
+    <div class="chip-ic" style="margin:0 auto 0.8rem; width:3.2rem; height:3.2rem;"><img src="./media/icons/bar-chart-3.png" style="width:1.8rem; height:1.8rem;" /></div>
+    <h3 style="font-size:1.15rem; margin-bottom:0.4rem;">ClickHouse</h3>
+    <p class="mut">An OLAP star schema specifically built for high-performance aggregations and analytics.</p>
+  </div>
 </div>
 
-<div class="fwd center" style="margin-top:0.5rem;">Concurrency-safe state machine · per-seed-type routing · graceful partial results</div>
-
 <!--
-Trace a single analyze request end-to-end — the two-stage pipeline from Slide 13 in motion: the
-fan-out, per-seed-type routing, and the concurrency-safe state machine that degrades gracefully to
-"partial" instead of failing. → Next: how every result stays traceable to a model.
+Four datastores, each chosen for a specific reason. PostgreSQL is the relational backbone. Redis doubles as cache and task broker. MinIO stores everything binary. ClickHouse handles analytics. How it gets its data is worth its own slide.
 -->
 
 ---
 
-<!-- SLIDE 33 — Model Traceability & Lifecycle -->
+<!-- SLIDE 33 - Data Warehouse Population -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# Model Traceability & Lifecycle
+# OLTP to OLAP: The Dual-Write Pattern
+
+<div class="pipeline" style="margin:1rem 0; font-size: 0.9rem;" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 200 } }">
+  <div class="stage classify"><img class="ic" src="./media/icons/cpu.png" /> Worker finishes inference</div>
+  <span class="arrow">→</span>
+  <div class="stage io"><img class="ic" src="./media/icons/database.png" /> Commits to Postgres</div>
+  <span class="arrow">→</span>
+  <div class="stage detect"><img class="ic" src="./media/icons/workflow.png" /> Celery dwh task</div>
+  <span class="arrow">→</span>
+  <div class="stage io"><img class="ic" src="./media/icons/database.png" /> Reads back from Postgres</div>
+  <span class="arrow">→</span>
+  <div class="stage classify"><img class="ic" src="./media/icons/bar-chart-3.png" /> Writes to ClickHouse</div>
+</div>
+
+<div class="grid2" style="margin-top:0.8rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 350 } }">
+  <div class="card accent">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/refresh-cw.png" /></div><div class="tx"><h3>App-level dual-write</h3><p>After every Postgres commit, a Celery task is dispatched to the `dwh` queue on the CPU worker.</p></div></div>
+  </div>
+  <div class="card accent">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/eye.png" /></div><div class="tx"><h3>Read-back pattern</h3><p>The task reads the authoritative state from Postgres. This makes duplicated messages harmless.</p></div></div>
+  </div>
+  <div class="card accent">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/layers.png" /></div><div class="tx"><h3>Idempotent by design</h3><p>ClickHouse uses a `ReplacingMergeTree`. A duplicate write is simply collapsed at merge time.</p></div></div>
+  </div>
+  <div class="card accent">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/shield.png" /></div><div class="tx"><h3>Fire and forget resilience</h3><p>If ClickHouse is down, the dispatch is best-effort. Analytics degrade, but the product keeps working.</p></div></div>
+  </div>
+</div>
+
+<!--
+This is a real data engineering pattern. After the OLTP commit, a lightweight Celery task reads the row back from Postgres and writes dimension and fact rows into ClickHouse. ReplacingMergeTree makes duplicates harmless. The key design decision: ClickHouse can go down without affecting the core product.
+-->
+
+---
+
+<!-- SLIDE 34A - The Analyze Request: API Flow -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# What Happens When You Click "Analyze": The API
+
+<div class="grid2" style="margin-top:0.6rem;">
+  <div style="overflow: hidden; border-radius: 0.6rem; border: 1px solid var(--border); background: #fff; height: 320px;" v-motion :initial="{ opacity: 0, scale: 0.93 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
+    <img src="./media/diagrams/06-analyze-sequence.png" style="width: 170%; max-width: none; transform: translate(-2%, -2%);" />
+  </div>
+  <div v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 650, delay: 350 } }">
+    <ol class="steps-2col" style="column-count: 1; padding-inline-start: 0; font-size: 0.95rem;">
+      <li style="margin-bottom: 0.8rem;"><strong>1. API Request</strong>: The client sends photos via `POST /analyze`.</li>
+      <li style="margin-bottom: 0.8rem;"><strong>2. Validate &amp; Upload</strong>: Validate every file, then upload images to MinIO before committing to the database.</li>
+      <li style="margin-bottom: 0.8rem;"><strong>3. Database Commit</strong>: Create the pending batch and image rows.</li>
+      <li style="margin-bottom: 0.8rem;"><strong>4. Fast Response</strong>: Return a `202 Accepted` status immediately. The user never waits for inference.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="fwd center" style="margin-top:0.5rem;">Validation happens first to fail fast. Storage happens before database commits to prevent broken links.</div>
+
+<!--
+Walk through the sequence diagram step by step. The ordering is load-bearing: validate first, store objects, commit to DB. The user gets a response in milliseconds; the heavy work hasn't started yet.
+-->
+
+---
+
+<!-- SLIDE 34B - The Analyze Request: Async Call -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# What Happens When You Click "Analyze": Async Workers
+
+<div class="grid2" style="margin-top:0.6rem;">
+  <div style="overflow: hidden; border-radius: 0.6rem; border: 1px solid var(--border); background: #fff; height: 320px;" v-motion :initial="{ opacity: 0, scale: 0.93 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
+    <img src="./media/diagrams/06-analyze-sequence.png" style="width: 170%; max-width: none; transform: translate(-30%, -45%);" />
+  </div>
+  <div v-motion :initial="{ opacity: 0, x: 20 }" :enter="{ opacity: 1, x: 0, transition: { duration: 650, delay: 350 } }">
+    <div class="card accent" style="margin-bottom:0.8rem;">
+      <div class="icard"><div class="chip-ic"><img src="./media/icons/workflow.png" /></div><div class="tx"><h3>Dispatch Tasks</h3><p>Before the API returns, one Celery task per image is sent to the Redis queue.</p></div></div>
+    </div>
+    <div class="card accent" style="margin-bottom:0.8rem;">
+      <div class="icard"><div class="chip-ic"><img src="./media/icons/cpu.png" /></div><div class="tx"><h3>Inference Pipeline</h3><p>The GPU worker picks up the task, downloads the image, and runs the heavy ML models.</p></div></div>
+    </div>
+    <div class="card accent">
+      <div class="icard"><div class="chip-ic"><img src="./media/icons/database.png" /></div><div class="tx"><h3>Update State</h3><p>The worker updates the database with the final results. The client polls until completion.</p></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="fwd center" style="margin-top:0.5rem;">Decoupling the inference allows the system to scale workers independently of the web API.</div>
+
+<!--
+Now the heavy lifting. The Celery worker picks up the job and runs the inference pipeline. The client is just polling for the batch status to change from pending to succeeded.
+-->
+
+---
+
+<!-- SLIDE 36 - Concurrency & Resilience: The Batch State Machine -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# Handling Failures Gracefully
+
+<div class="grid2" style="align-items:center; margin-top:0.4rem;">
+  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.93 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }"><img src="./media/diagrams/07-batch-state-machine.png" /></div>
+  <div v-motion :initial="{ opacity: 0, x: 20 }" :enter="{ opacity: 1, x: 0, transition: { duration: 650, delay: 350 } }">
+    <div class="card" style="margin-bottom: 0.8rem;">
+      <h3><img class="ic" src="./media/icons/lock.png" /> Compare-And-Set (CAS)</h3>
+      <p>State transitions use SQL updates with strict conditions. Two workers on the same batch cannot corrupt state.</p>
+    </div>
+    <div class="card win" style="margin-bottom: 0.8rem;">
+      <h3><img class="ic" src="./media/icons/check-green.png" /> succeeded</h3>
+      <p>All images detected and classified successfully.</p>
+    </div>
+    <div class="card prob" style="margin-bottom: 0.8rem;">
+      <h3 style="color: var(--amber);"><img class="ic" src="./media/icons/alert-amber.png" /> partial</h3>
+      <p>Detection worked but classification failed on some seeds. We keep the good data instead of throwing it away.</p>
+    </div>
+    <div class="card" style="margin-bottom: 0.8rem;">
+      <h3 style="color: #c0392b;"><img class="ic" src="./media/icons/x-red.png" /> failed</h3>
+      <p>No usable results were produced.</p>
+    </div>
+  </div>
+</div>
+
+<!--
+The state machine is what makes the system robust. CAS ensures concurrency safety. The partial state is the key design decision. If classification crashes after detection succeeded, we degrade gracefully instead of losing everything.
+-->
+
+---
+
+<!-- SLIDE 37 - Model Traceability & Lifecycle -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# Model Traceability: Every Verdict Has a Source
 
 <div class="pipeline" style="margin:0.4rem 0 0.9rem;" v-motion :initial="{ opacity: 0, x: -24 }" :enter="{ opacity: 1, x: 0, transition: { duration: 550, delay: 150 } }">
   <div class="stage io"><img class="ic" src="./media/icons/scan.png" /> Seed Detection</div>
-  <span class="arrow">→ FK →</span>
+  <span class="arrow">→ Foreign Key →</span>
   <div class="stage detect"><img class="ic" src="./media/icons/layers.png" /> Inference</div>
-  <span class="arrow">→ FK →</span>
+  <span class="arrow">→ Foreign Key →</span>
   <div class="stage classify"><img class="ic" src="./media/icons/package.png" /> Model Artifact</div>
 </div>
 
 <p class="lead center" style="font-size:0.9rem;"><em>Every single verdict traces back to the exact model version that produced it.</em></p>
 
-<div class="grid3" style="margin-top:0.5rem;">
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/package.png" /></div><div class="tx"><h3>Register</h3><p>Upload weights, assign builder, set config</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/flask-conical.png" /></div><div class="tx"><h3>Evaluate</h3><p>Offline experiments vs labelled datasets</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/rocket.png" /></div><div class="tx"><h3>Promote</h3><p>registered → staging → production → archived</p></div></div></div>
+<div class="grid3" style="margin-top:0.5rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 300 } }">
+  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/package.png" /></div><div class="tx"><h3>Register</h3><p>Upload weights, assign a builder, and set the config.</p></div></div></div>
+  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/flask-conical.png" /></div><div class="tx"><h3>Evaluate</h3><p>Run offline experiments against labelled datasets.</p></div></div></div>
+  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/rocket.png" /></div><div class="tx"><h3>Promote</h3><p>Move from registered to staging, then to production.</p></div></div></div>
 </div>
 
-<div class="fwd center" style="margin-top:0.6rem;">ModelResolver serves the production model per (kind, seed_type) — swapping the live model is a <strong>promotion, not a code change</strong>.</div>
+<div class="fwd center" style="margin-top:0.6rem;">Swapping the live model is a <strong>promotion, not a code change</strong>.</div>
 
 <!--
-The seam back to the AI story — every detection links by foreign key to the exact model version,
-and models move register → evaluate → promote, with the resolver always serving the current
-production model. Swapping models is a promotion, not a redeploy. → Next: how we keep it secure.
+This is where the AI story reconnects with the engineering. The foreign key chain is a hard database constraint. The lifecycle means an AI developer uploads new weights, tests them offline, and promotes to production without touching code.
 -->
 
 ---
 
-<!-- SLIDE 34 — Secure by Design -->
+<!-- SLIDE 38 - Model Resolution: How the System Picks the Right Model -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# Secure by Design
+# How the Right Model is Chosen
+
+<div class="grid4" style="margin-top:1.5rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 650, delay: 200 } }">
+  <div class="card center">
+    <div class="n" style="font-size: 2.2rem; font-weight: 800; color: var(--leaf-soft); margin-bottom: 0.5rem;">1</div>
+    <h3 style="font-size: 1.15rem; margin-bottom: 0.4rem;">Per-request override</h3>
+    <p class="mut">AI developers can request a specific model ID to test staging models safely on real data.</p>
+  </div>
+  <div class="card center">
+    <div class="n" style="font-size: 2.2rem; font-weight: 800; color: var(--leaf-soft); margin-bottom: 0.5rem;">2</div>
+    <h3 style="font-size: 1.15rem; margin-bottom: 0.4rem;">Segment match</h3>
+    <p class="mut">The system looks for a production model promoted specifically for this crop type.</p>
+  </div>
+  <div class="card center">
+    <div class="n" style="font-size: 2.2rem; font-weight: 800; color: var(--leaf-soft); margin-bottom: 0.5rem;">3</div>
+    <h3 style="font-size: 1.15rem; margin-bottom: 0.4rem;">Global fallback</h3>
+    <p class="mut">Uses the global production model if the crop type is unknown, enabling the mobile point-and-shoot flow.</p>
+  </div>
+  <div class="card center">
+    <div class="n" style="font-size: 2.2rem; font-weight: 800; color: var(--amber); margin-bottom: 0.5rem;">4</div>
+    <h3 style="font-size: 1.15rem; margin-bottom: 0.4rem;">Graceful errors</h3>
+    <p class="mut">Returns a clear, handled error if no suitable model is ready to process the request.</p>
+  </div>
+</div>
+
+<!--
+The ModelResolver decides which model runs for every inference. The global fallback is what makes the mobile point and shoot flow work. Per-request override lets AI developers test a staging model on real data without touching the production path.
+-->
+
+---
+
+<!-- SLIDE 39 - Observability & Telemetry -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# Observability &amp; Telemetry
 
 <div class="grid4" style="margin-top:0.5rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/key.png" /></div><h3>JWT + refresh rotation</h3><p>Short-lived tokens; a reused refresh token invalidates the chain</p></div>
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/link.png" /></div><h3>Google OAuth</h3><p>Social sign-in alongside email / password</p></div>
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/users.png" /></div><h3>Role-based access</h3><p>end_user · ai_developer · admin — on every route</p></div>
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/scroll-text.png" /></div><h3>Audit log + one error shape</h3><p>Append-only trail; consistent typed errors (RFC 9457)</p></div>
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/network.png" /></div>
+    <h3>Distributed Tracing</h3>
+    <p>Every request gets a unique trace ID. It follows the payload from the API, through Celery queues, and into the workers.</p>
+  </div>
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/bar-chart-3.png" /></div>
+    <h3>Application Metrics</h3>
+    <p>We track API latencies, worker queue depths, and inference processing times to spot bottlenecks before they cause timeouts.</p>
+  </div>
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/alert-amber.png" /></div>
+    <h3>Centralized Errors</h3>
+    <p>Sentry catches unhandled exceptions in both the API and background workers, grouping them with full stack traces.</p>
+  </div>
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/file-text.png" /></div>
+    <h3>Structured Logging</h3>
+    <p>JSON logs ensure we can easily search and filter events by user ID, batch ID, or module, instead of parsing plain text.</p>
+  </div>
 </div>
 
 <!--
-Security done properly for a student project — rotating refresh tokens with replay detection,
-OAuth, real role-based access, an audit trail, and one consistent error contract. Keep it to the
-four tiles; don't rabbit-hole. → Next: the full toolset at a glance.
+When you decouple systems into APIs and background workers, you lose the ability to just check a single console. This is why we built proper telemetry. Tracing lets us follow a request across boundaries. Sentry catches errors. Metrics give us the high-level view.
 -->
 
 ---
 
-<!-- SLIDE 35 — Tech Stack at a Glance -->
+<!-- SLIDE 40 - Secure by Design -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# Tech Stack at a Glance
+# Security is Not an Afterthought
+
+<div class="grid4" style="margin-top:0.5rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/key.png" /></div>
+    <h3>JWT + Refresh Rotation</h3>
+    <p>Short-lived access tokens. Refresh tokens rotate on use. Reusing an old token invalidates the entire chain.</p>
+  </div>
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/users.png" /></div>
+    <h3>Role-Based Access</h3>
+    <p>Three roles define access. Gates are enforced on every API route and client navigation.</p>
+  </div>
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/scroll-text.png" /></div>
+    <h3>Audit Log &amp; Consistent Errors</h3>
+    <p>Append-only record of sensitive actions. All API errors return a stable typed error shape.</p>
+  </div>
+  <div class="card accent">
+    <div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/lock.png" /></div>
+    <h3>Rate Limiting</h3>
+    <p>Per-route caps for login, register, and analyze endpoints, backed by Redis.</p>
+  </div>
+</div>
+
+<!--
+Security done properly. The replay detection on refresh tokens is the standout feature. If someone steals and reuses an old refresh token, the entire token chain is invalidated. Combined with strict access control, rate limiting, and a full audit trail.
+-->
+
+---
+
+<!-- SLIDE 41 - Tech Stack at a Glance -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# The Full Toolset
 
 <div class="tstack" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
   <div class="trow"><div class="chip-ic"><img src="./media/icons/cpu.png" /></div><span class="grp">AI / ML</span><span class="items">PyTorch · torchvision (Faster R-CNN) · EfficientNet-B2 · Ultralytics YOLOv8 · OpenCV · rembg · Pillow · NumPy</span></div>
@@ -1070,17 +1315,16 @@ four tiles; don't rabbit-hole. → Next: the full toolset at a glance.
   <div class="trow"><div class="chip-ic"><img src="./media/icons/server.png" /></div><span class="grp">Backend</span><span class="items">FastAPI · Python 3.12 · Celery · SQLAlchemy 2 (async) · Pydantic v2 · Alembic</span></div>
   <div class="trow"><div class="chip-ic"><img src="./media/icons/database.png" /></div><span class="grp">Data</span><span class="items">PostgreSQL 16 · ClickHouse · Redis 7 · MinIO</span></div>
   <div class="trow"><div class="chip-ic"><img src="./media/icons/box.png" /></div><span class="grp">Infra</span><span class="items">Docker · multi-stage Dockerfile (CPU / GPU) · nginx</span></div>
-  <div class="trow"><div class="chip-ic"><img src="./media/icons/lock.png" /></div><span class="grp">Security</span><span class="items">JWT + refresh rotation · OAuth (Google) · RBAC</span></div>
+  <div class="trow"><div class="chip-ic"><img src="./media/icons/lock.png" /></div><span class="grp">Security</span><span class="items">JWT + refresh rotation · RBAC · Rate limiting</span></div>
 </div>
 
 <!--
-A quick grouped inventory — don't read every item, let it convey breadth and coherence. Note that
-SAM lives in MultiSeedGen, our separate data tool, not the runtime backend. → Next: what we learned.
+A quick grouped inventory. Let it convey breadth and coherence. This is a real, full-stack product with well-chosen tools at every layer.
 -->
 
 ---
 
-<!-- SLIDE 36 — Key Takeaways -->
+<!-- SLIDE 42 - Key Takeaways -->
 
 <div class="act-tag">Act VII · Closing</div>
 
@@ -1089,40 +1333,37 @@ SAM lives in MultiSeedGen, our separate data tool, not the runtime backend. → 
 <div class="grid3" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
   <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/bar-chart-3.png" /></div><h3>Data quality &gt; architecture</h3><p>The maize model won because its training data matched the real world.</p></div>
   <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/git-branch.png" /></div><h3>Decouple detection from classification</h3><p>Independent stages let us diagnose and swap each without disturbing the other.</p></div>
-  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/factory.png" /></div><h3>Synthetic data narrows the gap</h3><p>MultiSeedGen removed the annotation bottleneck — but always test on real photos.</p></div>
+  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/factory.png" /></div><h3>Synthetic data narrows the gap</h3><p>MultiSeedGen removed the annotation bottleneck, but always test on real photos.</p></div>
 </div>
 
 <!--
-Three durable lessons — data > architecture, decouple the two stages, and synthetic data narrows
-the gap but real evaluation is the only fair test. → Next: where it goes from here.
+Three durable lessons: data > architecture, decouple the two stages, and synthetic data narrows the gap but real evaluation is the only fair test. -> Next: where it goes from here.
 -->
 
 ---
 
-<!-- SLIDE 37 — Future Roadmap -->
+<!-- SLIDE 43 - Future Roadmap -->
 
 <div class="act-tag">Act VII · Closing</div>
 
 # Future Roadmap
 
 <div class="tl" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/sprout.png" /></div> <strong>More Crops</strong> — expand real-world datasets for all 20+ species</div>
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/cpu.png" /></div> <strong>Edge AI</strong> — on-device quantized inference, no internet needed</div>
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/refresh-cw.png" /></div> <strong>Active Learning</strong> — low-confidence scans feed back into MultiSeedGen</div>
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/factory.png" /></div> <strong>Hardware-Integrated Conveyor</strong> — realtime already ships on mobile; next is fixed-camera lines + instance segmentation</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/sprout.png" /></div> <strong>More Crops</strong> - expand real-world datasets for all 20+ species</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/cpu.png" /></div> <strong>Edge AI</strong> - on-device quantized inference, no internet needed</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/refresh-cw.png" /></div> <strong>Active Learning</strong> - low-confidence scans feed back into MultiSeedGen</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/factory.png" /></div> <strong>Hardware-Integrated Conveyor</strong> - realtime already ships on mobile; next is fixed-camera lines + instance segmentation</div>
 </div>
 
 <!--
-Future work — more crops, edge AI, active learning; and note honestly that a realtime frame mode
-already ships, so the frontier is hardware-integrated conveyor lines and instance segmentation for
-overlap, not realtime itself. → Next: thanks and questions.
+Future work: more crops, edge AI, active learning. Note honestly that a realtime frame mode already ships, so the frontier is hardware-integrated conveyor lines and instance segmentation for overlap, not realtime itself. -> Next: thanks and questions.
 -->
 
 ---
 class: cover-slide
 ---
 
-<!-- SLIDE 38 — Team + Thank You + Questions -->
+<!-- SLIDE 44 - Team + Thank You + Questions -->
 
 <div v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 650 } }">
 
@@ -1145,6 +1386,5 @@ class: cover-slide
 </div>
 
 <!--
-Thank the supervisors, credit both sub-teams explicitly (research and engineering), and open the
-floor warmly. End on the logo.
+Thank the supervisors, credit both sub-teams explicitly (research and engineering), and open the floor warmly. End on the logo.
 -->
