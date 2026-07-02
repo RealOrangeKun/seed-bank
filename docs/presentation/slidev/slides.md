@@ -1,6 +1,6 @@
 ---
-title: Seed Bank — A Seed Quality Classification Service Using Computer Vision
-info: Graduation project — Faculty of Computers and AI, Cairo University
+title: Seed Bank - A Seed Quality Classification Service Using Computer Vision
+info: Graduation project - Faculty of Computers and AI, Cairo University
 transition: fade
 aspectRatio: 16/9
 canvasWidth: 1280
@@ -161,34 +161,6 @@ Next: the idea in one line.
 
 ---
 
-<!-- SLIDE 5 - The Idea in One Line -->
-
-<div class="act-tag">SOLUTION</div>
-
-# The Idea in One Line
-
-<div class="grid2" style="align-items:center; margin-top:0.3rem;">
-  <div class="center">
-    <div class="diagram" style="display:inline-block; padding:0.5rem;" v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }"><img src="./media/screenshots/Dashboard.png" style="max-height:5.2in; width:auto; max-width:100%; display:block; border-radius:0.3rem;" /></div>
-  </div>
-  <div v-motion :initial="{ opacity: 0, x: 24 }" :enter="{ opacity: 1, x: 0, transition: { duration: 550, delay: 300 } }">
-    <p class="lead">Seed Bank puts a seed-quality check right in your pocket.</p>
-    <p class="mut" style="margin-top:0.5rem;">Show it your seeds and get a clear good-or-bad report, on your phone in the field, or on the web in a lab.</p>
-    <div class="pills" style="justify-content:flex-start; margin-top:1rem;">
-      <span class="pill"><img src="./media/icons/smartphone.png" /> On mobile</span>
-      <span class="pill"><img src="./media/icons/monitor.png" /> On web</span>
-      <span class="pill"><img src="./media/icons/languages.png" /> English / Arabic</span>
-    </div>
-  </div>
-</div>
-
-<!--
-The whole product in one breath: take a photo, the AI checks it, you get a report. It runs on web
-and on mobile. Keep it to three beats; details come later.
--->
-
----
-
 <!-- SLIDE 6 - One Tool for Both Groups -->
 
 <div class="act-tag">SOLUTION</div>
@@ -282,7 +254,7 @@ column that's all-green (us). → Next: how the system works, at a glance.
 
 ---
 
-<!-- SLIDE 11 — Why did we use Deep Learning? -->
+<!-- SLIDE 11 - Why did we use Deep Learning? -->
 
 <div class="act-tag">AI PIPELINE · APPROACH</div>
 
@@ -302,7 +274,7 @@ column that's all-green (us). → Next: how the system works, at a glance.
 </div>
 
 <div class="warn" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 550, delay: 350 } }">
-  <div class="icard"><img class="ic" src="./media/icons/alert-amber.png" style="width:1.6rem;height:1.6rem;" /><div><em>"Deep learning allows models... to learn representations of data with multiple levels of abstraction."</em> <br/><small>— LeCun, Bengio, &amp; Hinton (Nature, 2015)</small></div></div>
+  <div class="icard"><img class="ic" src="./media/icons/alert-amber.png" style="width:1.6rem;height:1.6rem;" /><div><em>"Deep learning allows models... to learn representations of data with multiple levels of abstraction."</em> <br/><small>- LeCun, Bengio, &amp; Hinton (Nature, 2015)</small></div></div>
 </div>
 
 </div>
@@ -332,7 +304,7 @@ Deep layers extract high-level features automatically with millions of hidden pa
 
 ---
 
-<!-- SLIDE 13 — Splitting the Problem -->
+<!-- SLIDE 13 - Splitting the Problem -->
 
 <div class="act-tag">AI PIPELINE · Phase 1</div>
 
@@ -355,11 +327,13 @@ Deep layers extract high-level features automatically with millions of hidden pa
       <li><strong>Our Use Case:</strong> Detection (finding the seed vs background).</li>
     </ul>
     <div style="margin-top: 1.2rem; display: flex; gap: 0.5rem; justify-content: center; height: 100px;">
-      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
-        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Seed Type A Image]</span>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;">
+        <img src="./media/seeds/GOOD_BLACK_PEPPER.jpg" style="width: 84px; height: 84px; object-fit: contain; background: rgba(30,122,64,0.05); border-radius: 0.5rem; border: 1px solid var(--leaf-line);" />
+        <span class="mut" style="font-size: 0.72rem; font-weight: 600;">Black Pepper</span>
       </div>
-      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
-        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Seed Type B Image]</span>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;">
+        <img src="./media/seeds/CUMIN.jpg" style="width: 84px; height: 84px; object-fit: contain; background: rgba(30,122,64,0.05); border-radius: 0.5rem; border: 1px solid var(--leaf-line);" />
+        <span class="mut" style="font-size: 0.72rem; font-weight: 600;">Cumin</span>
       </div>
     </div>
   </div>
@@ -377,11 +351,13 @@ Deep layers extract high-level features automatically with millions of hidden pa
       <li><strong>Our Use Case:</strong> Quality Classification (Healthy vs Defective).</li>
     </ul>
     <div style="margin-top: 1.2rem; display: flex; gap: 0.5rem; justify-content: center; height: 100px;">
-      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
-        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Healthy Seed Image]</span>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;">
+        <img src="./media/seeds/HEALTHY_MAIZE.jpg" style="width: 84px; height: 84px; object-fit: contain; background: rgba(30,122,64,0.05); border-radius: 0.5rem; border: 1px solid var(--leaf-line);" />
+        <span class="mut" style="font-size: 0.72rem; font-weight: 600;">Healthy Maize</span>
       </div>
-      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
-        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Defective Seed Image]</span>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;">
+        <img src="./media/seeds/Damage_MAIZE.jpg" style="width: 84px; height: 84px; object-fit: contain; background: rgba(30,122,64,0.05); border-radius: 0.5rem; border: 1px solid var(--leaf-line);" />
+        <span class="mut" style="font-size: 0.72rem; font-weight: 600;">Damaged Maize</span>
       </div>
     </div>
   </div>
@@ -393,87 +369,77 @@ We split based on variance: Inter-class (macro differences between species used 
 
 ---
 
-<!-- SLIDE 14 — Detection Results -->
+<!-- SLIDE 14 - Detection Results -->
 
 <div class="act-tag">AI PIPELINE · Phase 1</div>
 
 # Inter-class research results
 
-<div class="grid2" style="margin-bottom: 0.8rem; align-items:center;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">
-  <div style="font-size: 0.85rem; line-height: 1.4; color: var(--text);">
+<div class="grid2" style="margin: 1rem 0 1.2rem; align-items:center;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">
+  <div style="font-size: 0.9rem; line-height: 1.55; color: var(--text); text-align: justify;">
     <p>We first used <strong>Faster R-CNN with a ResNet-50 backbone</strong> to compare initial results on single-class (maize) versus multi-class (maize & coffee).</p>
-    <p style="margin-top:0.4rem;">These predicted coordinates are then used to crop and extract the specific seed region, passing only the isolated <strong>"Region of Interest" (RoI)</strong> to the classification model. This two-stage approach ensures the classifier focuses exclusively on the seed features, eliminating noise from the background or adjacent seeds.</p>
+    <p style="margin-top:0.6rem;">These predicted coordinates are then used to crop and extract the specific seed region, passing only the isolated <strong>"Region of Interest" (RoI)</strong> to the classification model. This two-stage approach ensures the classifier focuses exclusively on the seed features, eliminating noise from the background or adjacent seeds.</p>
   </div>
   <div style="display:flex; justify-content:center;">
-    <img src="./media/heatmaps/FASTERRCNN_HEATMAP.png" style="max-height: 160px; border-radius: 0.4rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+    <img src="./media/heatmaps/FASTERRCNN_HEATMAP.png" style="max-height: 200px; border-radius: 0.4rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
   </div>
 </div>
 
-<div class="card accent" style="padding: 0.4rem 0.6rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.75rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.2rem;">Metric</th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">YOLOv8s<br/><small>(Alternative)</small></th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Avg Inference Time</td><td style="padding: 0.2rem;">0.1511s</td><td style="padding: 0.2rem;">0.0621s</td><td style="padding: 0.2rem;">0.1038s</td><td style="padding: 0.2rem;">0.1106s</td><td style="padding: 0.2rem; font-weight:bold; color:var(--leaf-deep);">5.5ms</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@50 (Standard)</td><td style="padding: 0.2rem;">0.9780</td><td style="padding: 0.2rem;">0.9768</td><td style="padding: 0.2rem;">0.9838</td><td style="padding: 0.2rem;">0.9835</td><td style="padding: 0.2rem;">0.9410</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@75 (Strict)</td><td style="padding: 0.2rem;">0.6574</td><td style="padding: 0.2rem;">0.6576</td><td style="padding: 0.2rem;">0.8015</td><td style="padding: 0.2rem;">0.8020</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@.5:.95 (COCO)</td><td style="padding: 0.2rem;">0.5903</td><td style="padding: 0.2rem;">0.5867</td><td style="padding: 0.2rem;">0.7038</td><td style="padding: 0.2rem;">0.7211</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Precision</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9390</td></tr><tr><td style="padding: 0.2rem; font-weight: 600;">Recall</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9410</td></tr></tbody></table></div>
+<div class="card accent" style="padding: 0.6rem 0.9rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.2rem;">Metric</th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">YOLOv8s<br/><small>(Alternative)</small></th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Avg Inference Time</td><td style="padding: 0.2rem;">0.1511s</td><td style="padding: 0.2rem;">0.0621s</td><td style="padding: 0.2rem;">0.1038s</td><td style="padding: 0.2rem;">0.1106s</td><td style="padding: 0.2rem; font-weight:bold; color:var(--leaf-deep);">5.5ms</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@50 (Standard)</td><td style="padding: 0.2rem;">0.9780</td><td style="padding: 0.2rem;">0.9768</td><td style="padding: 0.2rem;">0.9838</td><td style="padding: 0.2rem;">0.9835</td><td style="padding: 0.2rem;">0.9410</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@75 (Strict)</td><td style="padding: 0.2rem;">0.6574</td><td style="padding: 0.2rem;">0.6576</td><td style="padding: 0.2rem;">0.8015</td><td style="padding: 0.2rem;">0.8020</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@.5:.95 (COCO)</td><td style="padding: 0.2rem;">0.5903</td><td style="padding: 0.2rem;">0.5867</td><td style="padding: 0.2rem;">0.7038</td><td style="padding: 0.2rem;">0.7211</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Precision</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9390</td></tr><tr><td style="padding: 0.2rem; font-weight: 600;">Recall</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9410</td></tr></tbody></table></div>
 
 <!--
 The Faster R-CNN metrics compared with and without CBAM for single vs multi class.
 YOLOv8s added as a high-speed alternative reference.
 -->
 
-<!-- SLIDE 15 — Optimizing Inter-class Detection (Table) -->
-
-<div class="act-tag">AI PIPELINE · Phase 1</div>
-
-# Optimizing Inter-class Detection
-
-<div class="card accent" style="padding: 0.8rem 1rem; margin: 1.5rem 0;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.4rem;">Architecture Setup</th><th style="padding: 0.4rem;">Training Time (Avg)</th><th style="padding: 0.4rem;">mAP@50</th><th style="padding: 0.4rem;">mAP@75</th><th style="padding: 0.4rem;">mAP@0.50:0.95</th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">Test 1: Swin backbone + FPN</td><td style="padding: 0.4rem;">430.08 s</td><td style="padding: 0.4rem;">0.9487</td><td style="padding: 0.4rem;">0.5543</td><td style="padding: 0.4rem;">0.5827</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05); background: rgba(30,122,64,0.05);"><td style="padding: 0.4rem; font-weight: 600;">Test 2: Swin backbone + FPN + CIoU Loss</td><td style="padding: 0.4rem; color: #d97706; font-weight: bold;">729.53 s (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9805 (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.7078 (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.6585 (↑)</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">Test 3: ResNet-50 + Faster R-CNN</td><td style="padding: 0.4rem; color: var(--mut);">-</td><td style="padding: 0.4rem;">0.8697</td><td style="padding: 0.4rem;">0.5466</td><td style="padding: 0.4rem;">0.5253</td></tr><tr><td style="padding: 0.4rem; font-weight: 600;">Test 4: ResNet-50 + Faster R-CNN + PANet</td><td style="padding: 0.4rem;">391.98 s</td><td style="padding: 0.4rem; color: #dc2626; font-weight: bold;">0.8524 (↓)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.6952 (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.6142 (↑)</td></tr></tbody></table></div>
-
-<!--
-Analysis of Inter-class detection metrics.
--->
-
 ---
 
-<!-- SLIDE 16 — Optimizing Inter-class Detection (Explanations) -->
+<!-- SLIDE 15 - Optimizing Inter-class Detection (Table + Outcomes) -->
 
 <div class="act-tag">AI PIPELINE · Phase 1</div>
 
 # Optimizing Inter-class Detection
 
-<div class="grid2" style="margin-top: 2rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 150 } }">
-  <div class="card win" style="padding: 1.2rem;">
-    <h3 style="font-size: 1.1rem; margin: 0 0 0.5rem 0;"><img class="ic" src="./media/icons/trending-up.png" /> Adding CIoU Loss (Test 1 → 2)</h3>
-    <p style="font-size: 0.95rem; line-height: 1.4; margin:0;"><strong>Why mAP soared:</strong> CIoU penalizes bounding box aspect ratio and center-point distance, not just overlap. This forces the model to draw much tighter boundaries around seeds, drastically improving strict localization metrics (mAP@75 jumped from 0.55 to 0.70).</p>
-    <p style="font-size: 0.95rem; line-height: 1.4; margin-top:0.6rem; color: #b45309;"><strong>The tradeoff:</strong> The complex geometric calculations of CIoU nearly doubled the training time (430s to 729s).</p>
+<p class="lead" style="margin-top: 0.6rem; text-align: justify; font-size: 0.9rem;" v-motion :initial="{ opacity: 0, y: 12 }" :enter="{ opacity: 1, y: 0, transition: { duration: 450 } }">A controlled sweep of backbone and loss-function upgrades to push localization accuracy. Each row isolates one architectural change so its effect on training cost and the strict mAP metrics is directly attributable.</p>
+
+<div class="card accent" style="padding: 0.8rem 1rem; margin: 0.9rem 0;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 150 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.9rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.3rem;">Architecture Setup</th><th style="padding: 0.3rem;">Training Time (Avg)</th><th style="padding: 0.3rem;">mAP@50</th><th style="padding: 0.3rem;">mAP@75</th><th style="padding: 0.3rem;">mAP@0.50:0.95</th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.3rem; font-weight: 600;">Test 1: Swin backbone + FPN</td><td style="padding: 0.3rem;">430.08 s</td><td style="padding: 0.3rem;">0.9487</td><td style="padding: 0.3rem;">0.5543</td><td style="padding: 0.3rem;">0.5827</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05); background: rgba(30,122,64,0.05);"><td style="padding: 0.3rem; font-weight: 600;">Test 2: Swin backbone + FPN + CIoU Loss</td><td style="padding: 0.3rem; color: #d97706; font-weight: bold;">729.53 s (↑)</td><td style="padding: 0.3rem; color: var(--leaf-deep); font-weight: bold;">0.9805 (↑)</td><td style="padding: 0.3rem; color: var(--leaf-deep); font-weight: bold;">0.7078 (↑)</td><td style="padding: 0.3rem; color: var(--leaf-deep); font-weight: bold;">0.6585 (↑)</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.3rem; font-weight: 600;">Test 3: ResNet-50 + Faster R-CNN</td><td style="padding: 0.3rem; color: var(--mut);">394.58s</td><td style="padding: 0.3rem;">0.8697</td><td style="padding: 0.3rem;">0.5466</td><td style="padding: 0.3rem;">0.5253</td></tr><tr><td style="padding: 0.3rem; font-weight: 600;">Test 4: ResNet-50 + Faster R-CNN + PANet</td><td style="padding: 0.3rem;">391.98 s</td><td style="padding: 0.3rem; color: #dc2626; font-weight: bold;">0.8524 (↓)</td><td style="padding: 0.3rem; color: var(--leaf-deep); font-weight: bold;">0.6952 (↑)</td><td style="padding: 0.3rem; color: var(--leaf-deep); font-weight: bold;">0.6142 (↑)</td></tr></tbody></table></div>
+
+<div class="grid2" style="margin-top: 0.8rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 300 } }">
+  <div class="card win" style="padding: 0.8rem 1rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.35rem 0;"><img class="ic" src="./media/icons/trending-up.png" /> CIoU Loss (Test 1 → 2)</h3>
+    <p style="font-size: 0.82rem; line-height: 1.4; margin:0;">Penalizes box aspect-ratio and center distance, not just overlap → far tighter boxes (<strong>mAP@75 0.55 → 0.70</strong>). Trade-off: training time nearly doubled (430s → 729s).</p>
   </div>
-  
-  <div class="card win" style="padding: 1.2rem;">
-    <h3 style="font-size: 1.1rem; margin: 0 0 0.5rem 0;"><img class="ic" src="./media/icons/layers.png" /> Adding PANet (Test 3 → 4)</h3>
-    <p style="font-size: 0.95rem; line-height: 1.4; margin:0;"><strong>Why mAP@75 increased:</strong> PANet adds a bottom-up path augmentation, preserving low-level edge details. This makes localization highly precise, jumping mAP@75 by +0.15.</p>
-    <p style="font-size: 0.95rem; line-height: 1.4; margin-top:0.6rem; color: #dc2626;"><strong>Why mAP@50 dropped:</strong> The enhanced feature fusion made the model's confidence threshold overly rigid. It became so strict about perfectly tight boundaries that it rejected slightly loose boxes it previously accepted, causing a tiny drop in loose mAP@50.</p>
+  <div class="card win" style="padding: 0.8rem 1rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.35rem 0;"><img class="ic" src="./media/icons/layers.png" /> PANet (Test 3 → 4)</h3>
+    <p style="font-size: 0.82rem; line-height: 1.4; margin:0;">Bottom-up path augmentation preserves low-level edge detail → precise localization (<strong>mAP@75 +0.15</strong>). Trade-off: stricter box matching nudged loose mAP@50 down slightly.</p>
   </div>
 </div>
 
 <!--
-Analysis of Inter-class detection architectural upgrades.
+The optimization sweep and its outcomes on one slide: CIoU tightens boxes at a training-cost hit;
+PANet sharpens strict localization but trades a sliver of loose mAP@50.
 -->
 
 ---
 
-<!-- SLIDE 17 — Intra-class Quality Models (First Results) -->
+<!-- SLIDE 17 - Intra-class Quality Models (First Results) -->
 
 <div class="act-tag">AI PIPELINE · Phase 2</div>
 
 # Intra-class Quality Models (Maize)
 
-<p style="font-size: 0.95rem; line-height: 1.4; color: var(--text); margin-bottom: 1rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">To tackle <strong>intra-class variance</strong> (quality classification), we began with a Baseline ResNet-18 and systematically introduced architectural modifications. These initial tests evaluate the model's ability to classify healthy versus defective <strong>maize seeds</strong>.</p>
+<p style="font-size: 0.95rem; line-height: 1.5; color: var(--text); margin: 0.8rem 0 1.6rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">To tackle <strong>intra-class variance</strong> (quality classification), we began with a Baseline ResNet-18 and systematically introduced architectural modifications. These initial tests evaluate the model's ability to classify healthy versus defective <strong>maize seeds</strong>.</p>
 
-<div class="card accent" style="padding: 0.8rem 1rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.4rem;">Model Version</th><th style="padding: 0.4rem;">Architecture Modifications</th><th style="padding: 0.4rem;">F1-Score</th><th style="padding: 0.4rem;">Precision</th><th style="padding: 0.4rem;">Recall</th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V1</td><td style="padding: 0.4rem;">Baseline ResNet-18</td><td style="padding: 0.4rem;">0.9056</td><td style="padding: 0.4rem;">0.8898</td><td style="padding: 0.4rem;">0.9219</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V2</td><td style="padding: 0.4rem;">+ CBAM</td><td style="padding: 0.4rem;">0.9023</td><td style="padding: 0.4rem;">0.8988</td><td style="padding: 0.4rem;">0.9058</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05); background: rgba(30,122,64,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V3</td><td style="padding: 0.4rem;">+ CBAM + GMP</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9101</td><td style="padding: 0.4rem;">0.8877</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9335</td></tr><tr><td style="padding: 0.4rem; font-weight: 600;">V4</td><td style="padding: 0.4rem;">+ CBAM + GMP + Stride (1,1)</td><td style="padding: 0.4rem;">0.9000</td><td style="padding: 0.4rem;">0.8803</td><td style="padding: 0.4rem;">0.9206</td></tr></tbody></table></div>
+<div class="card accent" style="padding: 1rem 1.2rem; margin-bottom: 1.8rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.5rem;">Model Version</th><th style="padding: 0.4rem;">Architecture Modifications</th><th style="padding: 0.4rem;">F1-Score</th><th style="padding: 0.4rem;">Precision</th><th style="padding: 0.4rem;">Recall</th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V1</td><td style="padding: 0.4rem;">Baseline ResNet-18</td><td style="padding: 0.4rem;">0.9056</td><td style="padding: 0.4rem;">0.8898</td><td style="padding: 0.4rem;">0.9219</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V2</td><td style="padding: 0.4rem;">+ CBAM</td><td style="padding: 0.4rem;">0.9023</td><td style="padding: 0.4rem;">0.8988</td><td style="padding: 0.4rem;">0.9058</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05); background: rgba(30,122,64,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V3</td><td style="padding: 0.4rem;">+ CBAM + GMP</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9101</td><td style="padding: 0.4rem;">0.8877</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9335</td></tr><tr><td style="padding: 0.4rem; font-weight: 600;">V4</td><td style="padding: 0.4rem;">+ CBAM + GMP + Stride (1,1)</td><td style="padding: 0.4rem;">0.9000</td><td style="padding: 0.4rem;">0.8803</td><td style="padding: 0.4rem;">0.9206</td></tr></tbody></table></div>
 
-<div class="grid2" style="margin-top: 1.2rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 200 } }">
-  <div class="card win" style="padding: 1rem;">
-    <h3 style="font-size: 0.95rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/check-green.png" /> The V3 Sweet Spot</h3>
-    <p style="font-size: 0.85rem; line-height: 1.4; margin:0;">Adding <strong>Global MaxPooling (GMP)</strong> alongside CBAM (V3) forced the network to identify the single most discriminative feature (like a tiny defect crack on the maize surface), pushing both F1 and Recall to their highest points.</p>
+<div class="grid2" style="margin-top: 1.8rem; gap: 1.4rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 200 } }">
+  <div class="card win" style="padding: 1.2rem 1.3rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.55rem 0;"><img class="ic" src="./media/icons/check-green.png" /> The V3 Sweet Spot</h3>
+    <p style="font-size: 0.85rem; line-height: 1.5; margin:0;">Adding <strong>Global MaxPooling (GMP)</strong> alongside CBAM (V3) forced the network to identify the single most discriminative feature (like a tiny defect crack on the maize surface), pushing both F1 and Recall to their highest points.</p>
   </div>
-  <div class="card prob" style="padding: 1rem;">
-    <h3 style="font-size: 0.95rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/alert-amber.png" /> Stride (1,1) Degradation</h3>
-    <p style="font-size: 0.85rem; line-height: 1.4; margin:0;">Attempting to retain ultra-fine spatial resolution by altering the early convolution stride (V4) actually harmed the network. It introduced too much background noise, causing a regression across all metrics compared to V3.</p>
+  <div class="card prob" style="padding: 1.2rem 1.3rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.55rem 0;"><img class="ic" src="./media/icons/alert-amber.png" /> Stride (1,1) Degradation</h3>
+    <p style="font-size: 0.85rem; line-height: 1.5; margin:0;">Attempting to retain ultra-fine spatial resolution by altering the early convolution stride (V4) actually harmed the network. It introduced too much background noise, causing a regression across all metrics compared to V3.</p>
   </div>
 </div>
 
@@ -483,7 +449,7 @@ Initial intra-class variance classification results on Maize using ResNet-18.
 
 ---
 
-<!-- SLIDE 18 — EfficientNet-B2: Maize vs Soybean -->
+<!-- SLIDE 18 - EfficientNet-B2: Maize vs Soybean -->
 
 <div class="act-tag">AI PIPELINE · Phase 2</div>
 
@@ -528,25 +494,57 @@ Comparing EfficientNet-B2 classification on Maize vs Soybean datasets, proving d
 -->
 
 ---
+
+<!-- SLIDE - The Attention Gap: Grad-CAM -->
+
+<div class="act-tag">AI PIPELINE · Phase 2</div>
+
+# The Attention Gap: ResNet-18 V3 vs EfficientNet-B2
+
+<p class="lead" style="margin-top:0.5rem; text-align:justify; font-size:0.9rem;" v-motion :initial="{ opacity: 0, y: 12 }" :enter="{ opacity: 1, y: 0, transition: { duration: 450 } }">Grad-CAM heatmaps reveal where a model actually looks when it predicts. A real architecture upgrade should not just lift the numbers on paper; it should visibly move the model's focus onto the defect regions instead of irrelevant background.</p>
+
+<div class="grid2" style="margin-top:1.1rem; align-items:stretch;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 150 } }">
+  <div class="card prob" style="padding:0.9rem 1rem; text-align:center;">
+    <img src="./media/heatmaps/Resnet_OLD_BAD_HEATMAP.png" style="max-height:280px; width:auto; max-width:100%; border-radius:0.5rem; box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
+    <h3 style="font-size:0.95rem; margin:0.7rem 0 0.35rem;">ResNet-18 V3: Diffuse Attention</h3>
+    <p style="font-size:0.82rem; line-height:1.45; margin:0; color:var(--mut); text-align:justify;">Heat is scattered across the whole seed and bleeds into the background. The model leans on general texture rather than the defect signatures, so it never localizes fine-grained intra-class features.</p>
+  </div>
+  <div class="card win" style="padding:0.9rem 1rem; text-align:center;">
+    <img src="./media/heatmaps/quality_model_focus_on_defects.png" style="max-height:280px; width:auto; max-width:100%; border-radius:0.5rem; box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
+    <h3 style="font-size:0.95rem; margin:0.7rem 0 0.35rem;">EfficientNet-B2 + CBAM: Targeted Attention</h3>
+    <p style="font-size:0.82rem; line-height:1.45; margin:0; color:var(--mut); text-align:justify;">Heat concentrates on the actual defect: the crack or lesion that defines the class. CBAM's channel and spatial gates suppress background noise and converge attention onto the meaningful region.</p>
+  </div>
+</div>
+
+<div class="warn center" style="margin-top:0.9rem;" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 500, delay: 350 } }">
+  <strong>More than a metric gain: the model learns to see defects the way a human expert would. CBAM plus Hybrid Pooling on EfficientNet-B2 yields attention that is both precise and interpretable.</strong>
+</div>
+
+<!--
+Grad-CAM comparison: old ResNet-18 V3 spreads attention everywhere, the new EfficientNet-B2 + CBAM locks
+onto the actual defect. The upgrade changed where the model looks, not just its score.
+-->
+
+---
 class: center-slide
 ---
 
-<!-- SLIDE 18 — Detection Still Overfits — We Need Our Own Data -->
+<!-- SLIDE 18 - Detection Still Overfits - We Need Our Own Data -->
 
 <div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
-# Detection Still Overfits — We Need Our Own Data
+# Detection Still Overfits - We Need Our Own Data
 
-<p class="lead center">EfficientNet-B2 <strong>solved classification</strong>. But object detection still overfitted — the models memorized training images instead of learning "what a seed looks like."</p>
+<p class="lead center">EfficientNet-B2 <strong>solved classification</strong>. But object detection still overfitted - the models memorized training images instead of learning "what a seed looks like."</p>
 
 <div class="grid3" style="margin:0.6rem 0;">
   <div class="card"><p>Need ~100K annotated images per type</p></div>
   <div class="card"><p>Manual bounding-box annotation is prohibitively slow &amp; error-prone</p></div>
-  <div class="card"><p>Public datasets are lab-only — don't match the real world</p></div>
+  <div class="card"><p>Public datasets are lab-only - don't match the real world</p></div>
 </div>
 
 <div class="card amber center" v-motion :initial="{ opacity: 0, scale: 0.92 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 250 } }">
-  <div class="icard" style="justify-content:center;"><div class="chip-ic" style="background:transparent;"><img src="./media/icons/dna.png" style="width:1.8rem;height:1.8rem;" /></div><h3 style="color:var(--leaf-deep); font-size:1.2rem;">We built MultiSeedGen — a synthetic data factory generating unlimited, perfectly-labelled detection data</h3></div>
+  <div class="icard" style="justify-content:center;"><div class="chip-ic" style="background:transparent;"><img src="./media/icons/dna.png" style="width:1.8rem;height:1.8rem;" /></div><h3 style="color:var(--leaf-deep); font-size:1.2rem;">We built MultiSeedGen - a synthetic data factory generating unlimited, perfectly-labelled detection data</h3></div>
 </div>
 
 <!--
@@ -556,132 +554,64 @@ exactly why we built MultiSeedGen. → Next: how MultiSeedGen works.
 
 ---
 
-<!-- SLIDE 19 — MultiSeedGen: Building Our Own Training Data -->
+<!-- SLIDE 19 - MultiSeedGen: Why & How -->
 
-<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · MultiSeedGen</div>
 
-# MultiSeedGen: Building Our Own Training Data
+# Solving Source Overfitting with Synthetic Data
 
-<div class="pipeline" style="margin:0.4rem 0 0.8rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
-  <div class="stage io"><img class="ic" src="./media/icons/image.png" /> Single-seed photos</div>
-  <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/scissors.png" /> Segment</div>
-  <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/combine.png" /> Composite<small>collision physics</small></div>
-  <span class="arrow">→</span>
-  <div class="stage detect"><img class="ic" src="./media/icons/camera.png" /> Degrade<small>camera sim</small></div>
-  <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/file-output.png" /> Export<small>YOLO / COCO</small></div>
-</div>
-
-<div class="grid2" style="align-items:center;">
-  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 300 } }"><img src="./media/screenshots/MultiseedGen-seeds_annotatedWithBB.jpg" /></div>
-  <div>
-    <div class="warn"><strong>Labels come for free</strong> — the engine placed each seed, so it knows exactly where every one is.</div>
-    <div class="pills" style="justify-content:flex-start; margin-top:0.7rem;">
-      <span class="pill">6 segmentation backends</span>
-      <span class="pill">15+ augmentation params</span>
-      <span class="pill">byte-reproducible</span>
-      <span class="pill">~20 species</span>
+<div class="grid2" style="margin-top: 1rem; align-items: stretch;" v-motion :initial="{ opacity: 0, y: 18 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
+  <div class="card accent" style="padding: 1.1rem 1.2rem;">
+    <h3 style="margin: 0 0 0.5rem 0;"><img class="ic" src="./media/icons/alert-amber.png" /> Why we built it</h3>
+    <p style="font-size: 0.9rem; line-height: 1.55; text-align: justify; margin: 0;">Synthetic datasets combat two critical failure modes: <strong>(1) insufficient real-sample diversity</strong>, which causes the model to overfit to source-specific pixel patterns, and <strong>(2) sterile, controlled backgrounds</strong> that prevent generalization to real-world noise. MultiSeedGen was built to solve both simultaneously.</p>
+  </div>
+  <div class="card accent" style="padding: 1.1rem 1.2rem;">
+    <h3 style="margin: 0 0 0.7rem 0;"><img class="ic" src="./media/icons/factory.png" /> How the pipeline works</h3>
+    <div class="pipeline" style="flex-direction: column; gap: 0.55rem; align-items: stretch;">
+      <div class="stage io" style="width: 100%;"><img class="ic" src="./media/icons/image.png" /> <strong>1 · Ingest</strong></div>
+      <span class="arrow" style="align-self: center;">→</span>
+      <div class="stage classify" style="width: 100%;"><img class="ic" src="./media/icons/scissors.png" /> <strong>2 · Segment</strong></div>
+      <span class="arrow" style="align-self: center;">→</span>
+      <div class="stage detect" style="width: 100%;"><img class="ic" src="./media/icons/combine.png" /> <strong>3 · Synthesize</strong></div>
     </div>
+    <ul style="font-size: 0.8rem; line-height: 1.45; margin: 0.7rem 0 0 0; color: var(--text);">
+      <li><strong>Ingest</strong> - reads structured image subfolders, one subfolder per seed class / defect label.</li>
+      <li><strong>Segment</strong> - isolates each seed instance from its source image, removing the original background entirely.</li>
+      <li><strong>Synthesize</strong> - composites the cut-outs onto diverse background textures and applies offline augmentations (randomized lighting, blur, JPEG artifacts, noise) to mimic real capture conditions.</li>
+    </ul>
   </div>
 </div>
 
 <!--
-MultiSeedGen is a synthetic data factory — and the killer property is that labels are free,
-because the engine placed each seed. Show the annotated output as proof.
-→ Next: how we cut seeds out cleanly.
+MultiSeedGen exists to kill source overfitting: real data lacks diversity and has sterile backgrounds.
+The 3-stage pipeline - ingest structured class folders, segment out each seed, then synthesize onto
+varied backgrounds with realistic augmentation. → Next: the full configuration reference.
 -->
 
 ---
 
-<!-- SLIDE 20 — Segmentation: 6 Ways to Cut a Seed -->
+<!-- SLIDE 21 - MultiSeedGen: Example Output -->
 
-<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · MultiSeedGen</div>
 
-# Segmentation: 6 Ways to Cut a Seed
+# Generated Dataset Sample
 
-<div class="grid2" style="align-items:center; margin-top:0.3rem;">
-<div>
-  <div class="tl">
-    <div class="step"><span class="n">1</span> <strong>auto</strong> — classical cascade + confidence gate + rembg fallback</div>
-    <div class="step"><span class="n">2</span> <strong>threshold</strong> — border-colour distance (clean backgrounds)</div>
-    <div class="step"><span class="n">3</span> <strong>otsu</strong> — grayscale Otsu (high-contrast)</div>
-    <div class="step"><span class="n">4</span> <strong>grabcut</strong> — OpenCV GrabCut (textured backgrounds)</div>
-    <div class="step"><span class="n">5</span> <strong>rembg (U²-Net)</strong> — learned ONNX, GPU-capable</div>
-    <div class="step"><span class="n">6</span> <strong>SAM</strong> — prompt-driven: auto, box, or point</div>
-  </div>
-</div>
-  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 250 } }"><img src="./media/screenshots/seg-tuner.png" /></div>
+<div style="display: flex; justify-content: center; margin-top: 0.8rem;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 150 } }">
+  <img src="./media/screenshots/MultiseedGen-seeds_annotatedWithBB.jpg" style="max-height: 340px; border-radius: 0.5rem; box-shadow: 0 6px 20px rgba(0,0,0,0.18);" />
 </div>
 
-<p class="lead center" style="margin-top:0.6rem; font-size:0.9rem;">Content-hash cached — the first pass is the only cost. Per-source override via segment-map.</p>
+<div class="warn" style="margin-top: 1.1rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 300 } }">
+  <div class="icard"><img class="ic" src="./media/icons/badge-check.png" style="width: 1.6rem; height: 1.6rem;" /><div><strong>Labels come for free.</strong> Because the engine <em>placed</em> each seed, every instance is annotated automatically with bounding-box coordinates and class labels in the configured format (COCO / YOLO) - making the generated dataset plug-and-play for any downstream detector.</div></div>
+</div>
 
 <!--
-Six segmentation backends, from simple thresholding to Segment Anything, chosen per image with
-a tuner UI. Don't read all six — group as "classical → learned → promptable."
-→ Next: how we make synthetic data look real.
+The generated sample with automatic bounding-box annotations. The engine placed each seed, so labels
+are exact and free, exported in COCO/YOLO - plug-and-play for any detector. → Next: the detection journey.
 -->
 
 ---
 
-<!-- SLIDE 21 — Augmentation & Domain Bridging -->
-
-<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
-
-# Augmentation & Domain Bridging
-
-<div class="grid3" style="margin-top:0.3rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card"><h3><img class="ic" src="./media/icons/rotate-cw.png" /> Geometric</h3><ul><li>Scale jitter · rotation · flip</li><li>Shear · perspective warp</li><li>Collision-aware placement (IoU reject)</li></ul></div>
-  <div class="card"><h3><img class="ic" src="./media/icons/camera.png" /> Photometric</h3><ul><li>Sensor noise (Gaussian + Poisson)</li><li>JPEG artifacts · motion blur</li><li>Gamma + directional drop shadows</li></ul></div>
-  <div class="card amber"><h3 style="color:var(--leaf-deep);"><img class="ic" src="./media/icons/mountain.png" /> Domain matching</h3><ul><li><strong>bg_from_sources</strong> — real inpainted trays <em>(biggest lever)</em></li><li><strong>neg_frac</strong> — 10% negatives</li><li><strong>val_seed_holdout</strong> · determinism</li></ul></div>
-</div>
-
-<p class="lead center" style="margin-top:0.8rem; font-size:0.9rem;"><em>Bridging the gap between synthetic and real</em> — compositing onto <strong>real</strong> tray backgrounds was the single biggest quality lever.</p>
-
-<!--
-Augmentation plus domain bridging — and the single biggest lever was compositing onto real tray
-backgrounds. Emphasize the amber column; the before/after is the proof.
-→ Next: the tool itself and the self-improving data loop.
--->
-
----
-
-<!-- SLIDE 22 — MultiSeedGen Web UI + Data Loop -->
-
-<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
-
-# MultiSeedGen Web UI + Data Loop
-
-<div class="grid2" style="align-items:center; margin-top:0.3rem;">
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/monitor.png" /></div><div class="tx"><h3>Its own Web UI</h3><p class="mut">React + TypeScript + Tailwind, served by FastAPI</p></div></div>
-    <ul style="margin-top:0.5rem;"><li>Run tab — config form + live WebSocket logs</li><li>Seg-tuner — per-method preview + quality scoring</li><li>Dataset browser · config presets (YAML)</li></ul>
-  </div>
-  <div v-motion :initial="{ opacity: 0, scale: 0.92 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 250 } }">
-    <div class="pipeline" style="flex-direction:column; gap:0.35rem;">
-      <div class="stage classify" style="width:100%;"><img class="ic" src="./media/icons/dna.png" /> Generate training data</div>
-      <span class="arrow">↓</span>
-      <div class="stage detect" style="width:100%;"><img class="ic" src="./media/icons/cpu.png" /> Models train on it</div>
-      <span class="arrow">↓</span>
-      <div class="stage io" style="width:100%;"><img class="ic" src="./media/icons/target.png" /> Real-world edge cases found</div>
-      <span class="arrow">↺</span>
-      <div class="stage io" style="width:100%;"><img class="ic" src="./media/icons/refresh-cw.png" /> Fed back into augmentation</div>
-    </div>
-  </div>
-</div>
-
-<p class="lead center" style="margin-top:0.7rem; font-size:0.9rem;">Each turn of this loop targets the generator at the system's <strong>measured weaknesses</strong>.</p>
-
-<!--
-MultiSeedGen is a full tool with its own web UI, and the data feedback loop aims the generator at
-the system's measured weaknesses — it's a strategy, not a one-shot script.
-→ Next: the detection results after all of this.
--->
-
----
-
-<!-- SLIDE 23 — Detection Experiments: The Full Journey -->
+<!-- SLIDE 23 - Detection Experiments: The Full Journey -->
 
 <div class="act-tag">RESULTS</div>
 
@@ -698,73 +628,47 @@ the system's measured weaknesses — it's a strategy, not a one-shot script.
 <p class="lead center" style="margin-top:0.7rem; font-size:0.92rem;"><strong>Lower test metrics ≠ worse model.</strong> After MultiSeedGen, detection trained on 40 seed types with great performance.</p>
 
 <!--
-The full detection experiment journey — and the counter-intuitive lesson: lower test metrics can
+The full detection experiment journey - and the counter-intuitive lesson: lower test metrics can
 mean better real-world generalization. → Next: the same lesson, seen in classification.
 -->
 
 ---
 
-<!-- SLIDE 24 — Classification: Data Quality > Model Architecture -->
+<!-- SLIDE 24 - Our Best Detection Model: YOLOv8 + MultiSeedGen -->
 
-<div class="act-tag">RESULTS</div>
+<div class="act-tag">AI PIPELINE · Final Results</div>
 
-# Classification: Data Quality > Model Architecture
+# Our Best Detection Model: YOLOv8 + MultiSeedGen
 
-<div class="grid2" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card prob">
-    <h3><img class="ic" src="./media/icons/x-red.png" /> Soybean — Lab Data</h3>
-    <p>Sterile backgrounds → <strong class="bad">0.9936 F1</strong></p>
-    <p class="mut">Overfitted — fails on real images</p>
+<p class="lead" style="margin-top: 0.6rem; text-align: justify;" v-motion :initial="{ opacity: 0, y: 12 }" :enter="{ opacity: 1, y: 0, transition: { duration: 450 } }">Our best detection, especially on maize, came from <strong>YOLOv8</strong> trained on the <strong>MultiSeedGen</strong> synthetic dataset. Being single-stage and end-to-end, YOLOv8 generalizes far better than two-stage Faster R-CNN on synthetic-heavy data.</p>
+
+<div class="grid2" style="margin-top: 1.2rem; align-items: stretch;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 150 } }">
+  <div class="card win" style="padding: 1rem 1.2rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.6rem 0;"><img class="ic" src="./media/icons/star-amber.png" /> YOLOv8: Maize Detection</h3>
+    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.9rem;"><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.45rem 0.4rem;">Training time / epoch</td><td style="padding: 0.45rem 0.4rem; color: var(--leaf-deep); font-weight: bold;">23.0 – 23.9 s</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.45rem 0.4rem;">mAP@50</td><td style="padding: 0.45rem 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.975</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.45rem 0.4rem;">mAP@75</td><td style="padding: 0.45rem 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.943</td></tr><tr><td style="padding: 0.45rem 0.4rem;">mAP@0.50:0.95</td><td style="padding: 0.45rem 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.937</td></tr></tbody></table>
   </div>
-  <div class="card win">
-    <h3><img class="ic" src="./media/icons/check-green.png" /> Maize — Real-World Data</h3>
-    <p>Natural sunlight, phone captures → <strong class="ok">0.974 F1</strong></p>
-    <p class="mut">Generalizes to the real world</p>
+  <div style="display: flex; flex-direction: column; gap: 0.9rem;">
+    <div class="card accent" style="padding: 0.9rem 1.1rem;">
+      <h3 style="font-size: 0.9rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/combine.png" /> 80/20 Dataset Strategy</h3>
+      <p style="font-size: 0.85rem; line-height: 1.45; margin: 0;">Maize = <strong>20% real + 80% MultiSeedGen synthetic</strong>. The real originals anchor; the synthetic 80% adds background, lighting and noise variance that bridges lab → real.</p>
+    </div>
+    <div class="card prob" style="padding: 0.9rem 1.1rem;">
+      <h3 style="font-size: 0.9rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/alert-amber.png" /> Why Faster R-CNN couldn't match it</h3>
+      <p style="font-size: 0.85rem; line-height: 1.45; margin: 0;">Its region-proposal stage needs mostly <strong>real</strong> images for spatial context, so synthetic-heavy data yields poor RoIs. YOLOv8 learns the whole pipeline <strong>end-to-end</strong>, so synthetic data helps fully.</p>
+    </div>
   </div>
 </div>
-
-<div class="pipeline" style="margin-top:0.9rem; font-size:0.85rem;">
-  <span class="pill">Epoch 1 · 0.808</span><span class="arrow">→</span>
-  <span class="pill">Epoch 3 · 0.925</span><span class="arrow">→</span>
-  <span class="pill">Epoch 5 · 0.964</span><span class="arrow">→</span>
-  <span class="pill" style="border-color:var(--leaf);"><strong>Epoch 7 · 0.974</strong></span>
-</div>
-
-<p class="lead center" style="margin-top:0.7rem; font-size:0.9rem;"><em>The model that scored lower on the test set performed better in the real world.</em></p>
 
 <!--
-Data quality beats architecture — the real-world maize model generalizes; the sterile-lab soybean
-model overfits despite a higher score. → Next: how we deploy for two very different needs.
--->
-
----
-
-<!-- SLIDE 25 — Speed vs. Precision -->
-
-<div class="act-tag">RESULTS</div>
-
-# Speed vs. Precision: Two Deployment Modes
-
-<div class="grid2" style="margin-top:0.3rem;">
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/target.png" /></div><div class="tx"><h3>Precision Mode</h3><p>Faster R-CNN + EfficientNet-B2</p></div></div><div class="pills" style="justify-content:flex-start; margin-top:0.5rem;"><span class="pill">~230ms · 4.3 FPS</span><span class="pill">7-class multi-label</span><span class="pill">QA labs</span></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/zap.png" /></div><div class="tx"><h3>Speed Mode</h3><p>YOLOv8</p></div></div><div class="pills" style="justify-content:flex-start; margin-top:0.5rem;"><span class="pill">~80ms · 12.5 FPS</span><span class="pill">Real-time</span><span class="pill">Conveyor belts</span></div></div>
-</div>
-
-<div class="diagram" style="margin-top:0.7rem; max-height:2.6in; overflow:hidden;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 250 } }"><img src="./media/screenshots/YOLO-realtime.png" /></div>
-
-<p class="lead center" style="margin-top:0.4rem; font-size:0.82rem;"><strong>876 seeds</strong> detected in one dense frame — a detection-model demo of speed-mode throughput (both run on an RTX 3060).</p>
-
-<!--
-Two deployment modes — precision vs speed. Be precise: the 876-seed image is a model demo of
-dense detection; the product realtime experience is the mobile frame-streaming mode shown in the platform section.
-→ Next: how we compare to what's already out there.
+Our best detector: YOLOv8 + MultiSeedGen. The metrics card is the substance; the two side cards give the
+one-line why (80/20 synthetic mix + single-stage absorbs synthetic data where two-stage can't).
 -->
 
 ---
 class: center-slide
 ---
 
-<!-- SLIDE 26 — From Trained Models to a Real Product -->
+<!-- SLIDE 26 - From Trained Models to a Real Product -->
 
 <div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
@@ -797,41 +701,75 @@ Three anchor words (usable, traceable, secure) map to the next slides.
 
 ---
 
-<!-- SLIDE 29A - Live App Showcase: The Farmer Journey -->
+<!-- SLIDE 29A - Live App Showcase: Capture on Mobile -->
 
 <div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# The Farmer Journey
+# The Farmer Journey: Capture on Mobile
 
-<div class="grid2" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div><div class="diagram"><img src="./media/screenshots/MobileView.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">Capture on Mobile</p></div>
-  <div><div class="diagram"><img src="./media/screenshots/Dashboard.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">Review on Web Dashboard</p></div>
+<div style="display:flex; flex-direction:column; align-items:center; margin-top:0.3rem;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 150 } }">
+  <div class="diagram" style="display:inline-block; padding:0.5rem;"><img src="./media/screenshots/MobileView.png" style="max-height:5.3in; width:auto; max-width:100%; display:block; border-radius:0.3rem;" /></div>
+  <p class="mut" style="margin-top:0.6rem; font-size:0.95rem;">Snap a batch of seeds right in the field, straight from the mobile app.</p>
 </div>
 
 <!--
-The farmer's workflow starts in the field on the mobile app, and shifts to the web dashboard for reviewing their entire crop history.
+Start of the farmer journey: capture in the field on the phone. One tap, one photo, and the batch is on its way. Next: where the results land.
 -->
 
 ---
 
-<!-- SLIDE 29B - Live App Showcase: The AI Journey -->
+<!-- SLIDE 29B - Live App Showcase: Review on Web -->
 
 <div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
-# Deep Insights &amp; ML Platform
+# The Farmer Journey: Review on the Web Dashboard
 
-<div class="grid2" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div><div class="diagram"><img src="./media/screenshots/web-batch-detail.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">AI Insights &amp; Bounding Boxes</p></div>
-  <div><div class="diagram"><img src="./media/screenshots/Models_managment.png" /></div><p class="mut center" style="font-size:0.9rem; margin-top:0.4rem;">ML Platform for Developers</p></div>
+<div style="display:flex; flex-direction:column; align-items:center; margin-top:0.3rem;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 150 } }">
+  <div class="diagram" style="display:inline-block; padding:0.5rem;"><img src="./media/screenshots/Dashboard.png" style="max-height:5.3in; width:auto; max-width:100%; display:block; border-radius:0.3rem;" /></div>
+  <p class="mut" style="margin-top:0.6rem; font-size:0.95rem;">Back on the web dashboard, the farmer reviews every scan and their full crop history.</p>
 </div>
 
 <!--
-Drilling down into a specific batch reveals the bounding boxes and AI insights. And behind the scenes, AI developers use the built-in ML platform to manage datasets and models.
+The same account, now on the web. The dashboard is where the farmer reviews results and looks back over their history. Next: the AI-team view of a single batch.
 -->
 
 ---
 
-<!-- SLIDE 30 — One Backend, Two Apps, Two Languages -->
+<!-- SLIDE 29C - Live App Showcase: AI Insights -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# Deep Insights: AI Bounding Boxes
+
+<div style="display:flex; flex-direction:column; align-items:center; margin-top:0.3rem;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 150 } }">
+  <div class="diagram" style="display:inline-block; padding:0.5rem;"><img src="./media/screenshots/web-batch-detail.png" style="max-height:5.3in; width:auto; max-width:100%; display:block; border-radius:0.3rem;" /></div>
+  <p class="mut" style="margin-top:0.6rem; font-size:0.95rem;">Drill into a batch to see per-seed bounding boxes, quality verdicts, and confidence.</p>
+</div>
+
+<!--
+Opening a single batch reveals the AI insights: every detected seed boxed and graded, with confidence. Next: the platform the AI team uses behind the scenes.
+-->
+
+---
+
+<!-- SLIDE 29D - Live App Showcase: ML Platform -->
+
+<div class="act-tag">Act VI · The Platform &amp; Engineering</div>
+
+# The ML Platform for Developers
+
+<div style="display:flex; flex-direction:column; align-items:center; margin-top:0.3rem;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 150 } }">
+  <div class="diagram" style="display:inline-block; padding:0.5rem;"><img src="./media/screenshots/Models_managment.png" style="max-height:5.3in; width:auto; max-width:100%; display:block; border-radius:0.3rem;" /></div>
+  <p class="mut" style="margin-top:0.6rem; font-size:0.95rem;">Behind the scenes, AI developers register, evaluate, and promote models from one platform.</p>
+</div>
+
+<!--
+Behind the product, the built-in ML platform lets AI developers manage datasets and models: register weights, evaluate, and promote to production. Next: one backend, two apps, two languages.
+-->
+
+---
+
+<!-- SLIDE 30 - One Backend, Two Apps, Two Languages -->
 
 <div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
@@ -863,7 +801,7 @@ who sees what. Both apps are fully bilingual EN/AR with RTL layout mirroring.
 
 ---
 
-<!-- SLIDE 31 — System Architecture: Application Layer -->
+<!-- SLIDE 31 - System Architecture: Application Layer -->
 
 <div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
@@ -1229,7 +1167,7 @@ A quick grouped inventory. Let it convey breadth and coherence. This is a real, 
 <div class="grid3" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
   <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/bar-chart-3.png" /></div><h3>Data quality &gt; architecture</h3><p>The maize model won because its training data matched the real world.</p></div>
   <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/git-branch.png" /></div><h3>Decouple detection from classification</h3><p>Independent stages let us diagnose and swap each without disturbing the other.</p></div>
-  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/factory.png" /></div><h3>Synthetic data narrows the gap</h3><p>MultiSeedGen removed the annotation bottleneck, but always test on real photos.</p></div>
+  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/factory.png" /></div><h3>Synthetic data narrows the gap</h3><p>MultiSeedGen helped narrow the sim-to-real gap and killed the annotation bottleneck, but it never removed the gap, so always test on real photos.</p></div>
 </div>
 
 <!--
