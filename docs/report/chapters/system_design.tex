@@ -23,25 +23,7 @@ and several images can be graded in parallel by the worker.
 \autoref{fig:context} places the system in its setting, showing the actors and the boundary they talk to.
 \figslot[1.1]{01-system-context.pdf}{System context: the actors and the Seed Bank boundary they interact with.}{fig:context}
 
-The running pieces are split into three views. \autoref{fig:containers-app}
-shows the client-facing application layer (the API and the two Celery
-workers); \autoref{fig:containers-datastores} shows those same services wired
-to the stateful datastores; \autoref{fig:containers-tooling} shows the same
-services alongside the opt-in ML/ops tooling.
-\figslot[1.1]{02-containers-app.pdf}{Container view: the application layer --- the HTTP client, the API, and the two Celery workers.}{fig:containers-app}
-
-\figslot[1.1]{02-containers-datastores.pdf}{Container view: the application layer wired to its stateful datastores.}{fig:containers-datastores}
-
-\figslot[1.1]{02-containers-tooling.pdf}{Container view: the application layer alongside the opt-in dev/obs/frontend tooling.}{fig:containers-tooling}
-
-The backend components are detailed in three parts. \autoref{fig:api-flow-routing} shows the request flow as it enters through middleware and is routed to the versioned routers. \autoref{fig:api-flow-services} shows how those routers reach \texttt{deps.py} and the core services. \autoref{fig:api-data} shows how these services interact with the repository layer and the underlying database ORM model.
-\figslot[1.1]{03-api-components-flow-routing.pdf}{Backend request routing: HTTP client through middleware to the versioned routers.}{fig:api-flow-routing}
-
-\figslot[1.1]{03-api-components-flow-services.pdf}{Backend request routing: routers through \texttt{deps.py} to the services layer.}{fig:api-flow-services}
-
-\figslotlarge[1.1]{03-api-components-data.pdf}{Backend data-access layer and repositories.}{fig:api-data}
-
-The worker side is similarly divided. \autoref{fig:worker-flow} shows the task orchestration and worker process loop. The detailed pipeline itself is split in two: \autoref{fig:worker-pipeline-detect} shows detection through the persisted detect rows; \autoref{fig:worker-pipeline-classify} shows classification through batch finalization.
+The worker side handles the actual inference. \autoref{fig:worker-flow} shows the task orchestration and worker process loop. The detailed pipeline itself is split in two: \autoref{fig:worker-pipeline-detect} shows detection through the persisted detect rows; \autoref{fig:worker-pipeline-classify} shows classification through batch finalization.
 \figslotlarge[1.1]{04-worker-components-flow.pdf}{Inference worker task orchestration and dispatch.}{fig:worker-flow}
 
 \figslot[1.1]{04-worker-components-pipeline-detect.pdf}{Inference worker pipeline: detection, from CAS pending → running through committing the detect rows.}{fig:worker-pipeline-detect}
@@ -141,10 +123,7 @@ with a correct bounding box on every seed. These are slow to capture and tedious
 to annotate by hand. MultiSeedGen is the companion tool that manufactures this
 data. It takes photographs of single seeds and composites them into annotated
 multi-seed scenes whose labels are correct by construction, an instance of
-cut-and-paste synthesis \cite{dwibedi2017cutpaste}. The pipeline is split into
-two stages for legibility: \autoref{fig:msg-generation} shows segmentation and
-scene composition; \autoref{fig:msg-labeling-export} shows label derivation
-and dataset export.
+cut-and-paste synthesis \cite{dwibedi2017cutpaste}.
 
 The pipeline begins by segmenting each seed out of its source photo into a clean
 cut-out. A classical colour-and-brightness method is tried first, and a learned
@@ -162,8 +141,6 @@ images resemble real phone photos, a form of domain randomization that helps a
 model trained on them transfer to real input
 \cite{tobin2017domainrand,shorten2019augmentation}.
 
-\figslot[1.1]{14-multiseedgen-generation.pdf}{MultiSeedGen pipeline: segment single seeds and composite many onto varied backgrounds.}{fig:msg-generation}
-
 Because the tool knows exactly where it placed each seed, it records the exact
 bounding boxes and masks for every scene, accounting for seeds partly hidden
 behind others. Export then writes the dataset in the formats a trainer expects:
@@ -172,8 +149,6 @@ leakage-safe split makes sure a source seed reserved for validation never appear
 in any training image, so the validation score is not inflated by the same seed
 showing up on both sides. The resulting detection and segmentation datasets are
 what train the Seed Bank detector.
-
-\figslot[1.1]{14-multiseedgen-labeling-export.pdf}{MultiSeedGen pipeline: derive per-seed labels from the composited scene, apply camera-matched degradation, and export leakage-safe detection and segmentation datasets.}{fig:msg-labeling-export}
 
 \section{User Interface Design (Wireframes and Mockups)}
 
