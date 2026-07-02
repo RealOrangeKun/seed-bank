@@ -455,61 +455,45 @@ back to it repeatedly, including in the platform act. → Next: Phase 1, how we 
 
 ---
 
-<!-- SLIDE 14 — Phase 1 Detection: Faster R-CNN -->
+<!-- SLIDE 14 — How It Started & Splitting the Problem -->
 
 <div class="act-tag">Act III · Phase 1 — First Pipeline</div>
 
-# Phase 1 Detection: Faster R-CNN
+# How It Started & Splitting the Problem
 
-<div class="grid2" style="align-items:center; margin-top:0.4rem;">
-  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.92 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
-    <img src="./media/diagrams/17-fasterRCNN-architecture.png" />
+<div v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
+  <p class="lead">We first thought of what machine learning model to make, and it was naturally a <strong>Computer Vision</strong> one. Then we asked: <em>what's a good model to fine-tune on?</em></p>
+  <p class="mut" style="margin-top: 0.5rem; font-size: 1.1rem;">We started very small with a basic ResNet architecture, testing most of its variants from <strong>ResNet-18 up to ResNet-120</strong> to find the optimal balance of speed and feature extraction.</p>
+</div>
+
+<p class="lead center" style="margin-top: 1.2rem; font-weight: 600;">To enable better debugging and handling, we split the challenge into two distinct tasks.</p>
+
+<div class="grid2" style="margin-top:0.8rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 350 } }">
+  <div class="card accent" style="padding: 1rem;">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/scan.png" /></div><div class="tx"><h3>Inter-class (Detection)</h3><p class="mut">Finding the seeds vs. background</p></div></div>
+    <ul style="margin-top:0.5rem; font-size: 0.95rem;">
+      <li>After intensive training, we settled on <strong>ResNet-50</strong> for this task.</li>
+      <li>Serves as the backbone to locate regions across classes.</li>
+    </ul>
   </div>
-  <div>
-    <p class="lead">ResNet-50 backbone + FPN → region proposals → 3 classes <span class="mut">[background, coffee, maize]</span>. YOLOv8 tested alongside — comparable at this stage.</p>
-    <div class="badges" style="margin-top:0.4rem;">
-      <div class="badge"><div class="num">0.98</div><div class="lab">Faster R-CNN mAP@50</div></div>
-      <div class="badge"><div class="num">0.975</div><div class="lab">YOLOv8 mAP@50 · ~30ms</div></div>
-    </div>
-    <div class="warn" style="margin-top:0.8rem;"><strong>The problem:</strong> high test metrics, but the model <em>overfitted</em> — it learned the training images, not the concept of "seed".</div>
+  <div class="card accent" style="padding: 1rem;">
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/badge-check.png" /></div><div class="tx"><h3>Intra-class (Classification)</h3><p class="mut">Grading good vs. bad crops</p></div></div>
+    <ul style="margin-top:0.5rem; font-size: 0.95rem;">
+      <li>We settled on <strong>ResNet-18</strong> for classifying the cropped seeds.</li>
+      <li>Added custom modifications (CBAM attention, hybrid pooling).</li>
+    </ul>
   </div>
 </div>
 
 <!--
-Phase 1 detection with Faster R-CNN (YOLOv8 tested alongside). Strong test metrics but
-overfitting — foreshadow the data problem. Keep the diagram conceptual.
-→ Next: the Phase 1 classifier and our four custom modifications.
+How it started: decided on CV, started small with ResNet, tested 18-120.
+Then split into inter-class (Detection via ResNet-50) and intra-class (Classification via ResNet-18) for better debugging.
+→ Next: an honest scorecard of what worked and what didn't in this first pipeline.
 -->
 
 ---
 
-<!-- SLIDE 15 — Phase 1 Classification: ResNet-18 + 4 mods -->
-
-<div class="act-tag">Act III · Phase 1 — First Pipeline</div>
-
-# Phase 1 Classification: ResNet-18 + 4 Custom Modifications
-
-<div class="grid4" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/zoom-in.png" /></div><h3>1 · Stride → (1,1)</h3><p>Less downsampling — sees hairline cracks &amp; tiny discolorations</p></div>
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/eye.png" /></div><h3>2 · CBAM attention</h3><p>Forces focus on defect-relevant regions, not background</p></div>
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/shuffle.png" /></div><h3>3 · Hybrid pooling</h3><p>GMP + GAP — general patterns AND sharp anomalies</p></div>
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/binary.png" /></div><h3>4 · Binary head</h3><p>good vs. bad with BCEWithLogitsLoss</p></div>
-</div>
-
-<div class="badges" style="margin-top:0.9rem; justify-content:center;">
-  <div class="badge"><div class="num">83.18%</div><div class="lab">Maize accuracy · F1 0.769 · Recall 0.889</div></div>
-  <div class="badge"><div class="num">0.910</div><div class="lab">Coffee V3 F1 · Recall 0.934</div></div>
-</div>
-
-<!--
-The core AI contribution of Phase 1 — four deliberate modifications to ResNet-18 so it can
-catch tiny defects. Number them clearly and tie each to why.
-→ Next: an honest scorecard of what worked and what didn't.
--->
-
----
-
-<!-- SLIDE 16 — Phase 1 Results: What Worked / What Didn't -->
+<!-- SLIDE 15 — Phase 1 Results: What Worked / What Didn't -->
 
 <div class="act-tag">Act III · Phase 1 — First Pipeline</div>
 
@@ -546,7 +530,7 @@ accuracy wasn't production-grade. The punchline: the bottleneck was data, not ar
 class: center-slide
 ---
 
-<!-- SLIDE 17 — We Hit a Wall — The Data Insight -->
+<!-- SLIDE 16 — We Hit a Wall — The Data Insight -->
 
 <div class="act-tag">Act III · Phase 1 — First Pipeline</div>
 
@@ -570,20 +554,19 @@ labels. Two responses follow: a stronger classifier and our own data factory.
 
 ---
 
-<!-- SLIDE 18 — Phase 2: Upgrading to EfficientNet-B2 -->
+<!-- SLIDE 17 — Phase 2: Upgrading to EfficientNet-B2 -->
 
 <div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
 
 # Phase 2: Upgrading to EfficientNet-B2
 
-<div class="grid2" style="align-items:center; margin-top:0.3rem;">
-  <div class="diagram" v-motion :initial="{ opacity: 0, scale: 0.92 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
+<div class="grid2" style="align-items:center; margin-top:0.5rem;">
+  <div class="diagram-mini" v-motion :initial="{ opacity: 0, scale: 0.92 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
     <img src="./media/diagrams/18-Efficient-net-B2.png" />
   </div>
   <div>
-    <p class="lead">Same Faster R-CNN detector; swapped <strong>ResNet-18 → EfficientNet-B2</strong> for classification. CBAM + hybrid pooling retained (→ 1024 features).</p>
-    <p class="mut" style="font-size:0.86rem;">Now <strong>7-class multi-label</strong>: Broken · Damage · Fungus · Healthy · Immature · Shriveled · Weeveled</p>
-    <div class="badges" style="margin-top:0.5rem;">
+    <p class="lead">We swapped the <strong>ResNet-18</strong> for the <strong>EfficientNet-B2</strong> for classification. We retained our custom modifications (CBAM + hybrid pooling) to maximize feature extraction.</p>
+    <div class="badges" style="margin-top:1.5rem;">
       <div class="badge amber"><div class="num">0.769</div><div class="lab">ResNet-18 Maize F1</div></div>
       <div class="badge"><div class="num">0.974</div><div class="lab">EfficientNet-B2 Macro-F1</div></div>
     </div>
@@ -591,8 +574,7 @@ labels. Two responses follow: a stronger classifier and our own data factory.
 </div>
 
 <!--
-EfficientNet-B2 replaces ResNet-18, keeps CBAM + hybrid pooling, and goes from binary to
-7-class multi-label. Land the metric jump (0.769 → 0.974).
+EfficientNet-B2 replaces ResNet-18 for classification. Land the metric jump (0.769 → 0.974).
 → Next: proof it's actually looking at the right thing.
 -->
 
@@ -600,7 +582,7 @@ EfficientNet-B2 replaces ResNet-18, keeps CBAM + hybrid pooling, and goes from b
 class: heatmap-slide
 ---
 
-<!-- SLIDE 19 — Grad-CAM heatmaps -->
+<!-- SLIDE 18 — Grad-CAM heatmaps -->
 
 <div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
 
@@ -625,7 +607,7 @@ each class, not the background. Minimal words; let the heatmaps land, maybe one 
 class: center-slide
 ---
 
-<!-- SLIDE 20 — Detection Still Overfits — We Need Our Own Data -->
+<!-- SLIDE 19 — Detection Still Overfits — We Need Our Own Data -->
 
 <div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
 
@@ -650,7 +632,7 @@ exactly why we built MultiSeedGen. → Next: how MultiSeedGen works.
 
 ---
 
-<!-- SLIDE 21 — MultiSeedGen: Building Our Own Training Data -->
+<!-- SLIDE 20 — MultiSeedGen: Building Our Own Training Data -->
 
 <div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
 
@@ -689,7 +671,7 @@ because the engine placed each seed. Show the annotated output as proof.
 
 ---
 
-<!-- SLIDE 22 — Segmentation: 6 Ways to Cut a Seed -->
+<!-- SLIDE 21 — Segmentation: 6 Ways to Cut a Seed -->
 
 <div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
 
@@ -719,7 +701,7 @@ a tuner UI. Don't read all six — group as "classical → learned → promptabl
 
 ---
 
-<!-- SLIDE 23 — Augmentation & Domain Bridging -->
+<!-- SLIDE 22 — Augmentation & Domain Bridging -->
 
 <div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
 
@@ -741,7 +723,7 @@ backgrounds. Emphasize the amber column; the before/after is the proof.
 
 ---
 
-<!-- SLIDE 24 — MultiSeedGen Web UI + Data Loop -->
+<!-- SLIDE 23 — MultiSeedGen Web UI + Data Loop -->
 
 <div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
 
@@ -775,7 +757,7 @@ the system's measured weaknesses — it's a strategy, not a one-shot script.
 
 ---
 
-<!-- SLIDE 25 — Detection Experiments: The Full Journey -->
+<!-- SLIDE 24 — Detection Experiments: The Full Journey -->
 
 <div class="act-tag">Act V · Final Results & Evidence</div>
 
@@ -798,7 +780,7 @@ mean better real-world generalization. → Next: the same lesson, seen in classi
 
 ---
 
-<!-- SLIDE 26 — Classification: Data Quality > Model Architecture -->
+<!-- SLIDE 25 — Classification: Data Quality > Model Architecture -->
 
 <div class="act-tag">Act V · Final Results & Evidence</div>
 
@@ -833,7 +815,7 @@ model overfits despite a higher score. → Next: how we deploy for two very diff
 
 ---
 
-<!-- SLIDE 27 — Speed vs. Precision -->
+<!-- SLIDE 26 — Speed vs. Precision -->
 
 <div class="act-tag">Act V · Final Results & Evidence</div>
 
@@ -856,7 +838,7 @@ dense detection; the product realtime experience is the mobile frame-streaming m
 
 ---
 
-<!-- SLIDE 28 — Competitor Landscape -->
+<!-- SLIDE 27 — Competitor Landscape -->
 
 <div class="act-tag">Act V · Final Results & Evidence</div>
 
@@ -886,7 +868,7 @@ column that's all-green (us). → Next: the models are only half the story — n
 class: center-slide
 ---
 
-<!-- SLIDE 29 — From Trained Models to a Real Product -->
+<!-- SLIDE 28 — From Trained Models to a Real Product -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -912,7 +894,7 @@ lab actually use — the IS/backend team's contribution. The three anchor words 
 
 ---
 
-<!-- SLIDE 30 — Live App Showcase -->
+<!-- SLIDE 29 — Live App Showcase -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -935,7 +917,7 @@ then reveal there's a whole ML platform behind it. Keep captions to one line eac
 
 ---
 
-<!-- SLIDE 31 — One Platform, Two Audiences, Two Languages -->
+<!-- SLIDE 30 — One Platform, Two Audiences, Two Languages -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -957,7 +939,7 @@ web and mobile — a real accessibility win most projects skip. → Next: what's
 
 ---
 
-<!-- SLIDE 32 — System Architecture -->
+<!-- SLIDE 31 — System Architecture -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -991,7 +973,7 @@ end-to-end, seven core services that come up with one command. Don't go deeper t
 class: dense
 ---
 
-<!-- SLIDE 33 — The Analyze Pipeline, End-to-End -->
+<!-- SLIDE 32 — The Analyze Pipeline, End-to-End -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -1021,7 +1003,7 @@ fan-out, per-seed-type routing, and the concurrency-safe state machine that degr
 
 ---
 
-<!-- SLIDE 34 — Model Traceability & Lifecycle -->
+<!-- SLIDE 33 — Model Traceability & Lifecycle -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -1053,7 +1035,7 @@ production model. Swapping models is a promotion, not a redeploy. → Next: how 
 
 ---
 
-<!-- SLIDE 35 — Secure by Design -->
+<!-- SLIDE 34 — Secure by Design -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -1074,7 +1056,7 @@ four tiles; don't rabbit-hole. → Next: the full toolset at a glance.
 
 ---
 
-<!-- SLIDE 36 — Tech Stack at a Glance -->
+<!-- SLIDE 35 — Tech Stack at a Glance -->
 
 <div class="act-tag">Act VI · The Platform & Engineering</div>
 
@@ -1098,7 +1080,7 @@ SAM lives in MultiSeedGen, our separate data tool, not the runtime backend. → 
 
 ---
 
-<!-- SLIDE 37 — Key Takeaways -->
+<!-- SLIDE 36 — Key Takeaways -->
 
 <div class="act-tag">Act VII · Closing</div>
 
@@ -1117,7 +1099,7 @@ the gap but real evaluation is the only fair test. → Next: where it goes from 
 
 ---
 
-<!-- SLIDE 38 — Future Roadmap -->
+<!-- SLIDE 37 — Future Roadmap -->
 
 <div class="act-tag">Act VII · Closing</div>
 
@@ -1140,7 +1122,7 @@ overlap, not realtime itself. → Next: thanks and questions.
 class: cover-slide
 ---
 
-<!-- SLIDE 39 — Team + Thank You + Questions -->
+<!-- SLIDE 38 — Team + Thank You + Questions -->
 
 <div v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 650 } }">
 
