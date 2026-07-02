@@ -1,0 +1,19 @@
+%% Presentation flowchart — the seed-analyzing flow, product-level (not the
+%% technical activity diagram in 15-analyze-activity.mmd).
+flowchart TD
+    A(["Farmer photographs a batch of seeds<br/>web or mobile app"]) --> B["Upload photo(s)"]
+    B --> C["Backend stores the batch<br/>and starts processing"]
+    C --> D["Detection model scans the image<br/>finds every individual seed"]
+    D --> E["Each detected seed is cropped out"]
+    E --> F["Quality classifier grades every crop<br/>good or bad, with a confidence score"]
+    F --> G["Results are aggregated:<br/>seed count, good-rate, per-type breakdown"]
+    G --> H(["Farmer sees the quality report<br/>and can share or export it"])
+
+    style A fill:#fff,stroke:#000,stroke-width:3px,color:#000
+    style H fill:#fff,stroke:#000,stroke-width:3px,color:#000
+    style D fill:#fff,stroke:#000,stroke-width:2px,stroke-dasharray:5 3,color:#000
+    style F fill:#fff,stroke:#000,stroke-width:2px,stroke-dasharray:5 3,color:#000
+    style B fill:#fff,stroke:#000,color:#000
+    style C fill:#fff,stroke:#000,color:#000
+    style E fill:#fff,stroke:#000,color:#000
+    style G fill:#fff,stroke:#000,color:#000

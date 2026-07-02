@@ -12,7 +12,7 @@ drawings:
 class: cover-slide
 ---
 
-<!-- SLIDE 1 — Title -->
+<!-- SLIDE 1 - Title -->
 
 <div v-motion :initial="{ opacity: 0, y: 30 }" :enter="{ opacity: 1, y: 0, transition: { duration: 700 } }">
 
@@ -40,576 +40,500 @@ class: cover-slide
 <img src="./media/logos/FCAI.jpg" alt="FCAI" style="position: absolute; top: 2.2rem; right: 3rem; height: 110px;" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }" />
 
 <!--
-Open warm and confident — "We built an AI platform that grades seed quality from a single
-photo — usable by a farmer in a field or a QA lab." Name the two sub-teams (AI + IS) so the
+Open warm and confident. "We built an AI platform that grades seed quality from a single
+photo, usable by a farmer in a field or a QA lab." Name the two sub-teams (AI + IS) so the
 audience knows the project spans research and a production system.
-→ Next: the playful hook — why a "seed bank" in computer science?
+→ Next: the playful hook, why a "seed bank" in computer science?
 -->
 
 ---
-class: center-slide
----
 
-<!-- SLIDE 2 — What is Seed Bank? -->
+<!-- SLIDE 2 - Two Groups, One Problem -->
 
-<div style="position: absolute; inset: 0; pointer-events: none; z-index: 0;">
-  <img src="./media/Online-images/a-conveyor.jpeg" style="width: 100%; height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); opacity: 0.5;" />
+<div class="act-tag">PROBLEM</div>
+
+# Two Groups, One Big Problem
+
+<p class="lead center" style="margin-top:0.2rem;">Nearly everyone who works with seeds falls into one of two groups. And both face the same hard question: are these seeds <strong>good, or bad</strong>?<sup class="cite"><a href="https://www.fao.org/4/i1853e/i1853e01.pdf#:~:text=And%20governments%20complained.%20that%2C%20years%20after%20national,donors%20were%20once%20again%20emphasizing%20improved%20seed." target="_blank" rel="noreferrer">1</a></sup></p>
+
+<div class="grid2" style="margin-top:1rem;">
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/tractor.png" /></div><div class="tx"><h3>The Small Farmer</h3><p class="mut">Little money.<sup class="cite"><a href="https://documents1.worldbank.org/curated/en/099042424185030624/pdf/P1804801d17e9208184851221aa3cdbbfb.pdf#:~:text=Moreover%2C%20access%20to%20finance%20by%20small%20agri-food,water%20quality%20challenges%2C%20both%20of%20which%20constrain." target="_blank" rel="noreferrer">2</a></sup> Only a few seeds.</p></div></div>
+    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
+      <span class="pill"><img src="./media/icons/help-circle.png" /> Judged by eye</span>
+      <span class="pill"><img src="./media/icons/hand.png" /> Slow hand work</span>
+    </div>
+    <p class="mut" style="margin-top:0.7rem; font-size:0.9rem;">They judge each seed by eye, so two people can easily disagree. And sorting by hand, seed by seed, takes forever.</p>
+  </div>
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/factory.png" /></div><div class="tx"><h3>The Big Factory</h3><p class="mut">A lot of money. A huge amount of seeds.</p></div></div>
+    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
+      <span class="pill"><img src="./media/icons/dollar-sign.png" /> High repair cost</span>
+      <span class="pill"><img src="./media/icons/refresh-cw.png" /> Costs a lot to run</span>
+    </div>
+    <p class="mut" style="margin-top:0.7rem; font-size:0.9rem;">Big machines do the sorting on their own. But they cost a fortune to buy, to fix, and to run every day.</p>
+  </div>
 </div>
 
-<div class="act-tag">INTRODUCTION</div>
-
-<h1 v-motion :initial="{ opacity: 0, y: 10 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 100 } }">What is Seed Bank?</h1>
-
-<div class="card center" style="margin-top: 1.5rem; padding: 2rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 1rem; border: 1px solid var(--leaf-line); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.15);" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 250 } }">
-  <p style="font-size: 1.4rem; color: var(--text); line-height: 1.6; font-weight: 500; margin: 0;">
-    Seed bank is a quality control application for seeds that relies on Computer Vision for this task
-  </p>
-</div>
-
-<div class="grid4" style="margin-top: 2rem;">
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">Quality assessment</h3>
-  </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">Realtime inference</h3>
-  </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">Data analytics</h3>
-  </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">User Management</h3>
-  </div>
+<div class="refs">
+  <strong>1.</strong> <a href="https://www.fao.org/4/i1853e/i1853e01.pdf" target="_blank" rel="noreferrer">FAO: Promoting the growth and development of smallholder seed enterprises</a>
+  &nbsp;·&nbsp;
+  <strong>2.</strong> <a href="https://documents1.worldbank.org/curated/en/099042424185030624/pdf/P1804801d17e9208184851221aa3cdbbfb.pdf" target="_blank" rel="noreferrer">World Bank: Small agri-food firms and access to finance</a>
 </div>
 
 <!--
-The simplified overview slide.
-→ Next: the 30-second pitch.
+Two groups with the same problem: the small farmer (little money, a few seeds) and the big factory
+(lots of money, huge volume). Click to reveal each side while you talk about it. Sources: FAO on
+seed quality mattering to smallholders, World Bank on their limited access to finance.
+Next: both old ways of solving this have a problem.
 -->
 
 ---
 
-<!-- SLIDE 3 — The Problem -->
+<!-- SLIDE 3 - Both Old Ways Have a Problem -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">PROBLEM</div>
 
-# What problem does Seed Bank address?
+# Both Old Ways Have a Problem
 
-<div class="grid2" style="margin-top:1.2rem; gap:1rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 100 } }">
-  <!-- 1. Human Error -->
-  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
-    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/hands-seeds.jpg'); background-size: cover; background-position: center;"></div>
-    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
-    <div style="position: relative; z-index: 2;">
-      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Human Error</h3>
-      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Manual sorting is subjective and prone to inconsistencies across different inspectors.</p>
-    </div>
+<div class="grid2" style="margin-top:1.2rem;">
+  <div class="card prob" v-click>
+    <h3><img class="ic" src="./media/icons/hand.png" /> Human Labor</h3>
+    <p>It is <strong class="bad">cheap</strong> to start. But people judge by eye, so the answer shifts from one person to the next. It is <strong class="bad">slow</strong>, too, and it can not keep up with big loads.</p>
+    <p class="mut" style="margin-top:0.5rem; font-size:0.82rem;"><img class="ic" src="./media/icons/tractor.png" style="vertical-align:middle;" /> The small farmer's only choice.</p>
   </div>
-
-  <!-- 2. Labor Intensive -->
-  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
-    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/Labor_intensive.jpg'); background-size: cover; background-position: center;"></div>
-    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
-    <div style="position: relative; z-index: 2;">
-      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Labor Intensive</h3>
-      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Sifting through massive batches of seeds by hand is painstakingly slow and cannot scale.</p>
-    </div>
+  <div class="card prob" v-click>
+    <h3><img class="ic" src="./media/icons/factory.png" /> Mechanical Sorters</h3>
+    <p>They are <strong>fast</strong>, and they never change their mind. But the machines are <strong class="bad">very costly</strong> to buy and to keep running.</p>
+    <p class="mut" style="margin-top:0.5rem; font-size:0.82rem;"><img class="ic" src="./media/icons/warehouse.png" style="vertical-align:middle;" /> Only big factories can pay for them.</p>
   </div>
 </div>
 
-<div style="display: flex; justify-content: center; margin-top: 1rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 250 } }">
-  <!-- 3. Mechanical Sorters -->
-  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; width: calc(50% - 0.5rem); display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
-    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/mechanical_sorters.jpg'); background-size: cover; background-position: center;"></div>
-    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
-    <div style="position: relative; z-index: 2;">
-      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Mechanical Sorters</h3>
-      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Massive machines that grade automatically are highly effective, but usually extremely expensive.</p>
-    </div>
-  </div>
-</div>
+<p class="lead center" style="margin-top:1.2rem;">One way is <strong>not fair</strong>. The other <strong>costs too much</strong>. And neither one helps <em>both</em> groups.</p>
 
 <!--
-Introduce the problem: grading seeds manually is prone to human error and is extremely slow.
+The tension: the two old options sit at opposite ends. Human labor is cheap but not fair and slow.
+Machines are fast but far too costly. Each one fits only one group, and neither fits both. Click to
+bring in each card as you talk. Next: our answer.
 -->
 
 ---
 
-<!-- SLIDE 4 — The Balanced Choice -->
+<!-- SLIDE 4 - Our Answer: Seed Bank -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">SOLUTION</div>
 
-# The Balanced Choice
+# Our Answer: Seed Bank
 
-<div class="pipeline" style="margin-top:1.4rem; gap:1.2rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card center" style="flex:1;">
-    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/factory.png" /></div>
-    <h3>Mechanical Sieves</h3>
-    <p class="mut">High effectiveness</p>
-    <p class="bad" style="font-weight:700; margin-top:0.5rem;">Extremely Expensive</p>
-  </div>
-  
-  <div class="card center" style="flex:1.2; border: 2px solid var(--leaf); background: rgba(30,122,64,0.05); transform: scale(1.05);">
-    <h3 style="color:var(--leaf-deep); margin-bottom:0.3rem;">Seed Bank</h3>
-    <div class="chip-ic" style="margin:0.4rem auto; background:transparent;"><img src="./media/icons/leaf.png" style="width:2rem;height:2rem;" /></div>
-    <p style="color:var(--text); font-weight:600;">The perfect middle ground</p>
-    <p class="mut" style="font-size:0.9rem; margin-top:0.4rem;">More effective than human labor.<br/>Much cheaper than machines.</p>
-  </div>
-  
+<div class="card center" style="margin-top:0.5rem; padding:1.1rem 1.8rem; background: rgba(30,122,64,0.05); border:1px solid var(--leaf-line);">
+  <p style="font-size:1.15rem; color:var(--text); line-height:1.5; margin:0; font-weight:500;">Seed Bank is an app that checks seed quality with <strong>AI</strong>. You just take a photo. It finds every seed and tells you which ones are good and which are bad.</p>
+</div>
+
+<div class="pipeline" style="margin-top:1.3rem; gap:1.2rem;">
   <div class="card center" style="flex:1;">
     <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/hand.png" /></div>
     <h3>Human Labor</h3>
-    <p class="mut">Lowest cost initially</p>
-    <p class="bad" style="font-weight:700; margin-top:0.5rem;">Low Effectiveness</p>
+    <p class="bad" style="font-weight:700; margin-top:0.4rem;">Not fair. Too slow.</p>
+  </div>
+  <span class="arrow">→</span>
+  <div class="card center" style="flex:1.25; border: 2px solid var(--leaf); background: rgba(30,122,64,0.06); transform: scale(1.05);" v-click>
+    <div class="chip-ic" style="margin:0.2rem auto 0.4rem; background:transparent;"><img src="./media/icons/leaf.png" style="width:2rem;height:2rem;" /></div>
+    <h3 style="color:var(--leaf-deep);">Seed Bank</h3>
+    <p style="color:var(--text); font-weight:600; margin-top:0.3rem;">The best of both</p>
+    <p class="mut" style="font-size:0.88rem; margin-top:0.3rem;">More sure than the eye. Much cheaper than machines.</p>
+  </div>
+  <span class="arrow">←</span>
+  <div class="card center" style="flex:1;">
+    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/factory.png" /></div>
+    <h3>Mechanical Sorters</h3>
+    <p class="bad" style="font-weight:700; margin-top:0.4rem;">Works well. Too costly.</p>
   </div>
 </div>
 
+<p class="lead center" style="margin-top:1rem;" v-click>It works in two simple steps. First it <strong>finds each seed</strong>. Then it <strong>grades each one</strong>, good or bad.</p>
+
 <!--
-Seed Bank is the balanced choice: it brings automation without the massive capital investment of industrial machinery.
+The answer sits in the middle. The two side options are already familiar from the last slide, so
+click to pop in the Seed Bank card as the resolution, then click to reveal the two AI steps
+(find each seed, then grade it). The deep dive comes later in the AI pipeline section.
+Next: the idea in one line.
 -->
 
 ---
 
-<!-- SLIDE 5 — The 30-Second Pitch -->
+<!-- SLIDE 5 - The Idea in One Line -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">SOLUTION</div>
 
-# The 30-Second Pitch
+# The Idea in One Line
 
-<div class="pipeline" style="margin:0.6rem 0 1.2rem;">
-  <div class="stage io"><img class="ic" src="./media/icons/camera.png" /> Photograph seeds</div>
-  <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/cpu.png" /> AI analyzes</div>
-  <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Quality report</div>
-</div>
-
-<div class="grid2" v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 250 } }">
-  <div class="diagram"><img src="./media/screenshots/Dashboard.png" /></div>
-  <div class="diagram"><img src="./media/screenshots/MobileView.png" /></div>
-</div>
-
-<p class="lead center" style="margin-top:0.9rem;">A platform for farmers and QA labs to <strong>instantly grade seed quality</strong> using computer vision — on web and mobile.</p>
-
-<!--
-The whole product in one breath — photograph → analyze → report, on web and mobile. Keep it
-to three beats; details come later.
--->
-
----
-
-<!-- SLIDE 6 — Who Is This For? -->
-
-<div class="act-tag">INTRODUCTION</div>
-
-# Who Is This For?
-
-<div class="grid2" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/tractor.png" /></div><div class="tx"><h3>The Farmer</h3><p class="mut">Checking quality in the field</p></div></div>
-    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
-      <span class="pill"><img src="./media/icons/clock.png" /> Slow counting</span>
-      <span class="pill"><img src="./media/icons/help-circle.png" /> Subjective</span>
-      <span class="pill"><img src="./media/icons/smartphone.png" /> No digital tools</span>
-    </div>
+<div class="grid2" style="align-items:center; margin-top:0.3rem;">
+  <div class="center">
+    <div class="diagram" style="display:inline-block; padding:0.5rem;" v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }"><img src="./media/screenshots/Dashboard.png" style="max-height:5.2in; width:auto; max-width:100%; display:block; border-radius:0.3rem;" /></div>
   </div>
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/flask-conical.png" /></div><div class="tx"><h3>The QA Laboratory</h3><p class="mut">Grading at throughput</p></div></div>
-    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
-      <span class="pill"><img src="./media/icons/bar-chart-3.png" /> Needs throughput</span>
-      <span class="pill"><img src="./media/icons/target.png" /> Needs objectivity</span>
-      <span class="pill"><img src="./media/icons/dollar-sign.png" /> Machines too costly</span>
+  <div v-motion :initial="{ opacity: 0, x: 24 }" :enter="{ opacity: 1, x: 0, transition: { duration: 550, delay: 300 } }">
+    <p class="lead">Seed Bank puts a seed-quality check right in your pocket.</p>
+    <p class="mut" style="margin-top:0.5rem;">Show it your seeds and get a clear good-or-bad report, on your phone in the field, or on the web in a lab.</p>
+    <div class="pills" style="justify-content:flex-start; margin-top:1rem;">
+      <span class="pill"><img src="./media/icons/smartphone.png" /> On mobile</span>
+      <span class="pill"><img src="./media/icons/monitor.png" /> On web</span>
+      <span class="pill"><img src="./media/icons/languages.png" /> English / Arabic</span>
     </div>
   </div>
 </div>
 
-<p class="lead center" style="margin-top:1rem;">Two audiences, two pains — and <strong>one backend serves both</strong>.</p>
-
 <!--
-Two audiences, two different pains — the farmer wants speed and objectivity; the lab wants
-throughput without a six-figure machine. Stress that one backend serves both.
+The whole product in one breath: take a photo, the AI checks it, you get a report. It runs on web
+and on mobile. Keep it to three beats; details come later.
 -->
 
 ---
 
-<!-- SLIDE 7 — Why Seeds Are Hard for AI -->
+<!-- SLIDE 6 - One Tool for Both Groups -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">SOLUTION</div>
 
-# Why Seeds Are Hard for AI
+# One Tool for Both Groups
 
-<div class="grid4" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/layers.png" /></div><h3>Overlap &amp; Clutter</h3></div>
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/sun.png" /></div><h3>Lighting Variation</h3></div>
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/zoom-in.png" /></div><h3>Subtle Defects</h3></div>
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/help-circle.png" /></div><h3>Natural ≈ Damaged</h3></div>
+<div class="grid2" style="margin-top:0.5rem;">
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/smartphone.png" /></div><div class="tx"><h3>Mobile app, for the farmer</h3><p class="mut">Take a photo in the field</p></div></div>
+    <p style="margin-top:0.7rem; font-size:0.95rem;">Just point your phone and snap. The answer comes back right there in the field. No lab, no costly machine.</p>
+  </div>
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/factory.png" /></div><div class="tx"><h3>Conveyor mode, for the factory</h3><p class="mut">A fixed camera over a moving belt</p></div></div>
+    <p style="margin-top:0.7rem; font-size:0.95rem;">A fixed camera watches the moving belt, and the same app grades seed after seed. It brings automation without the very costly machine.</p>
+  </div>
 </div>
 
-<p class="lead center" style="margin-top:1.1rem;"><em>Seeds aren't manufactured parts — they're organic and irregular.</em></p>
+<p class="lead center" style="margin-top:0.9rem;">The same AI runs in two ways, and <strong>one system powers both</strong>.</p>
 
-<!--
-Seeds are organic — overlap, lighting, subtle defects, and healthy-looks-damaged ambiguity.
-Not clean manufactured parts. → Next: and the data behind that difficulty.
--->
-
----
-
-<!-- SLIDE 8 — The Data Problem -->
-
-<div class="act-tag">INTRODUCTION</div>
-
-# The Data Problem
-
-<div class="grid3" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/bar-chart-3.png" /></div><div class="tx"><h3>Volume Gap</h3><p>Need ~100K images; best public sets have &lt;20K</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/tags.png" /></div><div class="tx"><h3>Annotation Mismatch</h3><p>Detection sets have boxes but no quality. Classification sets have labels but no boxes. None has both.</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/microscope.png" /></div><div class="tx"><h3>Lab ≠ Real World</h3><p>Lab-trained models fail on real-world phone photos</p></div></div></div>
+<div class="grid4" style="margin-top:0.9rem;" v-click>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Quality check</h3></div>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Quick results</h3></div>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Charts &amp; history</h3></div>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Your account</h3></div>
 </div>
 
-<p class="lead center" style="margin-top:1.1rem;">These three problems set up the entire AI journey that follows.</p>
-
 <!--
-Three data problems — volume, annotation mismatch, lab≠real-world — are the seeds (pun
-intended) of the whole journey. Plant them now; Acts III–IV pay them off.
-→ Next: could classic machine learning even solve this?
+The same AI ships in two forms: a mobile app for the small farmer, and a conveyor mode for the big
+factory (a fixed camera over a belt). One backend serves both. Click through the two cards, then the
+four things it does. Next: our proposed system and what it does.
 -->
 
 ---
 
-<!-- SLIDE 9 — Can Machine Learning Solve This? -->
+<!-- SLIDE 7 - Our Answer: The Seed Bank System -->
 
-<div class="act-tag">Act II · From ML to Computer Vision</div>
+<div class="act-tag">SOLUTION</div>
 
-# Can Machine Learning Solve This?
+# Our Answer: The Seed Bank System
 
-<div class="grid2" style="margin-top:0.4rem; align-items:center;">
+<div class="thesis">"Show Seed Bank your seeds: a photo, a batch, or live video, and get a clear good-or-bad report, on a phone in the field or on the web in a lab."</div>
+
+<div class="pipeline" style="margin:1.1rem 0;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
+  <div class="stage io"><img class="ic" src="./media/icons/camera.png" /> Capture<small>photo · batch · video / live</small></div>
+  <span class="arrow">→</span>
+  <div class="stage detect"><img class="ic" src="./media/icons/scan.png" /> Find every seed</div>
+  <span class="arrow">→</span>
+  <div class="stage classify"><img class="ic" src="./media/icons/badge-check.png" /> Grade each one</div>
+  <span class="arrow">→</span>
+  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Get a report</div>
+</div>
+
+<div class="grid2" style="margin-top:0.7rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 300 } }">
+  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/tractor.png" /></div><div class="tx"><h3>For the farmer</h3><p class="mut">Snap a batch, get the analysis, and look back over your history, on web or mobile, in English or Arabic.</p></div></div></div>
+  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/flask-conical.png" /></div><div class="tx"><h3>For the AI team</h3><p class="mut">Manage the models, run evaluations, and trace every result back to the exact model that made it.</p></div></div></div>
+</div>
+
+<!--
+The whole system in one breath: photo in, quality report out. Two kinds of user: the farmer
+checking a batch, and the AI team running the models behind it. No tooling detail yet.
+→ Next: how we stack up against what already exists.
+-->
+
+---
+
+<!-- SLIDE 8 - Competitor Landscape -->
+
+<div class="act-tag">RELATED WORK</div>
+
+# Competitor Landscape
+
+<div v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
+
+| Feature | Seed Bank | LemnaTec | PCS Agri Track | Seedy | GerminationPrediction |
+|---|---|---|---|---|---|
+| Cost | <span class="ok">Low</span> | <span class="bad">Very high</span> | <span class="mid">Medium</span> | <span class="mid">Subscription</span> | <span class="ok">Free</span> |
+| Accessibility | <span class="ok">Web + Mobile</span> | <span class="bad">Custom HW</span> | <span class="mid">Needs internet</span> | <span class="mid">iOS only</span> | <span class="bad">CLI only</span> |
+| Multi-crop | <span class="ok">~20 species</span> | <span class="ok">Many</span> | <span class="mid">Limited</span> | <span class="ok">Good DB</span> | <span class="bad">Germination only</span> |
+| Defect granularity | <span class="ok">7-class multi-label</span> | <span class="ok">Industrial</span> | <span class="mid">Basic</span> | <span class="bad">Visual ID</span> | <span class="bad">No quality</span> |
+| Mobile | <span class="ok">Native app</span> | <span class="bad">No</span> | <span class="mid">Web</span> | <span class="ok">iOS</span> | <span class="bad">No</span> |
+| Open / extensible | <span class="ok">Pluggable</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="ok">OSS</span> |
+
+</div>
+
+<p class="lead center" style="margin-top:0.7rem; font-size:0.9rem;">Affordable, works anywhere, many crops, fine-grained, and open to extend. The all-green column is us, <strong>Seed Bank</strong>.</p>
+
+<!--
+Where we sit: affordable, accessible, multi-crop, fine-grained, and extensible. Highlight the
+column that's all-green (us). → Next: how the system works, at a glance.
+-->
+
+---
+
+<!-- SLIDE 11 — Why did we use Deep Learning? -->
+
+<div class="act-tag">AI PIPELINE · APPROACH</div>
+
+# Why did we use Deep Learning?
+
+<div class="grid2" style="margin-top:0.6rem; align-items:center;">
 <div>
 
-<p class="lead">We began by asking: can we hand-craft features — size, shape, colour, texture ratios — and classify quality with traditional ML?</p>
+<p class="lead">For complex Computer Vision tasks, traditional Machine Learning hits a hard ceiling due to its reliance on <strong>manual feature engineering</strong>.</p>
 
-<div class="pipeline" style="justify-content:flex-start;" v-motion :initial="{ opacity: 0, x: -20 }" :enter="{ opacity: 1, x: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="stage io"><img class="ic" src="./media/icons/image.png" /> Seed image</div>
+<div class="pipeline" style="justify-content:flex-start; margin: 1.2rem 0;" v-motion :initial="{ opacity: 0, x: -20 }" :enter="{ opacity: 1, x: 0, transition: { duration: 550, delay: 200 } }">
+  <div class="stage io"><img class="ic" src="./media/icons/image.png" /> Raw Pixels</div>
   <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/ruler.png" /> Measure features</div>
+  <div class="stage classify"><img class="ic" src="./media/icons/cpu.png" /> Hidden Layers</div>
   <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/cpu.png" /> ML classifier</div>
-</div>
-
+  <div class="stage io"><img class="ic" src="./media/icons/badge-check.png" /> Abstract Features</div>
 </div>
 
 <div class="warn" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 550, delay: 350 } }">
-  <div class="icard"><img class="ic" src="./media/icons/alert-amber.png" style="width:1.6rem;height:1.6rem;" /><div><strong>The discovery:</strong> seeds are morphologically complex — hand-crafted features can't generalize across species, defects, and environments.</div></div>
+  <div class="icard"><img class="ic" src="./media/icons/alert-amber.png" style="width:1.6rem;height:1.6rem;" /><div><em>"Deep learning allows models... to learn representations of data with multiple levels of abstraction."</em> <br/><small>— LeCun, Bengio, &amp; Hinton (Nature, 2015)</small></div></div>
 </div>
 
 </div>
 
-<!--
-We started honestly with hand-crafted features and classic ML — frame it as diligent, not
-naive. The discovery: those features don't generalize across species and conditions.
-→ Next: the solution we propose.
--->
-
----
-class: arch-slide
----
-
-<!-- SLIDE 10 — The Proposed Solution -->
-
-<div class="act-tag">Act II · From ML to Computer Vision</div>
-
-# The Proposed Solution
-
-<div class="thesis">"Grade seed quality from an ordinary photo — and manufacture the training data that makes it possible."</div>
-
-<div class="grid2" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/sprout.png" /></div><div class="tx"><h3>Seed Bank — the platform</h3></div></div>
-    <ul style="margin-top:0.5rem;">
-      <li>Photo → <strong>find every seed</strong> → <strong>grade each</strong> → aggregate report</li>
-      <li>Every verdict <strong>traceable</strong> to its model</li>
-      <li>Model management + offline evaluation</li>
-      <li>A <strong>web + mobile</strong> app a farmer can use</li>
-    </ul>
-  </div>
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/dna.png" /></div><div class="tx"><h3>MultiSeedGen — the data factory</h3></div></div>
-    <ul style="margin-top:0.5rem;">
-      <li>Cut real seeds from single-seed photos</li>
-      <li><strong>Composite</strong> onto realistic backgrounds + camera noise</li>
-      <li>Export <strong>fully-labelled</strong> detection datasets</li>
-      <li><em>The tool places every seed — labels come for free</em></li>
-    </ul>
-  </div>
-</div>
-
-<div class="pills" style="margin-top:0.9rem;">
-  <span class="pill"><img src="./media/icons/dollar-sign.png" /> No expensive rig — ordinary single-view photos</span>
-  <span class="pill"><img src="./media/icons/database.png" /> Closes the ~100K-image data gap</span>
-</div>
-
-<!--
-Before any model details, here's the entire solution on one slide — a platform that grades
-seeds from a normal photo, and a data factory that generates the labelled images the detector
-needs. Two problems from earlier — cost and data — one deliverable each.
-→ Next: why this had to be a computer-vision solution.
--->
-
----
-
-<!-- SLIDE 11 — Pivoting to Computer Vision -->
-
-<div class="act-tag">Act II · From ML to Computer Vision</div>
-
-# Pivoting to Computer Vision
-
-<div class="pipeline" style="margin:0.4rem 0 1rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
-  <div class="stage io" style="text-decoration:line-through; opacity:0.6;">Hand-crafted features → classifier</div>
-  <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/cpu.png" /> Raw image → CNN → learned features → classifier</div>
-</div>
-
-<p class="lead center">Deep learning extracts generalized features automatically — so we reframed this as a <strong>Computer Vision</strong> problem, with two distinct tasks:</p>
-
-<div class="grid2" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 350 } }">
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/scan.png" /></div><div class="tx"><h3>Task 1 — Where is each seed?</h3><p>Object Detection</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/badge-check.png" /></div><div class="tx"><h3>Task 2 — What's wrong with it?</h3><p>Quality Classification</p></div></div></div>
-</div>
-
-<div class="fwd center" style="margin-top:0.9rem;">▸ This led us to the proposed system architecture — Slides 12–13</div>
-
-<!--
-The pivot to deep learning, plus the key reframe: two distinct tasks — where is each seed, and
-what's wrong with it. → Next: those two tasks shape our proposed system architecture.
--->
-
----
-class: arch-slide
----
-
-<!-- SLIDE 12 — Proposed System Architecture (1/2) -->
-
-<div class="act-tag">Act II · From ML to Computer Vision</div>
-
-# Proposed System Architecture <span class="amber">(1/2)</span>
-
-<h2>The System at a Glance</h2>
-
-<div class="arch-grid">
-
-<div>
-<div class="pieces">
-  <div class="piece"><div class="ico"><img src="./media/icons/clients.png" alt="" /></div><div><div class="t">Clients</div><div class="d">A React web app + an Expo mobile app (English / Arabic)</div></div></div>
-  <div class="piece"><div class="ico"><img src="./media/icons/backend.png" alt="" /></div><div><div class="t">FastAPI backend</div><div class="d">Accepts a batch, records it, responds fast — async & cleanly layered</div></div></div>
-  <div class="piece"><div class="ico"><img src="./media/icons/workers.png" alt="" /></div><div><div class="t">Background workers</div><div class="d">The heavy <strong>detect → classify</strong> work runs <em>off</em> the request path</div></div></div>
-  <div class="piece"><div class="ico"><img src="./media/icons/datastores.png" alt="" /></div><div><div class="t">Datastores</div><div class="d">PostgreSQL · ClickHouse · MinIO · Redis</div></div></div>
-</div>
-
-<div class="callout">Inference is heavy, so it never runs inside the request the user is waiting on — the API stays responsive.</div>
-<div class="fwd">▸ Full container topology at Slide 32 · a live request traced end-to-end at Slide 33</div>
-</div>
-
-<img src="./media/diagrams/01-system-context.png" class="hero" alt="System context diagram"
-  v-motion :initial="{ opacity: 0, scale: 0.9 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 700, delay: 250 } }" />
-
-</div>
-
-<!--
-The system in one picture — clients talk to a fast API, which hands the heavy model work to
-background workers, with four datastores behind them. The one idea to land: inference never
-blocks the user's request. Keep it conceptual; the deep dive is in the platform act.
-→ Next: the two-stage pipeline at the core of it.
--->
-
----
-
-<!-- SLIDE 13 — Proposed System Architecture (2/2) -->
-
-<div class="act-tag">Act II · From ML to Computer Vision</div>
-
-# Proposed System Architecture <span class="amber">(2/2)</span>
-
-<h2>The Two-Stage Detect → Classify Pipeline</h2>
-
-<div class="pipeline" style="margin:0.8rem 0;" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
-  <div class="stage io"><img class="ic" src="./media/icons/camera.png" /> Input image</div>
-  <span class="arrow">→</span>
-  <div class="stage detect"><img class="ic" src="./media/icons/scan.png" /> Stage 1 · Detection<small>Find every seed + type</small></div>
-  <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/crop.png" /> Crop + group<small>by seed type</small></div>
-  <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/badge-check.png" /> Stage 2 · Classification<small>Grade good / bad</small></div>
-  <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Quality report</div>
-</div>
-
-<div class="grid2" style="align-items:center;">
-  <p class="lead">One detector for all seeds. One classifier per crop type. Each stage <strong>versioned &amp; optimized independently.</strong></p>
-  <div class="card accent center"><div class="stat-huge" style="font-size:1.8rem;">1 image → N detections → N labels</div><p class="mut">the data fan-out</p></div>
-</div>
-
-<div class="fwd center" style="margin-top:0.7rem;">▸ The engineering behind it — concurrency-safe batching, per-type routing — is at Slide 33</div>
-
-<!--
-This is the architectural spine of the entire project — detect, then classify — and we'll point
-back to it repeatedly, including in the platform act. → Next: Phase 1, how we first built the detector.
--->
-
----
-
-<!-- SLIDE 14 — How It Started & Splitting the Problem -->
-
-<div class="act-tag">Act III · Phase 1 — First Pipeline</div>
-
-# How It Started & Splitting the Problem
-
-<div v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <p class="lead">We first thought of what machine learning model to make, and it was naturally a <strong>Computer Vision</strong> one. Then we asked: <em>what's a good model to fine-tune on?</em></p>
-  <p class="mut" style="margin-top: 0.5rem; font-size: 1.1rem;">We started very small with a basic ResNet architecture, testing most of its variants from <strong>ResNet-18 up to ResNet-120</strong> to find the optimal balance of speed and feature extraction.</p>
-</div>
-
-<p class="lead center" style="margin-top: 1.2rem; font-weight: 600;">To enable better debugging and handling, we split the challenge into two distinct tasks.</p>
-
-<div class="grid2" style="margin-top:0.8rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 350 } }">
+<div style="display:flex; flex-direction:column; gap:0.6rem;" v-motion :initial="{ opacity: 0, x: 20 }" :enter="{ opacity: 1, x: 0, transition: { duration: 550, delay: 350 } }">
   <div class="card accent" style="padding: 1rem;">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/scan.png" /></div><div class="tx"><h3>Inter-class (Detection)</h3><p class="mut">Finding the seeds vs. background</p></div></div>
-    <ul style="margin-top:0.5rem; font-size: 0.95rem;">
-      <li>After intensive training, we settled on <strong>ResNet-50</strong> for this task.</li>
-      <li>Serves as the backbone to locate regions across classes.</li>
-    </ul>
+    <h3 style="margin-bottom:0.2rem;"><img class="ic" src="./media/icons/layers.png" /> Automatic Feature Extraction</h3>
+    <p class="mut" style="font-size:0.85rem; margin:0;">Unlike classic ML, Deep Learning doesn't require hand-crafted features (shape, color). It directly extracts optimal high-level features from raw images.</p>
   </div>
   <div class="card accent" style="padding: 1rem;">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/badge-check.png" /></div><div class="tx"><h3>Intra-class (Classification)</h3><p class="mut">Grading good vs. bad crops</p></div></div>
-    <ul style="margin-top:0.5rem; font-size: 0.95rem;">
-      <li>We settled on <strong>ResNet-18</strong> for classifying the cropped seeds.</li>
-      <li>Added custom modifications (CBAM attention, hybrid pooling).</li>
-    </ul>
+    <h3 style="margin-bottom:0.2rem;"><img class="ic" src="./media/icons/cpu.png" /> Multiple Hidden Parameters</h3>
+    <p class="mut" style="font-size:0.85rem; margin:0;">Seeds are organic with massive unstructured variance. The deep architecture's hidden parameters capture these complex, non-linear patterns perfectly.</p>
   </div>
+  <div class="card accent" style="padding: 1rem;">
+    <h3 style="margin-bottom:0.2rem;"><img class="ic" src="./media/icons/target.png" /> Unmatched CV Performance</h3>
+    <p class="mut" style="font-size:0.85rem; margin:0;">In visual classification, DL is the industry standard because its performance dynamically scales, easily surpassing the structural limits of traditional ML.</p>
+  </div>
+</div>
+
 </div>
 
 <!--
-How it started: decided on CV, started small with ResNet, tested 18-120.
-Then split into inter-class (Detection via ResNet-50) and intra-class (Classification via ResNet-18) for better debugging.
-→ Next: an honest scorecard of what worked and what didn't in this first pipeline.
+Explain that manual feature engineering fails on organic, irregular objects like seeds.
+Deep layers extract high-level features automatically with millions of hidden parameters, making DL structurally superior for CV.
 -->
+
 
 ---
 
-<!-- SLIDE 15 — Phase 1 Results: What Worked / What Didn't -->
+<!-- SLIDE 13 — Splitting the Problem -->
 
-<div class="act-tag">Act III · Phase 1 — First Pipeline</div>
+<div class="act-tag">AI PIPELINE · Phase 1</div>
 
-# Phase 1 Results: What Worked, What Didn't
+# Splitting the Problem
 
-<div class="grid2" style="margin-top:0.4rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card win">
-    <h3><img class="ic" src="./media/icons/check-green.png" /> What worked</h3>
-    <ul>
-      <li>Detection localized seeds accurately in controlled conditions</li>
-      <li>ResNet-18 modifications improved classification meaningfully</li>
-      <li>Two-stage decoupling proved correct — each stage diagnosable alone</li>
-      <li>Maize performed best — it had the highest-quality dataset</li>
+<p class="lead center" style="margin-top: 1.2rem; font-weight: 600;">To solve this effectively, we split the challenge based on Inter-class and Intra-class variance.</p>
+
+<div class="grid2" style="margin-top:1.5rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
+  <div class="card accent">
+    <div class="icard">
+      <div class="chip-ic"><img src="./media/icons/scan.png" /></div>
+      <div class="tx">
+        <h3>Inter-class Variance</h3>
+        <p class="mut">Differences BETWEEN species</p>
+      </div>
+    </div>
+    <ul style="margin-top:0.8rem; font-size:0.9rem; color:var(--text); line-height: 1.4;">
+      <li><strong>Macro-level traits:</strong> Core shape, size, and texture differences between Maize, Cotton, etc.</li>
+      <li><strong>Easier to learn:</strong> Species are visually distinct from one another.</li>
+      <li><strong>Our Use Case:</strong> Detection (finding the seed vs background).</li>
     </ul>
+    <div style="margin-top: 1.2rem; display: flex; gap: 0.5rem; justify-content: center; height: 100px;">
+      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Seed Type A Image]</span>
+      </div>
+      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Seed Type B Image]</span>
+      </div>
+    </div>
   </div>
-  <div class="card prob">
-    <h3><img class="ic" src="./media/icons/alert-amber.png" /> What didn't</h3>
-    <ul>
-      <li>Detection overfitted — poor generalization to new images</li>
-      <li>YOLO performed comparably (same data limitation)</li>
-      <li>Accuracy decent, but not production-grade</li>
-      <li><strong>The dataset was the bottleneck, not the architecture</strong></li>
+  <div class="card accent">
+    <div class="icard">
+      <div class="chip-ic"><img src="./media/icons/badge-check.png" /></div>
+      <div class="tx">
+        <h3>Intra-class Variance</h3>
+        <p class="mut">Differences WITHIN the same species</p>
+      </div>
+    </div>
+    <ul style="margin-top:0.8rem; font-size:0.9rem; color:var(--text); line-height: 1.4;">
+      <li><strong>Micro-level traits:</strong> Subtle cracks, discoloration, or tiny fungal spots on the exact same seed type.</li>
+      <li><strong>Harder to learn:</strong> The core object remains identical, requiring fine-grained analysis.</li>
+      <li><strong>Our Use Case:</strong> Quality Classification (Healthy vs Defective).</li>
     </ul>
-  </div>
-</div>
-
-<!--
-Honest scorecard — decoupling worked, maize was best (best data), but detection overfit and
-accuracy wasn't production-grade. The punchline: the bottleneck was data, not architecture.
-→ Next: the insight that reframed the whole project.
--->
-
----
-class: center-slide
----
-
-<!-- SLIDE 16 — We Hit a Wall — The Data Insight -->
-
-<div class="act-tag">Act III · Phase 1 — First Pipeline</div>
-
-# We Hit a Wall — The Data Insight
-
-<div class="center" style="margin:0.6rem 0;" v-motion :initial="{ opacity: 0, scale: 0.9 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 150 } }">
-  <span class="stat-huge">~100,000</span>
-  <p class="mut">images per seed type needed to generalize — best public sets have <strong>&lt;20,000</strong></p>
-</div>
-
-<div class="grid2" style="margin-top:0.4rem;">
-  <div class="card"><h3>The dual problem</h3><p>Detection sets have boxes but no quality · classification sets have quality but no boxes · <strong>no dataset has both</strong>.</p></div>
-  <div class="card accent"><h3>The decision</h3><p><strong>Upgrade the classifier</strong> → EfficientNet-B2<br/><strong>Build our own data</strong> → MultiSeedGen</p></div>
-</div>
-
-<!--
-The turning point — we need ~100K images per type, and no public set has both boxes and quality
-labels. Two responses follow: a stronger classifier and our own data factory.
-→ Next: the classifier upgrade.
--->
-
----
-
-<!-- SLIDE 17 — Phase 2: Upgrading to EfficientNet-B2 -->
-
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
-
-# Phase 2: Upgrading to EfficientNet-B2
-
-<div class="grid2" style="align-items:center; margin-top:0.5rem;">
-  <div class="diagram-mini" v-motion :initial="{ opacity: 0, scale: 0.92 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
-    <img src="./media/diagrams/18-Efficient-net-B2.png" />
-  </div>
-  <div>
-    <p class="lead">We swapped the <strong>ResNet-18</strong> for the <strong>EfficientNet-B2</strong> for classification. We retained our custom modifications (CBAM + hybrid pooling) to maximize feature extraction.</p>
-    <div class="badges" style="margin-top:1.5rem;">
-      <div class="badge amber"><div class="num">0.769</div><div class="lab">ResNet-18 Maize F1</div></div>
-      <div class="badge"><div class="num">0.974</div><div class="lab">EfficientNet-B2 Macro-F1</div></div>
+    <div style="margin-top: 1.2rem; display: flex; gap: 0.5rem; justify-content: center; height: 100px;">
+      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Healthy Seed Image]</span>
+      </div>
+      <div style="flex: 1; background: rgba(30,122,64,0.05); border: 2px dashed var(--leaf-line); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+        <span class="mut" style="font-size: 0.8rem; font-weight: 600; text-align: center;">[Defective Seed Image]</span>
+      </div>
     </div>
   </div>
 </div>
 
 <!--
-EfficientNet-B2 replaces ResNet-18 for classification. Land the metric jump (0.769 → 0.974).
-→ Next: proof it's actually looking at the right thing.
+We split based on variance: Inter-class (macro differences between species used for Detection) and Intra-class (micro differences within a species used for Classification).
 -->
 
 ---
-class: heatmap-slide
----
 
-<!-- SLIDE 18 — Grad-CAM heatmaps -->
+<!-- SLIDE 14 — Detection Results -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 1</div>
 
-<h2>EfficientNet-B2 + CBAM learns a <span class="amber">different attention pattern</span> for each defect class</h2>
+# Inter-class research results
 
-<div class="hmstack">
-  <div class="hmrow" v-motion :initial="{ opacity: 0, x: -30 }" :enter="{ opacity: 1, x: 0, transition: { duration: 450, delay: 150 } }"><div class="lbl">Damage <span class="verdict">1.00</span> — focuses on the dark lesion</div><img src="./media/heatmaps/damage.png" alt="Damage Grad-CAM" /></div>
-  <div class="hmrow" v-motion :initial="{ opacity: 0, x: -30 }" :enter="{ opacity: 1, x: 0, transition: { duration: 450, delay: 300 } }"><div class="lbl">Healthy <span class="verdict">1.00</span> — uniform activation across the clean surface</div><img src="./media/heatmaps/healthy.png" alt="Healthy Grad-CAM" /></div>
-  <div class="hmrow" v-motion :initial="{ opacity: 0, x: -30 }" :enter="{ opacity: 1, x: 0, transition: { duration: 450, delay: 450 } }"><div class="lbl">Shriveled <span class="verdict">1.00</span> — focus on the wrinkled deformation</div><img src="./media/heatmaps/shriveled.png" alt="Shriveled Grad-CAM" /></div>
-  <div class="hmrow" v-motion :initial="{ opacity: 0, x: -30 }" :enter="{ opacity: 1, x: 0, transition: { duration: 450, delay: 600 } }"><div class="lbl">Weeveled <span class="verdict">1.00</span> — concentrated hotspot on the bore-hole</div><img src="./media/heatmaps/weeveled.png" alt="Weeveled Grad-CAM" /></div>
+<div class="grid2" style="margin-bottom: 0.8rem; align-items:center;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">
+  <div style="font-size: 0.85rem; line-height: 1.4; color: var(--text);">
+    <p>We first used <strong>Faster R-CNN with a ResNet-50 backbone</strong> to compare initial results on single-class (maize) versus multi-class (maize & coffee).</p>
+    <p style="margin-top:0.4rem;">These predicted coordinates are then used to crop and extract the specific seed region, passing only the isolated <strong>"Region of Interest" (RoI)</strong> to the classification model. This two-stage approach ensures the classifier focuses exclusively on the seed features, eliminating noise from the background or adjacent seeds.</p>
+  </div>
+  <div style="display:flex; justify-content:center;">
+    <img src="./media/heatmaps/FASTERRCNN_HEATMAP.png" style="max-height: 160px; border-radius: 0.4rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+  </div>
 </div>
 
-<div class="hmcallout">The attention mechanism isn't guessing — it's looking at the right features. (Input + 7 class maps; red/yellow = high activation)</div>
+<div class="card accent" style="padding: 0.4rem 0.6rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.75rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.2rem;">Metric</th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">YOLOv8s<br/><small>(Alternative)</small></th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Avg Inference Time</td><td style="padding: 0.2rem;">0.1511s</td><td style="padding: 0.2rem;">0.0621s</td><td style="padding: 0.2rem;">0.1038s</td><td style="padding: 0.2rem;">0.1106s</td><td style="padding: 0.2rem; font-weight:bold; color:var(--leaf-deep);">5.5ms</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@50 (Standard)</td><td style="padding: 0.2rem;">0.9780</td><td style="padding: 0.2rem;">0.9768</td><td style="padding: 0.2rem;">0.9838</td><td style="padding: 0.2rem;">0.9835</td><td style="padding: 0.2rem;">0.9410</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@75 (Strict)</td><td style="padding: 0.2rem;">0.6574</td><td style="padding: 0.2rem;">0.6576</td><td style="padding: 0.2rem;">0.8015</td><td style="padding: 0.2rem;">0.8020</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@.5:.95 (COCO)</td><td style="padding: 0.2rem;">0.5903</td><td style="padding: 0.2rem;">0.5867</td><td style="padding: 0.2rem;">0.7038</td><td style="padding: 0.2rem;">0.7211</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Precision</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9390</td></tr><tr><td style="padding: 0.2rem; font-weight: 600;">Recall</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9410</td></tr></tbody></table></div>
 
 <!--
-The show-stopper — Grad-CAM proves the attention mechanism focuses on the actual defect for
-each class, not the background. Minimal words; let the heatmaps land, maybe one per beat.
-→ Next: but detection still needed help.
+The Faster R-CNN metrics compared with and without CBAM for single vs multi class.
+YOLOv8s added as a high-speed alternative reference.
+-->
+
+<!-- SLIDE 15 — Optimizing Inter-class Detection (Table) -->
+
+<div class="act-tag">AI PIPELINE · Phase 1</div>
+
+# Optimizing Inter-class Detection
+
+<div class="card accent" style="padding: 0.8rem 1rem; margin: 1.5rem 0;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.4rem;">Architecture Setup</th><th style="padding: 0.4rem;">Training Time (Avg)</th><th style="padding: 0.4rem;">mAP@50</th><th style="padding: 0.4rem;">mAP@75</th><th style="padding: 0.4rem;">mAP@0.50:0.95</th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">Test 1: Swin backbone + FPN</td><td style="padding: 0.4rem;">430.08 s</td><td style="padding: 0.4rem;">0.9487</td><td style="padding: 0.4rem;">0.5543</td><td style="padding: 0.4rem;">0.5827</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05); background: rgba(30,122,64,0.05);"><td style="padding: 0.4rem; font-weight: 600;">Test 2: Swin backbone + FPN + CIoU Loss</td><td style="padding: 0.4rem; color: #d97706; font-weight: bold;">729.53 s (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9805 (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.7078 (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.6585 (↑)</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">Test 3: ResNet-50 + Faster R-CNN</td><td style="padding: 0.4rem; color: var(--mut);">-</td><td style="padding: 0.4rem;">0.8697</td><td style="padding: 0.4rem;">0.5466</td><td style="padding: 0.4rem;">0.5253</td></tr><tr><td style="padding: 0.4rem; font-weight: 600;">Test 4: ResNet-50 + Faster R-CNN + PANet</td><td style="padding: 0.4rem;">391.98 s</td><td style="padding: 0.4rem; color: #dc2626; font-weight: bold;">0.8524 (↓)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.6952 (↑)</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.6142 (↑)</td></tr></tbody></table></div>
+
+<!--
+Analysis of Inter-class detection metrics.
+-->
+
+---
+
+<!-- SLIDE 16 — Optimizing Inter-class Detection (Explanations) -->
+
+<div class="act-tag">AI PIPELINE · Phase 1</div>
+
+# Optimizing Inter-class Detection
+
+<div class="grid2" style="margin-top: 2rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 150 } }">
+  <div class="card win" style="padding: 1.2rem;">
+    <h3 style="font-size: 1.1rem; margin: 0 0 0.5rem 0;"><img class="ic" src="./media/icons/trending-up.png" /> Adding CIoU Loss (Test 1 → 2)</h3>
+    <p style="font-size: 0.95rem; line-height: 1.4; margin:0;"><strong>Why mAP soared:</strong> CIoU penalizes bounding box aspect ratio and center-point distance, not just overlap. This forces the model to draw much tighter boundaries around seeds, drastically improving strict localization metrics (mAP@75 jumped from 0.55 to 0.70).</p>
+    <p style="font-size: 0.95rem; line-height: 1.4; margin-top:0.6rem; color: #b45309;"><strong>The tradeoff:</strong> The complex geometric calculations of CIoU nearly doubled the training time (430s to 729s).</p>
+  </div>
+  
+  <div class="card win" style="padding: 1.2rem;">
+    <h3 style="font-size: 1.1rem; margin: 0 0 0.5rem 0;"><img class="ic" src="./media/icons/layers.png" /> Adding PANet (Test 3 → 4)</h3>
+    <p style="font-size: 0.95rem; line-height: 1.4; margin:0;"><strong>Why mAP@75 increased:</strong> PANet adds a bottom-up path augmentation, preserving low-level edge details. This makes localization highly precise, jumping mAP@75 by +0.15.</p>
+    <p style="font-size: 0.95rem; line-height: 1.4; margin-top:0.6rem; color: #dc2626;"><strong>Why mAP@50 dropped:</strong> The enhanced feature fusion made the model's confidence threshold overly rigid. It became so strict about perfectly tight boundaries that it rejected slightly loose boxes it previously accepted, causing a tiny drop in loose mAP@50.</p>
+  </div>
+</div>
+
+<!--
+Analysis of Inter-class detection architectural upgrades.
+-->
+
+---
+
+<!-- SLIDE 17 — Intra-class Quality Models (First Results) -->
+
+<div class="act-tag">AI PIPELINE · Phase 2</div>
+
+# Intra-class Quality Models (Maize)
+
+<p style="font-size: 0.95rem; line-height: 1.4; color: var(--text); margin-bottom: 1rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">To tackle <strong>intra-class variance</strong> (quality classification), we began with a Baseline ResNet-18 and systematically introduced architectural modifications. These initial tests evaluate the model's ability to classify healthy versus defective <strong>maize seeds</strong>.</p>
+
+<div class="card accent" style="padding: 0.8rem 1rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.4rem;">Model Version</th><th style="padding: 0.4rem;">Architecture Modifications</th><th style="padding: 0.4rem;">F1-Score</th><th style="padding: 0.4rem;">Precision</th><th style="padding: 0.4rem;">Recall</th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V1</td><td style="padding: 0.4rem;">Baseline ResNet-18</td><td style="padding: 0.4rem;">0.9056</td><td style="padding: 0.4rem;">0.8898</td><td style="padding: 0.4rem;">0.9219</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V2</td><td style="padding: 0.4rem;">+ CBAM</td><td style="padding: 0.4rem;">0.9023</td><td style="padding: 0.4rem;">0.8988</td><td style="padding: 0.4rem;">0.9058</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05); background: rgba(30,122,64,0.05);"><td style="padding: 0.4rem; font-weight: 600;">V3</td><td style="padding: 0.4rem;">+ CBAM + GMP</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9101</td><td style="padding: 0.4rem;">0.8877</td><td style="padding: 0.4rem; color: var(--leaf-deep); font-weight: bold;">0.9335</td></tr><tr><td style="padding: 0.4rem; font-weight: 600;">V4</td><td style="padding: 0.4rem;">+ CBAM + GMP + Stride (1,1)</td><td style="padding: 0.4rem;">0.9000</td><td style="padding: 0.4rem;">0.8803</td><td style="padding: 0.4rem;">0.9206</td></tr></tbody></table></div>
+
+<div class="grid2" style="margin-top: 1.2rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 200 } }">
+  <div class="card win" style="padding: 1rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/check-green.png" /> The V3 Sweet Spot</h3>
+    <p style="font-size: 0.85rem; line-height: 1.4; margin:0;">Adding <strong>Global MaxPooling (GMP)</strong> alongside CBAM (V3) forced the network to identify the single most discriminative feature (like a tiny defect crack on the maize surface), pushing both F1 and Recall to their highest points.</p>
+  </div>
+  <div class="card prob" style="padding: 1rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/alert-amber.png" /> Stride (1,1) Degradation</h3>
+    <p style="font-size: 0.85rem; line-height: 1.4; margin:0;">Attempting to retain ultra-fine spatial resolution by altering the early convolution stride (V4) actually harmed the network. It introduced too much background noise, causing a regression across all metrics compared to V3.</p>
+  </div>
+</div>
+
+<!--
+Initial intra-class variance classification results on Maize using ResNet-18.
+-->
+
+---
+
+<!-- SLIDE 18 — EfficientNet-B2: Maize vs Soybean -->
+
+<div class="act-tag">AI PIPELINE · Phase 2</div>
+
+# Upgrading to EfficientNet-B2
+
+<div style="font-size: 0.85rem; line-height: 1.4; margin-bottom: 1rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">
+  <p>To improve fine-grained, multi-label defect classification, we upgraded to <strong>EfficientNet-B2</strong>. Its compound scaling dynamically balances depth, width, and resolution, allowing it to extract much richer feature representations. Crucially, we maintained the exact same <strong>V3 configuration</strong> that succeeded previously, integrating <strong>CBAM block attention</strong> and <strong>Hybrid Pooling (GMP)</strong> into the new architecture.</p>
+</div>
+
+<div class="grid2" style="align-items:start;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }">
+  <div class="card win" style="padding: 0.8rem 1rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/check-green.png" /> Maize (Robust Generalization)</h3>
+    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.75rem; margin-bottom: 0.6rem;">
+      <thead><tr style="border-bottom: 1px solid rgba(0,0,0,0.1);"><th style="padding:0.2rem;">Epoch</th><th style="padding:0.2rem;">Val Loss</th><th style="padding:0.2rem;">Macro-F1</th><th style="padding:0.2rem;">Micro-F1</th><th style="padding:0.2rem;">Exact Match</th></tr></thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding:0.2rem;">001</td><td style="padding:0.2rem;">0.2695</td><td style="padding:0.2rem;">0.8078</td><td style="padding:0.2rem;">0.8016</td><td style="padding:0.2rem;">0.6224</td></tr>
+        <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding:0.2rem;">003</td><td style="padding:0.2rem;">0.1027</td><td style="padding:0.2rem;">0.9253</td><td style="padding:0.2rem;">0.9242</td><td style="padding:0.2rem;">0.8658</td></tr>
+        <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding:0.2rem;">005</td><td style="padding:0.2rem;">0.0555</td><td style="padding:0.2rem;">0.9641</td><td style="padding:0.2rem;">0.9640</td><td style="padding:0.2rem;">0.9387</td></tr>
+        <tr><td style="padding:0.2rem; font-weight:bold;">007</td><td style="padding:0.2rem; font-weight:bold;">0.0447</td><td style="padding:0.2rem; color:var(--leaf-deep); font-weight:bold;">0.9740</td><td style="padding:0.2rem; font-weight:bold;">0.9740</td><td style="padding:0.2rem; font-weight:bold;">0.9565</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size: 0.75rem; line-height: 1.4; margin:0; color:var(--mut);">Photographed under natural sunlight with variable background noise. The model successfully learned robust, generalizable features, achieving stable convergence.</p>
+  </div>
+  
+  <div class="card prob" style="padding: 0.8rem 1rem;">
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.4rem 0;"><img class="ic" src="./media/icons/alert-amber.png" /> Soybean (Severe Overfitting)</h3>
+    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.75rem; margin-bottom: 0.6rem;">
+      <thead><tr style="border-bottom: 1px solid rgba(0,0,0,0.1);"><th style="padding:0.2rem;">Epoch</th><th style="padding:0.2rem;">Val Loss</th><th style="padding:0.2rem;">Macro-F1</th><th style="padding:0.2rem;">Micro-F1</th><th style="padding:0.2rem;">Exact Match</th></tr></thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding:0.2rem;">001</td><td style="padding:0.2rem;">0.2614</td><td style="padding:0.2rem;">0.8114</td><td style="padding:0.2rem;">0.7977</td><td style="padding:0.2rem;">0.6464</td></tr>
+        <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding:0.2rem;">004</td><td style="padding:0.2rem;">0.0516</td><td style="padding:0.2rem;">0.9603</td><td style="padding:0.2rem;">0.9597</td><td style="padding:0.2rem;">0.9278</td></tr>
+        <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding:0.2rem;">008</td><td style="padding:0.2rem;">0.0235</td><td style="padding:0.2rem;">0.9889</td><td style="padding:0.2rem;">0.9888</td><td style="padding:0.2rem;">0.9829</td></tr>
+        <tr><td style="padding:0.2rem; font-weight:bold;">012</td><td style="padding:0.2rem; font-weight:bold;">0.0203</td><td style="padding:0.2rem; color:#dc2626; font-weight:bold;">0.9936</td><td style="padding:0.2rem; font-weight:bold;">0.9936</td><td style="padding:0.2rem; font-weight:bold;">0.9916</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size: 0.75rem; line-height: 1.4; margin:0; color:var(--mut);">Pre-segmented boxes in sterile, lab-controlled environments. The network merely memorized clean pixel distributions (reaching an artificially high 0.9936) and failed to learn robust real-world features.</p>
+  </div>
+</div>
+
+<!--
+Comparing EfficientNet-B2 classification on Maize vs Soybean datasets, proving data quality dictates generalizability.
 -->
 
 ---
 class: center-slide
 ---
 
-<!-- SLIDE 19 — Detection Still Overfits — We Need Our Own Data -->
+<!-- SLIDE 18 — Detection Still Overfits — We Need Our Own Data -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # Detection Still Overfits — We Need Our Own Data
 
@@ -632,9 +556,9 @@ exactly why we built MultiSeedGen. → Next: how MultiSeedGen works.
 
 ---
 
-<!-- SLIDE 20 — MultiSeedGen: Building Our Own Training Data -->
+<!-- SLIDE 19 — MultiSeedGen: Building Our Own Training Data -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # MultiSeedGen: Building Our Own Training Data
 
@@ -671,9 +595,9 @@ because the engine placed each seed. Show the annotated output as proof.
 
 ---
 
-<!-- SLIDE 21 — Segmentation: 6 Ways to Cut a Seed -->
+<!-- SLIDE 20 — Segmentation: 6 Ways to Cut a Seed -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # Segmentation: 6 Ways to Cut a Seed
 
@@ -701,9 +625,9 @@ a tuner UI. Don't read all six — group as "classical → learned → promptabl
 
 ---
 
-<!-- SLIDE 22 — Augmentation & Domain Bridging -->
+<!-- SLIDE 21 — Augmentation & Domain Bridging -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # Augmentation & Domain Bridging
 
@@ -723,9 +647,9 @@ backgrounds. Emphasize the amber column; the before/after is the proof.
 
 ---
 
-<!-- SLIDE 23 — MultiSeedGen Web UI + Data Loop -->
+<!-- SLIDE 22 — MultiSeedGen Web UI + Data Loop -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # MultiSeedGen Web UI + Data Loop
 
@@ -757,9 +681,9 @@ the system's measured weaknesses — it's a strategy, not a one-shot script.
 
 ---
 
-<!-- SLIDE 24 — Detection Experiments: The Full Journey -->
+<!-- SLIDE 23 — Detection Experiments: The Full Journey -->
 
-<div class="act-tag">Act V · Final Results & Evidence</div>
+<div class="act-tag">RESULTS</div>
 
 # Detection Experiments: The Full Journey
 
@@ -780,9 +704,9 @@ mean better real-world generalization. → Next: the same lesson, seen in classi
 
 ---
 
-<!-- SLIDE 25 — Classification: Data Quality > Model Architecture -->
+<!-- SLIDE 24 — Classification: Data Quality > Model Architecture -->
 
-<div class="act-tag">Act V · Final Results & Evidence</div>
+<div class="act-tag">RESULTS</div>
 
 # Classification: Data Quality > Model Architecture
 
@@ -815,9 +739,9 @@ model overfits despite a higher score. → Next: how we deploy for two very diff
 
 ---
 
-<!-- SLIDE 26 — Speed vs. Precision -->
+<!-- SLIDE 25 — Speed vs. Precision -->
 
-<div class="act-tag">Act V · Final Results & Evidence</div>
+<div class="act-tag">RESULTS</div>
 
 # Speed vs. Precision: Two Deployment Modes
 
@@ -832,43 +756,15 @@ model overfits despite a higher score. → Next: how we deploy for two very diff
 
 <!--
 Two deployment modes — precision vs speed. Be precise: the 876-seed image is a model demo of
-dense detection; the product realtime experience is the mobile frame-streaming mode shown in Act VI.
+dense detection; the product realtime experience is the mobile frame-streaming mode shown in the platform section.
 → Next: how we compare to what's already out there.
--->
-
----
-
-<!-- SLIDE 27 — Competitor Landscape -->
-
-<div class="act-tag">Act V · Final Results & Evidence</div>
-
-# Competitor Landscape
-
-<div v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
-
-| Feature | Seed Bank | LemnaTec | PCS Agri Track | Seedy | GerminationPrediction |
-|---|---|---|---|---|---|
-| Cost | <span class="ok">Low</span> | <span class="bad">Very high</span> | <span class="mid">Medium</span> | <span class="mid">Subscription</span> | <span class="ok">Free</span> |
-| Accessibility | <span class="ok">Web + Mobile</span> | <span class="bad">Custom HW</span> | <span class="mid">Needs internet</span> | <span class="mid">iOS only</span> | <span class="bad">CLI only</span> |
-| Multi-crop | <span class="ok">~20 species</span> | <span class="ok">Many</span> | <span class="mid">Limited</span> | <span class="ok">Good DB</span> | <span class="bad">Germination only</span> |
-| Defect granularity | <span class="ok">7-class multi-label</span> | <span class="ok">Industrial</span> | <span class="mid">Basic</span> | <span class="bad">Visual ID</span> | <span class="bad">No quality</span> |
-| Mobile | <span class="ok">Native app</span> | <span class="bad">No</span> | <span class="mid">Web</span> | <span class="ok">iOS</span> | <span class="bad">No</span> |
-| Open / extensible | <span class="ok">Pluggable</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="ok">OSS</span> |
-
-</div>
-
-<p class="lead center" style="margin-top:0.7rem; font-size:0.9rem;">Affordable, accessible, multi-crop, fine-grained, and extensible — the all-green column is <strong>Seed Bank</strong>.</p>
-
-<!--
-Where we sit — affordable, accessible, multi-crop, fine-grained, and extensible. Highlight the
-column that's all-green (us). → Next: the models are only half the story — now the platform.
 -->
 
 ---
 class: center-slide
 ---
 
-<!-- SLIDE 28 — From Trained Models to a Real Product -->
+<!-- SLIDE 26 — From Trained Models to a Real Product -->
 
 <div class="act-tag">Act VI · The Platform &amp; Engineering</div>
 
@@ -1326,7 +1222,7 @@ A quick grouped inventory. Let it convey breadth and coherence. This is a real, 
 
 <!-- SLIDE 42 - Key Takeaways -->
 
-<div class="act-tag">Act VII · Closing</div>
+<div class="act-tag">CONCLUSION</div>
 
 # Key Takeaways
 
@@ -1344,7 +1240,7 @@ Three durable lessons: data > architecture, decouple the two stages, and synthet
 
 <!-- SLIDE 43 - Future Roadmap -->
 
-<div class="act-tag">Act VII · Closing</div>
+<div class="act-tag">FUTURE WORK</div>
 
 # Future Roadmap
 
