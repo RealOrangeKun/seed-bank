@@ -27,9 +27,7 @@
 /* ---- Base: warm-white canvas, everywhere ---- */
 .slidev-layout {
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  background:
-    radial-gradient(130% 90% at 100% 0%, rgba(30, 122, 64, 0.05), transparent 55%),
-    var(--bg);
+  background: radial-gradient(circle at center, transparent 35%, rgba(30, 122, 64, 0.5) 100%), var(--bg);
   color: var(--text);
   padding: 2.2rem 3rem 2.6rem;
   -webkit-font-smoothing: antialiased;
@@ -55,9 +53,6 @@
    ========================================================================= */
 .cover-slide {
   text-align: center;
-  background:
-    radial-gradient(120% 95% at 50% -15%, rgba(30, 122, 64, 0.10), transparent 58%),
-    var(--bg);
   display: flex; flex-direction: column; justify-content: center; align-items: center;
 }
 .cover-slide h1 { font-size: 5.2rem; letter-spacing: -0.02em; margin-bottom: 0.2rem; }
@@ -129,9 +124,12 @@
 .slidev-layout:not(.cover-slide) > h2:first-of-type,
 .slidev-layout:not(.cover-slide) h1 + h2 { font-size: 1.2rem; font-weight: 600; color: var(--leaf); margin: 0 0 0.7rem; }
 
-.act-tag { display:inline-block; font-size:0.68rem; font-weight:700; letter-spacing:0.12em;
-  text-transform:uppercase; color:var(--leaf); background:var(--leaf-soft);
-  padding:0.14rem 0.55rem; border-radius:0.3rem; margin-bottom:0.5rem; }
+.act-tag {
+  position: absolute; top: 1.5rem; left: 50%; transform: translateX(-50%);
+  font-size: 1rem; font-weight: 700; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--leaf); background: var(--leaf-soft);
+  padding: 0.35rem 1.2rem; border-radius: 0.5rem; z-index: 10;
+}
 .lead { font-size:1.02rem; color:var(--muted); margin:0.2rem 0 0.8rem; }
 .mut  { color:var(--muted); } .center { text-align:center; }
 .thesis { font-size:1.15rem; font-weight:600; color:var(--leaf-deep); text-align:center; margin:0.2rem 0 1rem; }

@@ -56,7 +56,7 @@ class: center-slide
   <img src="./media/Online-images/a-conveyor.jpeg" style="width: 100%; height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); opacity: 0.5;" />
 </div>
 
-<div class="act-tag" v-motion :initial="{ opacity: 0, y: -10 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">INTRODUCTION</div>
+<div class="act-tag">INTRODUCTION</div>
 
 <h1 v-motion :initial="{ opacity: 0, y: 10 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 100 } }">What is Seed Bank?</h1>
 
@@ -94,19 +94,37 @@ The simplified overview slide.
 
 # What problem does Seed Bank address?
 
-<div class="center" style="margin:1.2rem 0;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 100 } }">
-  <div class="chip-ic" style="width:5rem; height:5rem; margin:0 auto; border-radius:1rem;"><img src="./media/icons/hand.png" style="width:2.8rem; height:2.8rem;" /></div>
-  <p class="mut" style="margin-top:0.5rem; font-size:1.2rem;">The labor-intensive process of classifying seed quality by hand.</p>
+<div class="grid2" style="margin-top:1.2rem; gap:1rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 100 } }">
+  <!-- 1. Human Error -->
+  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
+    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/hands-seeds.jpg'); background-size: cover; background-position: center;"></div>
+    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
+    <div style="position: relative; z-index: 2;">
+      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Human Error</h3>
+      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Manual sorting is subjective and prone to inconsistencies across different inspectors.</p>
+    </div>
+  </div>
+
+  <!-- 2. Labor Intensive -->
+  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
+    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/Labor_intensive.jpg'); background-size: cover; background-position: center;"></div>
+    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
+    <div style="position: relative; z-index: 2;">
+      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Labor Intensive</h3>
+      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Sifting through massive batches of seeds by hand is painstakingly slow and cannot scale.</p>
+    </div>
+  </div>
 </div>
 
-<div class="grid2" style="margin-top:1.5rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 250 } }">
-  <div class="card accent center" style="padding:1.5rem;">
-    <h3 style="color:var(--text); margin-bottom:0.5rem;"><img src="./media/icons/help-circle.png" style="width:1.2rem; vertical-align:middle; margin-right:0.5rem;" />Human Error</h3>
-    <p class="mut">Manual sorting is subjective and prone to inconsistencies across different inspectors and conditions.</p>
-  </div>
-  <div class="card accent center" style="padding:1.5rem;">
-    <h3 style="color:var(--text); margin-bottom:0.5rem;"><img src="./media/icons/clock.png" style="width:1.2rem; vertical-align:middle; margin-right:0.5rem;" />Labor Intensive</h3>
-    <p class="mut">Sifting through massive batches of seeds one by one is slow and cannot scale effectively.</p>
+<div style="display: flex; justify-content: center; margin-top: 1rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 250 } }">
+  <!-- 3. Mechanical Sorters -->
+  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; width: calc(50% - 0.5rem); display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
+    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/mechanical_sorters.jpg'); background-size: cover; background-position: center;"></div>
+    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
+    <div style="position: relative; z-index: 2;">
+      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Mechanical Sorters</h3>
+      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Massive machines that grade automatically are highly effective, but usually extremely expensive.</p>
+    </div>
   </div>
 </div>
 
