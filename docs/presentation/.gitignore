@@ -1,0 +1,11 @@
+# Build artifacts for the two decks — regenerated from sources, not tracked.
+slidev/node_modules/
+slidev/.slidev/
+slidev/dist/
+slidev-exports/
+# Mirror of ../assets — regenerate with tools/sync_media.sh
+slidev/media/
+pptx/.venv/
+pptx/render/
+# LibreOffice lock files
+.~lock.*#

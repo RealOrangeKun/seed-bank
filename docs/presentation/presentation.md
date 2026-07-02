@@ -1,7 +1,7 @@
 # Seed Bank — Presentation Content Guide (Final)
 
 > **Format**: Content guide for PowerPoint, Canva, or any slide tool
-> **Slides**: 37 *logical* slides (skip as needed to manage time — all content preserved)
+> **Slides**: 39 *logical* slides (skip as needed to manage time — all content preserved)
 > **All visual assets are real** — no mockups needed
 > **Core narrative**: The AI development journey drives the story; the engineering
 > platform lands it as a real product
@@ -10,7 +10,7 @@
 Slide numbers below are **logical**, not physical. A few image-heavy slides are meant
 to **span 2–3 physical slides** so each screenshot gets room to breathe — these are
 flagged inline with **⚠️ Image spread**. Build those as a short sequence and the
-running total will end up a little higher than 37; that's expected. Keep the *order*
+running total will end up a little higher than 39; that's expected. Keep the *order*
 and the *transitions*; adjust the numbering to your final deck.
 
 ---
@@ -78,19 +78,20 @@ subset (avoid the raw implementation-detail ones):
 
 | Diagram | PDF | Best slide |
 |---|---|---|
-| System context (C4 L1) | `01-system-context.pdf` | Bridge / Architecture |
-| Containers — app | `02-containers-app.pdf` | System Architecture |
-| Containers — datastores | `02-containers-datastores.pdf` | System Architecture |
-| Analyze sequence | `06-analyze-sequence.pdf` | Analyze Pipeline |
-| Batch state machine | `07-batch-state-machine.pdf` | Analyze Pipeline |
-| Auth sequence | `08-auth-sequence.pdf` | Secure by Design (optional) |
-| ML platform lifecycle | `09-ml-platform.pdf` | Traceability & Lifecycle |
-| Model resolution | `16-model-resolution.pdf` | Traceability & Lifecycle |
-| Core ERD | `05-db-erd-core.pdf` | Architecture / data model (optional) |
-| Faster R-CNN architecture | `17-fasterRCNN-architecture.pdf` | Phase 1 Detection (Slide 12) |
-| EfficientNet-B2 architecture | `18-Efficient-net-B2.pdf` | Phase 2 Classification (Slide 16) |
-| MultiSeedGen pipeline | `14-multiseedgen-pipeline.pdf` | MultiSeedGen (Slide 19) |
-| Farmer / Dev / Admin use-cases | `12a-…`, `12b-…`, `12c-usecase-*.pdf` | Audiences (optional) |
+| System context (C4 L1) | `01-system-context.pdf` | Proposed System Architecture (Slide 12) |
+| Containers — app | `02-containers-app.pdf` | System Architecture (Slides 12 & 32) |
+| Containers — datastores | `02-containers-datastores.pdf` | System Architecture (Slides 12 & 32) |
+| Two-stage pipeline (detect→classify) | `04-worker-components-pipeline.pdf` | Proposed System Architecture (Slide 13) |
+| Analyze sequence | `06-analyze-sequence.pdf` | Analyze Pipeline (Slide 33) |
+| Batch state machine | `07-batch-state-machine.pdf` | Analyze Pipeline (Slide 33) |
+| Auth sequence | `08-auth-sequence.pdf` | Secure by Design (Slide 35, optional) |
+| ML platform lifecycle | `09-ml-platform.pdf` | Traceability & Lifecycle (Slide 34) |
+| Model resolution | `16-model-resolution.pdf` | Traceability & Lifecycle (Slide 34) |
+| Core ERD | `05-db-erd-core.pdf` | Architecture / data model (Slide 32, optional) |
+| Faster R-CNN architecture | `17-fasterRCNN-architecture.pdf` | Phase 1 Detection (Slide 14) |
+| EfficientNet-B2 architecture | `18-Efficient-net-B2.pdf` | Phase 2 Classification (Slide 18) |
+| MultiSeedGen pipeline | `14-multiseedgen-pipeline.pdf` | MultiSeedGen (Slide 21) |
+| Farmer / Dev / Admin use-cases | `12a-…`, `12b-…`, `12c-usecase-*.pdf` | Audiences (Slide 31, optional) |
 
 > **Skip** the `*-tooling.*` and `10-deployment-runtime-tooling.*` diagrams — they show
 > ops/monitoring detail that's out of scope for this deck.
@@ -106,24 +107,25 @@ the end of this document.*
 ACT I   — THE HOOK & PROBLEM (Slides 1–8)
            "What is this?" → "Who needs it?" → "What's broken?" → "Why is it hard?"
 
-ACT II  — THE AI JOURNEY: FROM ML TO CV (Slides 9–11)
-           "Can ML solve this?" → "Seeds are too complex → pivot to CV" → "The two-stage design"
+ACT II  — THE AI JOURNEY: FROM ML TO CV (Slides 9–13)
+           "Can ML solve this?" → "Our solution: platform + MultiSeedGen" → "Pivot to CV" →
+           "Proposed system architecture" (system at a glance → the two-stage design)
 
-ACT III — PHASE 1: FIRST PIPELINE (Slides 12–15)
+ACT III — PHASE 1: FIRST PIPELINE (Slides 14–17)
            Detection (Faster R-CNN) → Classification (ResNet-18 + 4 mods) → Results → "We hit a wall — data"
 
-ACT IV  — PHASE 2: DEEPER MODELS + MULTISEEDGEN (Slides 16–22)
+ACT IV  — PHASE 2: DEEPER MODELS + MULTISEEDGEN (Slides 18–24)
            EfficientNet-B2 → Heatmap proof → Detection still overfits →
            MultiSeedGen → Segmentation → Augmentation & domain bridging → data loop
 
-ACT V   — FINAL RESULTS & EVIDENCE (Slides 23–26)
+ACT V   — FINAL RESULTS & EVIDENCE (Slides 25–28)
            Detection journey → Data > architecture → Speed vs Precision → Competitor landscape
 
-ACT VI  — THE PLATFORM & ENGINEERING (Slides 27–34)   ← expanded
+ACT VI  — THE PLATFORM & ENGINEERING (Slides 29–36)
            From models to a product → App showcase → Two audiences + EN/AR RTL →
            Architecture → Analyze pipeline → Traceability & lifecycle → Secure by design → Tech stack
 
-ACT VII — CLOSING (Slides 35–37)
+ACT VII — CLOSING (Slides 37–39)
            Takeaways → Future roadmap → Team + Q&A
 ```
 
@@ -255,7 +257,7 @@ AI story.
 
 ---
 
-### ═══ ACT II: THE AI JOURNEY — FROM ML TO COMPUTER VISION (3 slides) ═══
+### ═══ ACT II: THE AI JOURNEY — FROM ML TO COMPUTER VISION (5 slides) ═══
 
 > This act tells the story of how the AI team approached the problem, discovered its complexity, and designed the solution architecture. This is the intellectual spine of the project.
 
@@ -273,11 +275,27 @@ AI story.
 
 **Visual direction**: Show the progression from "simple feature extraction" to "this is harder than expected." The slide should feel like a turning point.
 
-**Speaker note**: We started honestly with hand-crafted features and classic ML — frame it as diligent, not naive. The discovery: those features don't generalize across species and conditions. → Next: so we pivoted to computer vision.
+**Speaker note**: We started honestly with hand-crafted features and classic ML — frame it as diligent, not naive. The discovery: those features don't generalize across species and conditions. → Next: the solution we propose.
 
 ---
 
-#### SLIDE 10 — "Pivoting to Computer Vision"
+#### SLIDE 10 — The Proposed Solution
+
+**Layout**: Two-column split (platform | data factory) + a one-line thesis
+
+**Content**:
+- **Thesis**: *"Grade seed quality from an ordinary photo — and manufacture the training data that makes it possible."*
+- **LEFT — 🌱 Seed Bank (the platform)**: photo/video of a seed batch → **find every seed** → **grade each one** → **aggregate report** (good-rate, seed count, per-crop breakdown). Every verdict is **traceable** to the model that produced it; ships with basic **model management + offline evaluation**; delivered as a **web + mobile app a farmer can actually use**.
+- **RIGHT — 🧬 MultiSeedGen (the data factory)**: cut real seeds from single-seed photos → **composite** many onto realistic backgrounds with lighting + camera-like noise → **export fully-labelled detection datasets**. *"The tool places every seed itself, so the labels come for free."*
+- **Bottom band — answers the two problems from Slide 8**: 💰 **No expensive rig** — useful accuracy from ordinary single-view photos · 📊 **Closes the ~100K-image data gap** — synthetic generation instead of hand-labelling
+
+**Visual direction**: A clean two-part split — one deliverable per column — with the bottom band drawing arrows back to the "Technology Gap" (Slide 6) and "Data Problem" (Slide 8). This is the *proposed-solution* statement: unlike the 30-second pitch (Slide 3), it names **both** deliverables — the product **and** the data tool — as the answer to the stated problem.
+
+**Speaker note**: Before any model details, here's the entire solution on one slide — a platform that grades seeds from a normal photo, and a data factory that generates the labelled images the detector needs. Two problems from earlier — cost and data — one deliverable each. → Next: why this had to be a computer-vision solution.
+
+---
+
+#### SLIDE 11 — "Pivoting to Computer Vision"
 
 **Layout**: Decision diagram
 
@@ -287,27 +305,47 @@ AI story.
 - **Key insight**: *"Seeds need two separate tasks solved:"*
   - **Task 1**: "Where is each seed in the photo?" → **Object Detection**
   - **Task 2**: "What's wrong with this specific seed?" → **Quality Classification**
-- Arrow pointing to slide 11: *"This led us to the two-stage pipeline design"*
+- Arrow pointing to Slides 12–13: *"This led us to the proposed system architecture"*
 
 **Visual direction**: This should feel like a "eureka" moment. The visual transition from ML → CV should be clean and dramatic.
 
-**Speaker note**: The pivot to deep learning, plus the key reframe: two distinct tasks — *where* is each seed, and *what's wrong* with it. → Next: those two tasks become our two-stage pipeline.
+**Speaker note**: The pivot to deep learning, plus the key reframe: two distinct tasks — *where* is each seed, and *what's wrong* with it. → Next: those two tasks shape our proposed system architecture.
 
 ---
 
-#### SLIDE 11 — The Two-Stage Pipeline Design
+#### SLIDE 12 — Proposed System Architecture (1/2): The System at a Glance
+
+**Layout**: One high-level conceptual diagram + a five-piece component list
+
+**Content**:
+- **Hero diagram**: `docs/report/figures/01-system-context.pdf` (who uses it + external services) — *alt/complement*: `02-containers-app.pdf` + `02-containers-datastores.pdf` (or the composite `02-containers.pdf`)
+- **Five pieces** (keep it conceptual):
+  - 📱 **Clients** — a React web app + an Expo mobile app (English / Arabic)
+  - ⚙️ **FastAPI backend** — accepts a batch, records it, responds fast; async + cleanly layered
+  - 🔧 **Background workers** — the heavy **detect → classify** work runs *off* the request path
+  - 💾 **Datastores** — PostgreSQL (results) · ClickHouse (analytics) · MinIO (images + weights) · Redis (queue / cache)
+- **Design-principle callout**: *"Inference is heavy, so it never runs inside the request the user is waiting on — the API stays responsive."*
+
+**Visual direction**: High-level and non-expert-friendly — this is the *proposed* architecture, not the deep dive. Use the system-context diagram as the hero so it reads differently from the detailed container view later. **Forward-ref**: the full container topology is at **Slide 32**, and we trace a live request end-to-end at **Slide 33**.
+
+**Speaker note**: The system in one picture — clients talk to a fast API, which hands the heavy model work to background workers, with four datastores behind them. The one idea to land: inference never blocks the user's request. Keep it conceptual; the deep dive is in the platform act. → Next: the two-stage pipeline at the core of it.
+
+---
+
+#### SLIDE 13 — Proposed System Architecture (2/2): The Two-Stage Detect→Classify Pipeline
 
 **Layout**: Horizontal pipeline diagram
 
 **Content**:
 - Pipeline flow:
-  📷 **Input Image** → [**STAGE 1: Object Detection** — *"Find every seed, identify its type"*] → **Bounding boxes + seed type** → [**STAGE 2: Quality Classification** — *"Grade each seed for defects"*] → 📊 **Quality Report**
+  📷 **Input Image** → [**STAGE 1: Object Detection** — *"Find every seed, identify its type"*] → **Bounding boxes + seed type** → **crop each seed** → **GROUP by seed type** → [**STAGE 2: Quality Classification** — *"Grade each seed for defects"*] → 📊 **Quality Report**
 - Stage 1 color: blue tones
 - Stage 2 color: green tones
 - Below: *"One detector for all seeds. One classifier per crop type. Each stage versioned and optimized independently."*
 - Data fan-out: **1 image → N detections → N quality labels**
+- *Optional diagram*: `docs/report/figures/04-worker-components-pipeline.pdf` (keep it conceptual)
 
-**Visual direction**: This is the foundational architecture slide. It should be clear, memorable, and referenced back to throughout the presentation.
+**Visual direction**: This is the foundational architecture slide — clear, memorable, and referenced back to throughout the presentation. **Forward-ref**: the engineering behind it (concurrency-safe batching, per-seed-type routing, graceful partial results) is at **Slide 33**.
 
 **Speaker note**: This is the architectural spine of the entire project — detect, then classify — and we'll point back to it repeatedly, including in the platform act. → Next: Phase 1, how we first built the detector.
 
@@ -319,7 +357,7 @@ AI story.
 
 ---
 
-#### SLIDE 12 — Phase 1 Detection: Faster R-CNN
+#### SLIDE 14 — Phase 1 Detection: Faster R-CNN
 
 **Layout**: Left = architecture diagram. Right = results
 
@@ -337,7 +375,7 @@ AI story.
 
 ---
 
-#### SLIDE 13 — Phase 1 Classification: ResNet-18 + 4 Custom Modifications
+#### SLIDE 15 — Phase 1 Classification: ResNet-18 + 4 Custom Modifications
 
 **Layout**: Architecture diagram with 4 callout annotations
 
@@ -358,7 +396,7 @@ AI story.
 
 ---
 
-#### SLIDE 14 — Phase 1 Results: What Worked, What Didn't
+#### SLIDE 16 — Phase 1 Results: What Worked, What Didn't
 
 **Layout**: Two-column — ✅ Wins vs. ⚠️ Problems
 
@@ -380,7 +418,7 @@ AI story.
 
 ---
 
-#### SLIDE 15 — "We Hit a Wall — The Data Insight"
+#### SLIDE 17 — "We Hit a Wall — The Data Insight"
 
 **Layout**: Insight/turning-point slide
 
@@ -408,7 +446,7 @@ AI story.
 
 ---
 
-#### SLIDE 16 — Phase 2: Upgrading to EfficientNet-B2
+#### SLIDE 18 — Phase 2: Upgrading to EfficientNet-B2
 
 **Layout**: Left = architecture comparison. Right = why the switch
 
@@ -430,7 +468,7 @@ AI story.
 
 ---
 
-#### SLIDE 17 — Proof: The Model Sees What Matters (Grad-CAM Heatmaps)   ⚠️ Image spread
+#### SLIDE 19 — Proof: The Model Sees What Matters (Grad-CAM Heatmaps)   ⚠️ Image spread
 
 **Layout**: Full-width, dark background. **SHOW-STOPPER SLIDE.** (Consider one heatmap per physical slide, then a 2×2 recap.)
 
@@ -451,7 +489,7 @@ AI story.
 
 ---
 
-#### SLIDE 18 — "Detection Still Overfits — We Need Our Own Data"
+#### SLIDE 20 — "Detection Still Overfits — We Need Our Own Data"
 
 **Layout**: Problem → Solution bridge slide
 
@@ -470,7 +508,7 @@ AI story.
 
 ---
 
-#### SLIDE 19 — MultiSeedGen: Building Our Own Training Data
+#### SLIDE 21 — MultiSeedGen: Building Our Own Training Data
 
 **Layout**: Pipeline diagram + output screenshot
 
@@ -487,7 +525,7 @@ AI story.
 
 ---
 
-#### SLIDE 20 — Segmentation: 6 Ways to Cut a Seed
+#### SLIDE 22 — Segmentation: 6 Ways to Cut a Seed
 
 **Layout**: Left = method cards. Right = seg-tuner screenshot
 
@@ -506,7 +544,7 @@ AI story.
 
 ---
 
-#### SLIDE 21 — Augmentation & Domain Bridging
+#### SLIDE 23 — Augmentation & Domain Bridging
 
 **Layout**: Three columns + before/after
 
@@ -537,7 +575,7 @@ AI story.
 
 ---
 
-#### SLIDE 22 — MultiSeedGen Web UI + Data Loop
+#### SLIDE 24 — MultiSeedGen Web UI + Data Loop
 
 **Layout**: Screenshots + feedback loop diagram
 
@@ -561,7 +599,7 @@ AI story.
 
 ---
 
-#### SLIDE 23 — Detection Experiments: The Full Journey
+#### SLIDE 25 — Detection Experiments: The Full Journey
 
 **Layout**: Timeline/progression chart
 
@@ -579,7 +617,7 @@ AI story.
 
 ---
 
-#### SLIDE 24 — Classification: Data Quality > Model Architecture
+#### SLIDE 26 — Classification: Data Quality > Model Architecture
 
 **Layout**: Two-column comparison + convergence chart
 
@@ -593,7 +631,7 @@ AI story.
 
 ---
 
-#### SLIDE 25 — Speed vs. Precision: Two Deployment Modes
+#### SLIDE 27 — Speed vs. Precision: Two Deployment Modes
 
 **Layout**: Two comparison cards + YOLO screenshot
 
@@ -609,7 +647,7 @@ AI story.
 
 ---
 
-#### SLIDE 26 — Competitor Landscape
+#### SLIDE 28 — Competitor Landscape
 
 **Layout**: Feature comparison matrix
 
@@ -637,7 +675,7 @@ AI story.
 
 ---
 
-#### SLIDE 27 — From Trained Models to a Real Product   *(bridge slide)*
+#### SLIDE 29 — From Trained Models to a Real Product   *(bridge slide)*
 
 **Layout**: Split — "research artifact" → "production product"
 
@@ -654,7 +692,7 @@ AI story.
 
 ---
 
-#### SLIDE 28 — Live App Showcase   ⚠️ Image spread (build as 2–3 physical slides)
+#### SLIDE 30 — Live App Showcase   ⚠️ Image spread (build as 2–3 physical slides)
 
 **Layout**: Screenshot gallery / walkthrough
 
@@ -670,7 +708,7 @@ AI story.
 
 ---
 
-#### SLIDE 29 — One Platform, Two Audiences — in Two Languages   *(NEW)*
+#### SLIDE 31 — One Platform, Two Audiences — in Two Languages   *(NEW)*
 
 **Layout**: Two role cards on top + an EN/AR side-by-side below
 
@@ -688,7 +726,7 @@ AI story.
 
 ---
 
-#### SLIDE 30 — System Architecture
+#### SLIDE 32 — System Architecture
 
 **Layout**: Conceptual architecture diagram (use `02-containers-app.pdf` + `02-containers-datastores.pdf`)
 
@@ -699,13 +737,13 @@ AI story.
 - **Workers**: `worker-inference` (torch: detect→classify) · `worker-cpu` (analytics + experiments, no torch)
 - Label: *"7 core services · Docker Compose · one command (`docker compose up`)"*
 
-**Visual direction**: Conceptual flow, not implementation detail. Two clear tiers (clients → backend) feeding four datastores + two worker types.
+**Visual direction**: Conceptual flow, not implementation detail. Two clear tiers (clients → backend) feeding four datastores + two worker types. *This is the deep dive on the high-level view from Slide 12.*
 
-**Speaker note**: Keep this conceptual — clean layered design, async end-to-end, seven core services that come up with one command. The layering is *why* each piece is swappable and testable; don't go deeper than that. → Next: let's follow one photo all the way through.
+**Speaker note**: The payoff of the high-level architecture we teased at Slide 12 — clean layered design, async end-to-end, seven core services that come up with one command. The layering is *why* each piece is swappable and testable; don't go deeper than that. → Next: let's follow one photo all the way through.
 
 ---
 
-#### SLIDE 31 — The Analyze Pipeline, End-to-End
+#### SLIDE 33 — The Analyze Pipeline, End-to-End
 
 **Layout**: Horizontal flow + a small state-machine inset (use `06-analyze-sequence.pdf` + `07-batch-state-machine.pdf`)
 
@@ -721,11 +759,11 @@ AI story.
 
 **Visual direction**: One clean left-to-right flow. The state machine can be a small inset showing the transitions.
 
-**Speaker note**: Trace a single analyze request end-to-end — the fan-out (one image → many seeds → many labels), the per-seed-type routing, and the concurrency-safe state machine that lets a mixed batch degrade gracefully to "partial" instead of failing. → Next: how every result stays traceable to a model.
+**Speaker note**: Trace a single analyze request end-to-end — this is the two-stage pipeline from Slide 13 in motion: the fan-out (one image → many seeds → many labels), the per-seed-type routing, and the concurrency-safe state machine that lets a mixed batch degrade gracefully to "partial" instead of failing. → Next: how every result stays traceable to a model.
 
 ---
 
-#### SLIDE 32 — Model Traceability & Lifecycle   *(the seam back to the ML story)*
+#### SLIDE 34 — Model Traceability & Lifecycle   *(the seam back to the ML story)*
 
 **Layout**: Chain diagram + 3-step lifecycle (use `09-ml-platform.pdf` + `16-model-resolution.pdf`)
 
@@ -744,7 +782,7 @@ AI story.
 
 ---
 
-#### SLIDE 33 — Secure by Design   *(NEW — keep it high-level)*
+#### SLIDE 35 — Secure by Design   *(NEW — keep it high-level)*
 
 **Layout**: 4 icon+caption pairs (optionally `08-auth-sequence.pdf`)
 
@@ -760,7 +798,7 @@ AI story.
 
 ---
 
-#### SLIDE 34 — Tech Stack at a Glance
+#### SLIDE 36 — Tech Stack at a Glance
 
 **Layout**: Grouped icon grid
 
@@ -784,7 +822,7 @@ AI story.
 
 ---
 
-#### SLIDE 35 — Key Takeaways
+#### SLIDE 37 — Key Takeaways
 
 **Layout**: 3 large insight cards
 
@@ -797,7 +835,7 @@ AI story.
 
 ---
 
-#### SLIDE 36 — Future Roadmap
+#### SLIDE 38 — Future Roadmap
 
 **Layout**: Visual timeline with 4 milestones
 
@@ -811,7 +849,7 @@ AI story.
 
 ---
 
-#### SLIDE 37 — Team + Thank You + Questions
+#### SLIDE 39 — Team + Thank You + Questions
 
 **Layout**: Warm, centered
 
@@ -836,19 +874,22 @@ Logos: `docs/report/logos/`.
 |---|---|---|
 | 1 Title | — | logos: `Cairo_University_new_logo.png`, `FCAI.jpg` |
 | 3 Pitch | `Dashboard.png`, `MobileView.png` | — |
-| 12 Faster R-CNN | — | `17-fasterRCNN-architecture.pdf` |
-| 16 EfficientNet-B2 | — | `18-Efficient-net-B2.pdf` |
-| 17 Heatmaps | heatmaps: `damage/healthy/shriveled/weeveled.png` | — |
-| 19 MultiSeedGen | `MultiseedGen-seeds_annotatedWithBB.jpg` | `14-multiseedgen-pipeline.pdf` |
-| 20 Segmentation | `seg-tuner.png` | — |
-| 25 Speed vs Precision | `YOLO-realtime.png` (label: model demo) | — |
-| 28 App Showcase | `MobileView.png`, `Dashboard.png`, `web-batch-detail.png`, `Models_managment.png` | — |
-| 29 Two audiences + RTL | *EN + AR screenshots (capture)* | `12a/12b/12c-usecase-*.pdf` (optional) |
-| 30 Architecture | — | `02-containers-app.pdf`, `02-containers-datastores.pdf`, `01-system-context.pdf` |
-| 31 Analyze pipeline | — | `06-analyze-sequence.pdf`, `07-batch-state-machine.pdf` |
-| 32 Traceability | `Models_managment.png` (optional) | `09-ml-platform.pdf`, `16-model-resolution.pdf` |
-| 33 Secure by design | — | `08-auth-sequence.pdf` (optional) |
-| 37 Team | — | logos |
+| 10 Solution | — | `01-system-context.pdf` (optional teaser) |
+| 12 Architecture 1/2 (system) | — | `01-system-context.pdf`, `02-containers-app.pdf`, `02-containers-datastores.pdf` |
+| 13 Architecture 2/2 (pipeline) | — | `04-worker-components-pipeline.pdf` (optional) |
+| 14 Faster R-CNN | — | `17-fasterRCNN-architecture.pdf` |
+| 18 EfficientNet-B2 | — | `18-Efficient-net-B2.pdf` |
+| 19 Heatmaps | heatmaps: `damage/healthy/shriveled/weeveled.png` | — |
+| 21 MultiSeedGen | `MultiseedGen-seeds_annotatedWithBB.jpg` | `14-multiseedgen-pipeline.pdf` |
+| 22 Segmentation | `seg-tuner.png` | — |
+| 27 Speed vs Precision | `YOLO-realtime.png` (label: model demo) | — |
+| 30 App Showcase | `MobileView.png`, `Dashboard.png`, `web-batch-detail.png`, `Models_managment.png` | — |
+| 31 Two audiences + RTL | *EN + AR screenshots (capture)* | `12a/12b/12c-usecase-*.pdf` (optional) |
+| 32 Architecture (detailed) | — | `02-containers-app.pdf`, `02-containers-datastores.pdf`, `01-system-context.pdf` |
+| 33 Analyze pipeline | — | `06-analyze-sequence.pdf`, `07-batch-state-machine.pdf` |
+| 34 Traceability | `Models_managment.png` (optional) | `09-ml-platform.pdf`, `16-model-resolution.pdf` |
+| 35 Secure by design | — | `08-auth-sequence.pdf` (optional) |
+| 39 Team | — | logos |
 
 ---
 
@@ -858,18 +899,18 @@ The deck works with the assets above, but a handful of **new product screenshots
 would meaningfully strengthen Act VI. Capture each by running the app and navigating:
 
 **Web** (run the frontend, log in, navigate, screenshot the page):
-- [ ] **Analyze / upload page** — drag-drop + optional metadata (Slide 28)
-- [ ] **Analytics page** — trends, quality-by-seed-type (Slide 28)
-- [ ] **Compare page** — 2+ scans side by side (Slide 28)
-- [ ] **Datasets & Experiments** admin pages — the ML platform depth (Slide 32)
-- [ ] **Dashboard in Arabic** — same screen, RTL-mirrored (Slide 29) ← *high value*
+- [ ] **Analyze / upload page** — drag-drop + optional metadata (Slide 30)
+- [ ] **Analytics page** — trends, quality-by-seed-type (Slide 30)
+- [ ] **Compare page** — 2+ scans side by side (Slide 30)
+- [ ] **Datasets & Experiments** admin pages — the ML platform depth (Slide 34)
+- [ ] **Dashboard in Arabic** — same screen, RTL-mirrored (Slide 31) ← *high value*
 
 **Mobile** (Expo — device or emulator with a virtual camera):
-- [ ] **Camera capture** with framing guide (Slide 28)
-- [ ] **Result screen** — good-rate, counts, confidence (Slide 28)
-- [ ] **Realtime mode** — live frame streaming + running tally (Slides 25, 28)
-- [ ] **History** and **Settings** (Settings shows the EN/AR + theme toggles) (Slide 28)
-- [ ] **Any screen in Arabic** — RTL-mirrored (Slide 29) ← *high value*
+- [ ] **Camera capture** with framing guide (Slide 30)
+- [ ] **Result screen** — good-rate, counts, confidence (Slide 30)
+- [ ] **Realtime mode** — live frame streaming + running tally (Slides 27, 30)
+- [ ] **History** and **Settings** (Settings shows the EN/AR + theme toggles) (Slide 30)
+- [ ] **Any screen in Arabic** — RTL-mirrored (Slide 31) ← *high value*
 
 *(Deliberately out of scope: infra/monitoring screenshots — they don't serve this
 deck's narrative.)*
