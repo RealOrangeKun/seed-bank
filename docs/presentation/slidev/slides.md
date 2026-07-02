@@ -1,5 +1,5 @@
 ---
-title: Seed Bank — AI-Powered Seed Quality Intelligence
+title: Seed Bank — A Seed Quality Classification Service Using Computer Vision
 info: Graduation project — Faculty of Computers and AI, Cairo University
 transition: fade
 aspectRatio: 16/9
@@ -18,22 +18,26 @@ class: cover-slide
 
 # Seed Bank
 
-## AI-Powered Seed Quality Intelligence
+## A Seed Quality Classification Service Using Computer Vision
 
 </div>
 
 <div class="inst">Faculty of Computers and Artificial Intelligence · Cairo University</div>
-<div class="sup">Supervisors: Dr. Ali Zidane · Dr. Ghada Dahy · Dr. Heba Sherif · Dr. Eman Ahmed</div>
+<div class="sup">
+  Supervisors<br/>
+  Dr. Eman<br/>
+  Dr. Ali Zidane<br/>
+  Dr. Heba Sherif<br/>
+  Dr. Ghada Dahy
+</div>
 
 <div class="teams">
   <div><span class="tag">AI</span> Omar Ez-Eldin Abdullah · Yussuf Ahmed Awad</div>
   <div><span class="tag">IS</span> Ali Abdelrahman · Mohamed Amr · Youssef Tarek Ali</div>
 </div>
 
-<div class="logos" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }">
-  <img src="./media/logos/Cairo_University_new_logo.png" alt="Cairo University" />
-  <img src="./media/logos/FCAI.jpg" alt="FCAI" />
-</div>
+<img src="./media/logos/Cairo_University_new_logo.png" alt="Cairo University" style="position: absolute; top: 2.2rem; left: 3rem; height: 110px;" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }" />
+<img src="./media/logos/FCAI.jpg" alt="FCAI" style="position: absolute; top: 2.2rem; right: 3rem; height: 110px;" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }" />
 
 <!--
 Open warm and confident — "We built an AI platform that grades seed quality from a single
@@ -46,38 +50,47 @@ audience knows the project spans research and a production system.
 class: center-slide
 ---
 
-<!-- SLIDE 2 — A Seed Bank in Computer Science? -->
+<!-- SLIDE 2 — What is Seed Bank? -->
 
-<div class="act-tag">Act I · The Problem</div>
+<div style="position: absolute; inset: 0; z-index: -2;">
+  <img src="./media/Online-images/a-conveyor.jpeg" style="width: 100%; height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); opacity: 0.5;" />
+</div>
 
-# A Seed Bank… in Computer Science?
+<div class="act-tag" v-motion :initial="{ opacity: 0, y: -10 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">INTRODUCTION</div>
 
-<div class="grid2" style="margin-top:1.6rem; align-items:center;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
-  <div class="card accent center" style="padding:2rem 1rem;">
-    <div class="chip-ic" style="margin:0 auto 0.6rem; width:3.4rem; height:3.4rem;"><img src="./media/icons/warehouse.png" /></div>
-    <h3>A storage vault?</h3>
-    <p class="mut">Preserving seeds for the future</p>
+<h1 v-motion :initial="{ opacity: 0, y: 10 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 100 } }">What is Seed Bank?</h1>
+
+<div class="card center" style="margin-top: 1.5rem; padding: 2rem; background: var(--card); border-radius: 1rem; border: 1px solid var(--leaf-line); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.15);" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 250 } }">
+  <p style="font-size: 1.4rem; color: var(--text); line-height: 1.6; font-weight: 500; margin: 0;">
+    Seed bank is a quality control application for seeds that relies on Computer Vision for this task
+  </p>
+</div>
+
+<div class="grid4" style="margin-top: 2rem;">
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+    <h3 style="margin:0;">Quality assessment</h3>
   </div>
-  <div class="card accent center" style="padding:2rem 1rem;">
-    <div class="chip-ic" style="margin:0 auto 0.6rem; width:3.4rem; height:3.4rem;"><img src="./media/icons/brain-circuit.png" /></div>
-    <h3>…or seed intelligence?</h3>
-    <p class="mut">AI that grades seed quality</p>
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+    <h3 style="margin:0;">Realtime inference</h3>
+  </div>
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+    <h3 style="margin:0;">Data analytics</h3>
+  </div>
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+    <h3 style="margin:0;">User Management</h3>
   </div>
 </div>
 
-<div class="center" style="font-size:4rem; font-weight:700; color:var(--amber); margin-top:0.8rem;">?</div>
-
 <!--
-Let the visual do the work — pause on the "?". Ask the room what "seed bank" evokes, then
-reveal we mean seed-quality intelligence, not a storage vault.
-→ Next: the 30-second version of what it actually does.
+The simplified overview slide.
+→ Next: the 30-second pitch.
 -->
 
 ---
 
 <!-- SLIDE 3 — The 30-Second Pitch -->
 
-<div class="act-tag">Act I · The Problem</div>
+<div class="act-tag">INTRODUCTION</div>
 
 # The 30-Second Pitch
 
@@ -105,7 +118,7 @@ to three beats; details come later. → Next: who actually needs this.
 
 <!-- SLIDE 4 — Who Is This For? -->
 
-<div class="act-tag">Act I · The Problem</div>
+<div class="act-tag">INTRODUCTION</div>
 
 # Who Is This For?
 
@@ -140,7 +153,7 @@ platform act). → Next: what today's manual grading looks like.
 
 <!-- SLIDE 5 — The Problem: Manual Grading -->
 
-<div class="act-tag">Act I · The Problem</div>
+<div class="act-tag">INTRODUCTION</div>
 
 # The Problem: Manual Grading
 
@@ -165,7 +178,7 @@ words. → Next: the market gap between manual and industrial.
 
 <!-- SLIDE 6 — The Technology Gap -->
 
-<div class="act-tag">Act I · The Problem</div>
+<div class="act-tag">INTRODUCTION</div>
 
 # The Technology Gap
 
@@ -196,7 +209,7 @@ middle is our wedge. → Next: why this is genuinely hard for AI.
 
 <!-- SLIDE 7 — Why Seeds Are Hard for AI -->
 
-<div class="act-tag">Act I · The Problem</div>
+<div class="act-tag">INTRODUCTION</div>
 
 # Why Seeds Are Hard for AI
 
@@ -218,7 +231,7 @@ Not clean manufactured parts. → Next: and the data behind that difficulty.
 
 <!-- SLIDE 8 — The Data Problem -->
 
-<div class="act-tag">Act I · The Problem</div>
+<div class="act-tag">INTRODUCTION</div>
 
 # The Data Problem
 
