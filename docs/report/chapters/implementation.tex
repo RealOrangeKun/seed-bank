@@ -77,19 +77,6 @@ Channel Attention determines what defect characteristics to emphasize across cha
 
 Hybrid Pooling Head is the standard global average pooling layer is replaced with a concurrent, hybrid concatenation layout. By running Global Average Pooling (GAP) and Global Max Pooling (GMP) in parallel and splicing their outputs the network simultaneously tracks smooth structural global patterns alongside highly localized, sharp defect signals (such as microscopic fungal patches or fine cracks).
 
-The EfficientNet-B2 backbone and CBAM attention block is split into two views
-so each stays readable at print size. \autoref{fig:classifier-backbone} shows
-the backbone feeding the channel attention block; \autoref{fig:classifier-spatial}
-shows the spatial attention block combining with the residual identity path;
-\autoref{fig:classifier-head} shows the hybrid pooling head that turns the
-refined feature map into the final defect logits.
-
-\figslotlarge[1.1]{18-efficientnet-backbone-channel.pdf}{The EfficientNet-B2 backbone feeding the CBAM channel attention block.}{fig:classifier-backbone}
-
-\figslotlarge[1.1]{18-efficientnet-spatial-residual.pdf}{The CBAM spatial attention block, combining the channel-refined feature map with the residual identity path before the hybrid pooling head.}{fig:classifier-spatial}
-
-\figslotlarge[1.1]{18-efficientnet-head.pdf}{The hybrid pooling classification head, combining global average and max pooling on the CBAM-refined feature map before dropout and a final linear projection to defect logits.}{fig:classifier-head}
-
 \subsection{One-stage detectors}
 
 As a prominent class of one-stage architectures, single-shot detectors bypass the traditional region proposal phase entirely, enabling the simultaneous prediction of bounding box coordinates and corresponding class probabilities within a single forward pass. This unified approach was pioneered by YOLO \cite{redmon2016yolo}, which reformulated the object detection problem as a singular regression task mapped across a global grid framework. While this design strategy exchanges a marginal degree of spatial localization precision for a massive optimization in computational speed, it also yields strong generalization properties. Because the network processes images globally, it effectively learns robust representations that resist overfitting to localized environmental noise, thereby facilitating smoother transfer learning and superior domain adaptation when trained on synthetic datasets. 
