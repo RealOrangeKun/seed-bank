@@ -35,6 +35,7 @@
   background: radial-gradient(circle at center, transparent 35%, rgba(30, 122, 64, 0.5) 100%), var(--bg);
   color: var(--text);
   padding: 2.2rem 3rem 2.6rem;
+  position: relative;
   -webkit-font-smoothing: antialiased;
   /* vertically centre the content block for balanced composition */
   display: flex;
@@ -322,16 +323,22 @@
 }
 
 .act-tag {
-  display: inline-block;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  position: absolute;
+  top: 0.65rem;
+  inset-inline-start: 3rem;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.14rem 0.62rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--leaf);
-  background: var(--leaf-soft);
-  padding: 0.14rem 0.55rem;
-  border-radius: 0.3rem;
-  margin-bottom: 0.5rem;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
 .lead {
@@ -725,9 +732,7 @@ img.ic {
   justify-content: center;
 }
 
-.center-slide .act-tag {
-  align-self: center;
-}
+/* .act-tag is absolutely pinned top-left on every slide — no per-layout shift */
 
 .center-slide ul,
 .center-slide ol {
@@ -747,7 +752,7 @@ img.ic {
 /* diagram-dense slides: top-align + cap image height so nothing clips */
 .slidev-layout.dense {
   justify-content: flex-start;
-  padding-top: 1.6rem;
+  padding-top: 2rem;
 }
 
 .slidev-layout.dense .diagram img {
@@ -783,4 +788,39 @@ img.ic {
 .slidev-layout :not(pre)>code::before,
 .slidev-layout :not(pre)>code::after {
   content: none !important;
+}
+
+/* =========================================================================
+   Citation references (source links on the problem slides)
+   ========================================================================= */
+.refs {
+  margin-top: 0.9rem;
+  font-size: 0.7rem;
+  color: var(--chrome);
+  line-height: 1.5;
+}
+
+.refs a {
+  color: var(--info);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--info);
+}
+
+.refs a:hover {
+  color: var(--leaf);
+}
+
+.refs strong {
+  color: var(--muted);
+}
+
+sup.cite {
+  font-size: 0.62em;
+  line-height: 0;
+}
+
+sup.cite a {
+  color: var(--info);
+  text-decoration: none;
+  font-weight: 700;
 }

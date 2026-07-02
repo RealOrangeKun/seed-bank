@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "@slidev/cli": "^52.16.0",
+    "@slidev/theme-default": "^0.25.0"
+  }
+}

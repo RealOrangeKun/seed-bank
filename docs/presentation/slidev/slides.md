@@ -12,7 +12,7 @@ drawings:
 class: cover-slide
 ---
 
-<!-- SLIDE 1 — Title -->
+<!-- SLIDE 1 - Title -->
 
 <div v-motion :initial="{ opacity: 0, y: 30 }" :enter="{ opacity: 1, y: 0, transition: { duration: 700 } }">
 
@@ -40,244 +40,251 @@ class: cover-slide
 <img src="./media/logos/FCAI.jpg" alt="FCAI" style="position: absolute; top: 2.2rem; right: 3rem; height: 110px;" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }" />
 
 <!--
-Open warm and confident — "We built an AI platform that grades seed quality from a single
-photo — usable by a farmer in a field or a QA lab." Name the two sub-teams (AI + IS) so the
+Open warm and confident. "We built an AI platform that grades seed quality from a single
+photo, usable by a farmer in a field or a QA lab." Name the two sub-teams (AI + IS) so the
 audience knows the project spans research and a production system.
-→ Next: the playful hook — why a "seed bank" in computer science?
+→ Next: the playful hook, why a "seed bank" in computer science?
 -->
 
 ---
-class: center-slide
----
 
-<!-- SLIDE 2 — What is Seed Bank? -->
+<!-- SLIDE 2 - Two Groups, One Problem -->
 
-<div style="position: absolute; inset: 0; pointer-events: none; z-index: 0;">
-  <img src="./media/Online-images/a-conveyor.jpeg" style="width: 100%; height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); opacity: 0.5;" />
+<div class="act-tag">PROBLEM</div>
+
+# Two Groups, One Big Problem
+
+<p class="lead center" style="margin-top:0.2rem;">Nearly everyone who works with seeds falls into one of two groups. And both face the same hard question: are these seeds <strong>good, or bad</strong>?<sup class="cite"><a href="https://www.fao.org/4/i1853e/i1853e01.pdf#:~:text=And%20governments%20complained.%20that%2C%20years%20after%20national,donors%20were%20once%20again%20emphasizing%20improved%20seed." target="_blank" rel="noreferrer">1</a></sup></p>
+
+<div class="grid2" style="margin-top:1rem;">
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/tractor.png" /></div><div class="tx"><h3>The Small Farmer</h3><p class="mut">Little money.<sup class="cite"><a href="https://documents1.worldbank.org/curated/en/099042424185030624/pdf/P1804801d17e9208184851221aa3cdbbfb.pdf#:~:text=Moreover%2C%20access%20to%20finance%20by%20small%20agri-food,water%20quality%20challenges%2C%20both%20of%20which%20constrain." target="_blank" rel="noreferrer">2</a></sup> Only a few seeds.</p></div></div>
+    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
+      <span class="pill"><img src="./media/icons/help-circle.png" /> Judged by eye</span>
+      <span class="pill"><img src="./media/icons/hand.png" /> Slow hand work</span>
+    </div>
+    <p class="mut" style="margin-top:0.7rem; font-size:0.9rem;">They judge each seed by eye, so two people can easily disagree. And sorting by hand, seed by seed, takes forever.</p>
+  </div>
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/factory.png" /></div><div class="tx"><h3>The Big Factory</h3><p class="mut">A lot of money. A huge amount of seeds.</p></div></div>
+    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
+      <span class="pill"><img src="./media/icons/dollar-sign.png" /> High repair cost</span>
+      <span class="pill"><img src="./media/icons/refresh-cw.png" /> Costs a lot to run</span>
+    </div>
+    <p class="mut" style="margin-top:0.7rem; font-size:0.9rem;">Big machines do the sorting on their own. But they cost a fortune to buy, to fix, and to run every day.</p>
+  </div>
 </div>
 
-<div class="act-tag">INTRODUCTION</div>
-
-<h1 v-motion :initial="{ opacity: 0, y: 10 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 100 } }">What is Seed Bank?</h1>
-
-<div class="card center" style="margin-top: 1.5rem; padding: 2rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 1rem; border: 1px solid var(--leaf-line); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.15);" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 250 } }">
-  <p style="font-size: 1.4rem; color: var(--text); line-height: 1.6; font-weight: 500; margin: 0;">
-    Seed bank is a quality control application for seeds that relies on Computer Vision for this task
-  </p>
-</div>
-
-<div class="grid4" style="margin-top: 2rem;">
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">Quality assessment</h3>
-  </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">Realtime inference</h3>
-  </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">Data analytics</h3>
-  </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
-    <h3 style="margin:0;">User Management</h3>
-  </div>
+<div class="refs">
+  <strong>1.</strong> <a href="https://www.fao.org/4/i1853e/i1853e01.pdf" target="_blank" rel="noreferrer">FAO: Promoting the growth and development of smallholder seed enterprises</a>
+  &nbsp;·&nbsp;
+  <strong>2.</strong> <a href="https://documents1.worldbank.org/curated/en/099042424185030624/pdf/P1804801d17e9208184851221aa3cdbbfb.pdf" target="_blank" rel="noreferrer">World Bank: Small agri-food firms and access to finance</a>
 </div>
 
 <!--
-The simplified overview slide.
-→ Next: the 30-second pitch.
+Two groups with the same problem: the small farmer (little money, a few seeds) and the big factory
+(lots of money, huge volume). Click to reveal each side while you talk about it. Sources: FAO on
+seed quality mattering to smallholders, World Bank on their limited access to finance.
+Next: both old ways of solving this have a problem.
 -->
 
 ---
 
-<!-- SLIDE 3 — The Problem -->
+<!-- SLIDE 3 - Both Old Ways Have a Problem -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">PROBLEM</div>
 
-# What problem does Seed Bank address?
+# Both Old Ways Have a Problem
 
-<div class="grid2" style="margin-top:1.2rem; gap:1rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 100 } }">
-  <!-- 1. Human Error -->
-  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
-    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/hands-seeds.jpg'); background-size: cover; background-position: center;"></div>
-    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
-    <div style="position: relative; z-index: 2;">
-      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Human Error</h3>
-      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Manual sorting is subjective and prone to inconsistencies across different inspectors.</p>
-    </div>
+<div class="grid2" style="margin-top:1.2rem;">
+  <div class="card prob" v-click>
+    <h3><img class="ic" src="./media/icons/hand.png" /> Human Labor</h3>
+    <p>It is <strong class="bad">cheap</strong> to start. But people judge by eye, so the answer shifts from one person to the next. It is <strong class="bad">slow</strong>, too, and it can not keep up with big loads.</p>
+    <p class="mut" style="margin-top:0.5rem; font-size:0.82rem;"><img class="ic" src="./media/icons/tractor.png" style="vertical-align:middle;" /> The small farmer's only choice.</p>
   </div>
-
-  <!-- 2. Labor Intensive -->
-  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
-    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/Labor_intensive.jpg'); background-size: cover; background-position: center;"></div>
-    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
-    <div style="position: relative; z-index: 2;">
-      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Labor Intensive</h3>
-      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Sifting through massive batches of seeds by hand is painstakingly slow and cannot scale.</p>
-    </div>
+  <div class="card prob" v-click>
+    <h3><img class="ic" src="./media/icons/factory.png" /> Mechanical Sorters</h3>
+    <p>They are <strong>fast</strong>, and they never change their mind. But the machines are <strong class="bad">very costly</strong> to buy and to keep running.</p>
+    <p class="mut" style="margin-top:0.5rem; font-size:0.82rem;"><img class="ic" src="./media/icons/warehouse.png" style="vertical-align:middle;" /> Only big factories can pay for them.</p>
   </div>
 </div>
 
-<div style="display: flex; justify-content: center; margin-top: 1rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 250 } }">
-  <!-- 3. Mechanical Sorters -->
-  <div v-click style="position: relative; overflow: hidden; border-radius: 0.6rem; height: 160px; width: calc(50% - 0.5rem); display: flex; flex-direction: column; justify-content: flex-end; padding: 1.2rem; border: 1px solid var(--leaf-line);">
-    <div style="position: absolute; inset: 0; z-index: 0; background-image: url('./media/Online-images/mechanical_sorters.jpg'); background-size: cover; background-position: center;"></div>
-    <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.1) 100%);"></div>
-    <div style="position: relative; z-index: 2;">
-      <h3 style="color: white; margin: 0 0 0.3rem 0; font-size: 1.2rem; font-weight: 900;">Mechanical Sorters</h3>
-      <p style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.3; margin: 0;">Massive machines that grade automatically are highly effective, but usually extremely expensive.</p>
-    </div>
-  </div>
-</div>
+<p class="lead center" style="margin-top:1.2rem;">One way is <strong>not fair</strong>. The other <strong>costs too much</strong>. And neither one helps <em>both</em> groups.</p>
 
 <!--
-Introduce the problem: grading seeds manually is prone to human error and is extremely slow.
+The tension: the two old options sit at opposite ends. Human labor is cheap but not fair and slow.
+Machines are fast but far too costly. Each one fits only one group, and neither fits both. Click to
+bring in each card as you talk. Next: our answer.
 -->
 
 ---
 
-<!-- SLIDE 4 — The Balanced Choice -->
+<!-- SLIDE 4 - Our Answer: Seed Bank -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">SOLUTION</div>
 
-# The Balanced Choice
+# Our Answer: Seed Bank
 
-<div class="pipeline" style="margin-top:1.4rem; gap:1.2rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card center" style="flex:1;">
-    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/factory.png" /></div>
-    <h3>Mechanical Sieves</h3>
-    <p class="mut">High effectiveness</p>
-    <p class="bad" style="font-weight:700; margin-top:0.5rem;">Extremely Expensive</p>
-  </div>
-  
-  <div class="card center" style="flex:1.2; border: 2px solid var(--leaf); background: rgba(30,122,64,0.05); transform: scale(1.05);">
-    <h3 style="color:var(--leaf-deep); margin-bottom:0.3rem;">Seed Bank</h3>
-    <div class="chip-ic" style="margin:0.4rem auto; background:transparent;"><img src="./media/icons/leaf.png" style="width:2rem;height:2rem;" /></div>
-    <p style="color:var(--text); font-weight:600;">The perfect middle ground</p>
-    <p class="mut" style="font-size:0.9rem; margin-top:0.4rem;">More effective than human labor.<br/>Much cheaper than machines.</p>
-  </div>
-  
+<div class="card center" style="margin-top:0.5rem; padding:1.1rem 1.8rem; background: rgba(30,122,64,0.05); border:1px solid var(--leaf-line);">
+  <p style="font-size:1.15rem; color:var(--text); line-height:1.5; margin:0; font-weight:500;">Seed Bank is an app that checks seed quality with <strong>AI</strong>. You just take a photo. It finds every seed and tells you which ones are good and which are bad.</p>
+</div>
+
+<div class="pipeline" style="margin-top:1.3rem; gap:1.2rem;">
   <div class="card center" style="flex:1;">
     <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/hand.png" /></div>
     <h3>Human Labor</h3>
-    <p class="mut">Lowest cost initially</p>
-    <p class="bad" style="font-weight:700; margin-top:0.5rem;">Low Effectiveness</p>
+    <p class="bad" style="font-weight:700; margin-top:0.4rem;">Not fair. Too slow.</p>
+  </div>
+  <span class="arrow">→</span>
+  <div class="card center" style="flex:1.25; border: 2px solid var(--leaf); background: rgba(30,122,64,0.06); transform: scale(1.05);" v-click>
+    <div class="chip-ic" style="margin:0.2rem auto 0.4rem; background:transparent;"><img src="./media/icons/leaf.png" style="width:2rem;height:2rem;" /></div>
+    <h3 style="color:var(--leaf-deep);">Seed Bank</h3>
+    <p style="color:var(--text); font-weight:600; margin-top:0.3rem;">The best of both</p>
+    <p class="mut" style="font-size:0.88rem; margin-top:0.3rem;">More sure than the eye. Much cheaper than machines.</p>
+  </div>
+  <span class="arrow">←</span>
+  <div class="card center" style="flex:1;">
+    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/factory.png" /></div>
+    <h3>Mechanical Sorters</h3>
+    <p class="bad" style="font-weight:700; margin-top:0.4rem;">Works well. Too costly.</p>
   </div>
 </div>
 
+<p class="lead center" style="margin-top:1rem;" v-click>It works in two simple steps. First it <strong>finds each seed</strong>. Then it <strong>grades each one</strong>, good or bad.</p>
+
 <!--
-Seed Bank is the balanced choice: it brings automation without the massive capital investment of industrial machinery.
+The answer sits in the middle. The two side options are already familiar from the last slide, so
+click to pop in the Seed Bank card as the resolution, then click to reveal the two AI steps
+(find each seed, then grade it). The deep dive comes later in the AI pipeline section.
+Next: the idea in one line.
 -->
 
 ---
 
-<!-- SLIDE 5 — The 30-Second Pitch -->
+<!-- SLIDE 5 - The Idea in One Line -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">SOLUTION</div>
 
-# The 30-Second Pitch
+# The Idea in One Line
 
-<div class="pipeline" style="margin:0.6rem 0 1.2rem;">
-  <div class="stage io"><img class="ic" src="./media/icons/camera.png" /> Photograph seeds</div>
-  <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/cpu.png" /> AI analyzes</div>
-  <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Quality report</div>
-</div>
-
-<div class="grid2" v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 250 } }">
-  <div class="diagram"><img src="./media/screenshots/Dashboard.png" /></div>
-  <div class="diagram"><img src="./media/screenshots/MobileView.png" /></div>
-</div>
-
-<p class="lead center" style="margin-top:0.9rem;">A platform for farmers and QA labs to <strong>instantly grade seed quality</strong> using computer vision — on web and mobile.</p>
-
-<!--
-The whole product in one breath — photograph → analyze → report, on web and mobile. Keep it
-to three beats; details come later.
--->
-
----
-
-<!-- SLIDE 6 — Who Is This For? -->
-
-<div class="act-tag">INTRODUCTION</div>
-
-# Who Is This For?
-
-<div class="grid2" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/tractor.png" /></div><div class="tx"><h3>The Farmer</h3><p class="mut">Checking quality in the field</p></div></div>
-    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
-      <span class="pill"><img src="./media/icons/clock.png" /> Slow counting</span>
-      <span class="pill"><img src="./media/icons/help-circle.png" /> Subjective</span>
-      <span class="pill"><img src="./media/icons/smartphone.png" /> No digital tools</span>
-    </div>
+<div class="grid2" style="align-items:center; margin-top:0.3rem;">
+  <div class="center">
+    <div class="diagram" style="display:inline-block; padding:0.5rem;" v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }"><img src="./media/screenshots/Dashboard.png" style="max-height:5.2in; width:auto; max-width:100%; display:block; border-radius:0.3rem;" /></div>
   </div>
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/flask-conical.png" /></div><div class="tx"><h3>The QA Laboratory</h3><p class="mut">Grading at throughput</p></div></div>
-    <div class="pills" style="justify-content:flex-start; margin-top:0.8rem;">
-      <span class="pill"><img src="./media/icons/bar-chart-3.png" /> Needs throughput</span>
-      <span class="pill"><img src="./media/icons/target.png" /> Needs objectivity</span>
-      <span class="pill"><img src="./media/icons/dollar-sign.png" /> Machines too costly</span>
+  <div v-motion :initial="{ opacity: 0, x: 24 }" :enter="{ opacity: 1, x: 0, transition: { duration: 550, delay: 300 } }">
+    <p class="lead">Seed Bank puts a seed-quality check right in your pocket.</p>
+    <p class="mut" style="margin-top:0.5rem;">Show it your seeds and get a clear good-or-bad report, on your phone in the field, or on the web in a lab.</p>
+    <div class="pills" style="justify-content:flex-start; margin-top:1rem;">
+      <span class="pill"><img src="./media/icons/smartphone.png" /> On mobile</span>
+      <span class="pill"><img src="./media/icons/monitor.png" /> On web</span>
+      <span class="pill"><img src="./media/icons/languages.png" /> English / Arabic</span>
     </div>
   </div>
 </div>
 
-<p class="lead center" style="margin-top:1rem;">Two audiences, two pains — and <strong>one backend serves both</strong>.</p>
-
 <!--
-Two audiences, two different pains — the farmer wants speed and objectivity; the lab wants
-throughput without a six-figure machine. Stress that one backend serves both.
+The whole product in one breath: take a photo, the AI checks it, you get a report. It runs on web
+and on mobile. Keep it to three beats; details come later.
 -->
 
 ---
 
-<!-- SLIDE 7 — Why Seeds Are Hard for AI -->
+<!-- SLIDE 6 - One Tool for Both Groups -->
 
-<div class="act-tag">INTRODUCTION</div>
+<div class="act-tag">SOLUTION</div>
 
-# Why Seeds Are Hard for AI
+# One Tool for Both Groups
 
-<div class="grid4" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/layers.png" /></div><h3>Overlap &amp; Clutter</h3></div>
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/sun.png" /></div><h3>Lighting Variation</h3></div>
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/zoom-in.png" /></div><h3>Subtle Defects</h3></div>
-  <div class="card center"><div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/help-circle.png" /></div><h3>Natural ≈ Damaged</h3></div>
+<div class="grid2" style="margin-top:0.5rem;">
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/smartphone.png" /></div><div class="tx"><h3>Mobile app, for the farmer</h3><p class="mut">Take a photo in the field</p></div></div>
+    <p style="margin-top:0.7rem; font-size:0.95rem;">Just point your phone and snap. The answer comes back right there in the field. No lab, no costly machine.</p>
+  </div>
+  <div class="card accent" v-click>
+    <div class="icard"><div class="chip-ic"><img src="./media/icons/factory.png" /></div><div class="tx"><h3>Conveyor mode, for the factory</h3><p class="mut">A fixed camera over a moving belt</p></div></div>
+    <p style="margin-top:0.7rem; font-size:0.95rem;">A fixed camera watches the moving belt, and the same app grades seed after seed. It brings automation without the very costly machine.</p>
+  </div>
 </div>
 
-<p class="lead center" style="margin-top:1.1rem;"><em>Seeds aren't manufactured parts — they're organic and irregular.</em></p>
+<p class="lead center" style="margin-top:0.9rem;">The same AI runs in two ways, and <strong>one system powers both</strong>.</p>
 
-<!--
-Seeds are organic — overlap, lighting, subtle defects, and healthy-looks-damaged ambiguity.
-Not clean manufactured parts. → Next: and the data behind that difficulty.
--->
-
----
-
-<!-- SLIDE 8 — The Data Problem -->
-
-<div class="act-tag">INTRODUCTION</div>
-
-# The Data Problem
-
-<div class="grid3" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/bar-chart-3.png" /></div><div class="tx"><h3>Volume Gap</h3><p>Need ~100K images; best public sets have &lt;20K</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/tags.png" /></div><div class="tx"><h3>Annotation Mismatch</h3><p>Detection sets have boxes but no quality. Classification sets have labels but no boxes. None has both.</p></div></div></div>
-  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/microscope.png" /></div><div class="tx"><h3>Lab ≠ Real World</h3><p>Lab-trained models fail on real-world phone photos</p></div></div></div>
+<div class="grid4" style="margin-top:0.9rem;" v-click>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Quality check</h3></div>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Quick results</h3></div>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Charts &amp; history</h3></div>
+  <div class="card center" style="padding:0.85rem 0.6rem;"><h3 style="margin:0; font-size:1rem;">Your account</h3></div>
 </div>
 
-<p class="lead center" style="margin-top:1.1rem;">These three problems set up the entire AI journey that follows.</p>
-
 <!--
-Three data problems — volume, annotation mismatch, lab≠real-world — are the seeds (pun
-intended) of the whole journey. Plant them now; Acts III–IV pay them off.
-→ Next: could classic machine learning even solve this?
+The same AI ships in two forms: a mobile app for the small farmer, and a conveyor mode for the big
+factory (a fixed camera over a belt). One backend serves both. Click through the two cards, then the
+four things it does. Next: our proposed system and what it does.
 -->
 
 ---
 
-<!-- SLIDE 9 — Can Machine Learning Solve This? -->
+<!-- SLIDE 7 - Our Answer: The Seed Bank System -->
 
-<div class="act-tag">Act II · From ML to Computer Vision</div>
+<div class="act-tag">SOLUTION</div>
+
+# Our Answer: The Seed Bank System
+
+<div class="thesis">"Show Seed Bank your seeds: a photo, a batch, or live video, and get a clear good-or-bad report, on a phone in the field or on the web in a lab."</div>
+
+<div class="pipeline" style="margin:1.1rem 0;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
+  <div class="stage io"><img class="ic" src="./media/icons/camera.png" /> Capture<small>photo · batch · video / live</small></div>
+  <span class="arrow">→</span>
+  <div class="stage detect"><img class="ic" src="./media/icons/scan.png" /> Find every seed</div>
+  <span class="arrow">→</span>
+  <div class="stage classify"><img class="ic" src="./media/icons/badge-check.png" /> Grade each one</div>
+  <span class="arrow">→</span>
+  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Get a report</div>
+</div>
+
+<div class="grid2" style="margin-top:0.7rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 300 } }">
+  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/tractor.png" /></div><div class="tx"><h3>For the farmer</h3><p class="mut">Snap a batch, get the analysis, and look back over your history, on web or mobile, in English or Arabic.</p></div></div></div>
+  <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/flask-conical.png" /></div><div class="tx"><h3>For the AI team</h3><p class="mut">Manage the models, run evaluations, and trace every result back to the exact model that made it.</p></div></div></div>
+</div>
+
+<!--
+The whole system in one breath: photo in, quality report out. Two kinds of user: the farmer
+checking a batch, and the AI team running the models behind it. No tooling detail yet.
+→ Next: how we stack up against what already exists.
+-->
+
+---
+
+<!-- SLIDE 8 - Competitor Landscape -->
+
+<div class="act-tag">RELATED WORK</div>
+
+# Competitor Landscape
+
+<div v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
+
+| Feature | Seed Bank | LemnaTec | PCS Agri Track | Seedy | GerminationPrediction |
+|---|---|---|---|---|---|
+| Cost | <span class="ok">Low</span> | <span class="bad">Very high</span> | <span class="mid">Medium</span> | <span class="mid">Subscription</span> | <span class="ok">Free</span> |
+| Accessibility | <span class="ok">Web + Mobile</span> | <span class="bad">Custom HW</span> | <span class="mid">Needs internet</span> | <span class="mid">iOS only</span> | <span class="bad">CLI only</span> |
+| Multi-crop | <span class="ok">~20 species</span> | <span class="ok">Many</span> | <span class="mid">Limited</span> | <span class="ok">Good DB</span> | <span class="bad">Germination only</span> |
+| Defect granularity | <span class="ok">7-class multi-label</span> | <span class="ok">Industrial</span> | <span class="mid">Basic</span> | <span class="bad">Visual ID</span> | <span class="bad">No quality</span> |
+| Mobile | <span class="ok">Native app</span> | <span class="bad">No</span> | <span class="mid">Web</span> | <span class="ok">iOS</span> | <span class="bad">No</span> |
+| Open / extensible | <span class="ok">Pluggable</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="ok">OSS</span> |
+
+</div>
+
+<p class="lead center" style="margin-top:0.7rem; font-size:0.9rem;">Affordable, works anywhere, many crops, fine-grained, and open to extend. The all-green column is us, <strong>Seed Bank</strong>.</p>
+
+<!--
+Where we sit: affordable, accessible, multi-crop, fine-grained, and extensible. Highlight the
+column that's all-green (us). → Next: how the system works, at a glance.
+-->
+
+---
+
+<!-- SLIDE 11 — Can Machine Learning Solve This? -->
+
+<div class="act-tag">AI PIPELINE · From ML to CV</div>
 
 # Can Machine Learning Solve This?
 
@@ -309,55 +316,10 @@ naive. The discovery: those features don't generalize across species and conditi
 -->
 
 ---
-class: arch-slide
----
 
-<!-- SLIDE 10 — The Proposed Solution -->
+<!-- SLIDE 12 — Pivoting to Computer Vision -->
 
-<div class="act-tag">Act II · From ML to Computer Vision</div>
-
-# The Proposed Solution
-
-<div class="thesis">"Grade seed quality from an ordinary photo — and manufacture the training data that makes it possible."</div>
-
-<div class="grid2" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/sprout.png" /></div><div class="tx"><h3>Seed Bank — the platform</h3></div></div>
-    <ul style="margin-top:0.5rem;">
-      <li>Photo → <strong>find every seed</strong> → <strong>grade each</strong> → aggregate report</li>
-      <li>Every verdict <strong>traceable</strong> to its model</li>
-      <li>Model management + offline evaluation</li>
-      <li>A <strong>web + mobile</strong> app a farmer can use</li>
-    </ul>
-  </div>
-  <div class="card accent">
-    <div class="icard"><div class="chip-ic"><img src="./media/icons/dna.png" /></div><div class="tx"><h3>MultiSeedGen — the data factory</h3></div></div>
-    <ul style="margin-top:0.5rem;">
-      <li>Cut real seeds from single-seed photos</li>
-      <li><strong>Composite</strong> onto realistic backgrounds + camera noise</li>
-      <li>Export <strong>fully-labelled</strong> detection datasets</li>
-      <li><em>The tool places every seed — labels come for free</em></li>
-    </ul>
-  </div>
-</div>
-
-<div class="pills" style="margin-top:0.9rem;">
-  <span class="pill"><img src="./media/icons/dollar-sign.png" /> No expensive rig — ordinary single-view photos</span>
-  <span class="pill"><img src="./media/icons/database.png" /> Closes the ~100K-image data gap</span>
-</div>
-
-<!--
-Before any model details, here's the entire solution on one slide — a platform that grades
-seeds from a normal photo, and a data factory that generates the labelled images the detector
-needs. Two problems from earlier — cost and data — one deliverable each.
-→ Next: why this had to be a computer-vision solution.
--->
-
----
-
-<!-- SLIDE 11 — Pivoting to Computer Vision -->
-
-<div class="act-tag">Act II · From ML to Computer Vision</div>
+<div class="act-tag">AI PIPELINE · From ML to CV</div>
 
 # Pivoting to Computer Vision
 
@@ -374,7 +336,7 @@ needs. Two problems from earlier — cost and data — one deliverable each.
   <div class="card accent"><div class="icard"><div class="chip-ic"><img src="./media/icons/badge-check.png" /></div><div class="tx"><h3>Task 2 — What's wrong with it?</h3><p>Quality Classification</p></div></div></div>
 </div>
 
-<div class="fwd center" style="margin-top:0.9rem;">▸ This led us to the proposed system architecture — Slides 12–13</div>
+<div class="fwd center" style="margin-top:0.9rem;">▸ Now the AI journey behind that two-task design, step by step.</div>
 
 <!--
 The pivot to deep learning, plus the key reframe: two distinct tasks — where is each seed, and
@@ -382,82 +344,10 @@ what's wrong with it. → Next: those two tasks shape our proposed system archit
 -->
 
 ---
-class: arch-slide
----
 
-<!-- SLIDE 12 — Proposed System Architecture (1/2) -->
+<!-- SLIDE 13 — How It Started & Splitting the Problem -->
 
-<div class="act-tag">Act II · From ML to Computer Vision</div>
-
-# Proposed System Architecture <span class="amber">(1/2)</span>
-
-<h2>The System at a Glance</h2>
-
-<div class="arch-grid">
-
-<div>
-<div class="pieces">
-  <div class="piece"><div class="ico"><img src="./media/icons/clients.png" alt="" /></div><div><div class="t">Clients</div><div class="d">A React web app + an Expo mobile app (English / Arabic)</div></div></div>
-  <div class="piece"><div class="ico"><img src="./media/icons/backend.png" alt="" /></div><div><div class="t">FastAPI backend</div><div class="d">Accepts a batch, records it, responds fast — async & cleanly layered</div></div></div>
-  <div class="piece"><div class="ico"><img src="./media/icons/workers.png" alt="" /></div><div><div class="t">Background workers</div><div class="d">The heavy <strong>detect → classify</strong> work runs <em>off</em> the request path</div></div></div>
-  <div class="piece"><div class="ico"><img src="./media/icons/datastores.png" alt="" /></div><div><div class="t">Datastores</div><div class="d">PostgreSQL · ClickHouse · MinIO · Redis</div></div></div>
-</div>
-
-<div class="callout">Inference is heavy, so it never runs inside the request the user is waiting on — the API stays responsive.</div>
-<div class="fwd">▸ Full container topology at Slide 32 · a live request traced end-to-end at Slide 33</div>
-</div>
-
-<img src="./media/diagrams/01-system-context.png" class="hero" alt="System context diagram"
-  v-motion :initial="{ opacity: 0, scale: 0.9 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 700, delay: 250 } }" />
-
-</div>
-
-<!--
-The system in one picture — clients talk to a fast API, which hands the heavy model work to
-background workers, with four datastores behind them. The one idea to land: inference never
-blocks the user's request. Keep it conceptual; the deep dive is in the platform act.
-→ Next: the two-stage pipeline at the core of it.
--->
-
----
-
-<!-- SLIDE 13 — Proposed System Architecture (2/2) -->
-
-<div class="act-tag">Act II · From ML to Computer Vision</div>
-
-# Proposed System Architecture <span class="amber">(2/2)</span>
-
-<h2>The Two-Stage Detect → Classify Pipeline</h2>
-
-<div class="pipeline" style="margin:0.8rem 0;" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 200 } }">
-  <div class="stage io"><img class="ic" src="./media/icons/camera.png" /> Input image</div>
-  <span class="arrow">→</span>
-  <div class="stage detect"><img class="ic" src="./media/icons/scan.png" /> Stage 1 · Detection<small>Find every seed + type</small></div>
-  <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/crop.png" /> Crop + group<small>by seed type</small></div>
-  <span class="arrow">→</span>
-  <div class="stage classify"><img class="ic" src="./media/icons/badge-check.png" /> Stage 2 · Classification<small>Grade good / bad</small></div>
-  <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Quality report</div>
-</div>
-
-<div class="grid2" style="align-items:center;">
-  <p class="lead">One detector for all seeds. One classifier per crop type. Each stage <strong>versioned &amp; optimized independently.</strong></p>
-  <div class="card accent center"><div class="stat-huge" style="font-size:1.8rem;">1 image → N detections → N labels</div><p class="mut">the data fan-out</p></div>
-</div>
-
-<div class="fwd center" style="margin-top:0.7rem;">▸ The engineering behind it — concurrency-safe batching, per-type routing — is at Slide 33</div>
-
-<!--
-This is the architectural spine of the entire project — detect, then classify — and we'll point
-back to it repeatedly, including in the platform act. → Next: Phase 1, how we first built the detector.
--->
-
----
-
-<!-- SLIDE 14 — How It Started & Splitting the Problem -->
-
-<div class="act-tag">Act III · Phase 1 — First Pipeline</div>
+<div class="act-tag">AI PIPELINE · Phase 1</div>
 
 # How It Started & Splitting the Problem
 
@@ -493,9 +383,9 @@ Then split into inter-class (Detection via ResNet-50) and intra-class (Classific
 
 ---
 
-<!-- SLIDE 15 — Phase 1 Results: What Worked / What Didn't -->
+<!-- SLIDE 14 — Phase 1 Results: What Worked / What Didn't -->
 
-<div class="act-tag">Act III · Phase 1 — First Pipeline</div>
+<div class="act-tag">AI PIPELINE · Phase 1</div>
 
 # Phase 1 Results: What Worked, What Didn't
 
@@ -530,9 +420,9 @@ accuracy wasn't production-grade. The punchline: the bottleneck was data, not ar
 class: center-slide
 ---
 
-<!-- SLIDE 16 — We Hit a Wall — The Data Insight -->
+<!-- SLIDE 15 — We Hit a Wall — The Data Insight -->
 
-<div class="act-tag">Act III · Phase 1 — First Pipeline</div>
+<div class="act-tag">AI PIPELINE · Phase 1</div>
 
 # We Hit a Wall — The Data Insight
 
@@ -554,9 +444,9 @@ labels. Two responses follow: a stronger classifier and our own data factory.
 
 ---
 
-<!-- SLIDE 17 — Phase 2: Upgrading to EfficientNet-B2 -->
+<!-- SLIDE 16 — Phase 2: Upgrading to EfficientNet-B2 -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # Phase 2: Upgrading to EfficientNet-B2
 
@@ -582,9 +472,9 @@ EfficientNet-B2 replaces ResNet-18 for classification. Land the metric jump (0.7
 class: heatmap-slide
 ---
 
-<!-- SLIDE 18 — Grad-CAM heatmaps -->
+<!-- SLIDE 17 — Grad-CAM heatmaps -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 <h2>EfficientNet-B2 + CBAM learns a <span class="amber">different attention pattern</span> for each defect class</h2>
 
@@ -607,9 +497,9 @@ each class, not the background. Minimal words; let the heatmaps land, maybe one 
 class: center-slide
 ---
 
-<!-- SLIDE 19 — Detection Still Overfits — We Need Our Own Data -->
+<!-- SLIDE 18 — Detection Still Overfits — We Need Our Own Data -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # Detection Still Overfits — We Need Our Own Data
 
@@ -632,9 +522,9 @@ exactly why we built MultiSeedGen. → Next: how MultiSeedGen works.
 
 ---
 
-<!-- SLIDE 20 — MultiSeedGen: Building Our Own Training Data -->
+<!-- SLIDE 19 — MultiSeedGen: Building Our Own Training Data -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # MultiSeedGen: Building Our Own Training Data
 
@@ -671,9 +561,9 @@ because the engine placed each seed. Show the annotated output as proof.
 
 ---
 
-<!-- SLIDE 21 — Segmentation: 6 Ways to Cut a Seed -->
+<!-- SLIDE 20 — Segmentation: 6 Ways to Cut a Seed -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # Segmentation: 6 Ways to Cut a Seed
 
@@ -701,9 +591,9 @@ a tuner UI. Don't read all six — group as "classical → learned → promptabl
 
 ---
 
-<!-- SLIDE 22 — Augmentation & Domain Bridging -->
+<!-- SLIDE 21 — Augmentation & Domain Bridging -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # Augmentation & Domain Bridging
 
@@ -723,9 +613,9 @@ backgrounds. Emphasize the amber column; the before/after is the proof.
 
 ---
 
-<!-- SLIDE 23 — MultiSeedGen Web UI + Data Loop -->
+<!-- SLIDE 22 — MultiSeedGen Web UI + Data Loop -->
 
-<div class="act-tag">Act IV · Phase 2 — Deeper Models + MultiSeedGen</div>
+<div class="act-tag">AI PIPELINE · Phase 2 + MultiSeedGen</div>
 
 # MultiSeedGen Web UI + Data Loop
 
@@ -757,9 +647,9 @@ the system's measured weaknesses — it's a strategy, not a one-shot script.
 
 ---
 
-<!-- SLIDE 24 — Detection Experiments: The Full Journey -->
+<!-- SLIDE 23 — Detection Experiments: The Full Journey -->
 
-<div class="act-tag">Act V · Final Results & Evidence</div>
+<div class="act-tag">RESULTS</div>
 
 # Detection Experiments: The Full Journey
 
@@ -780,9 +670,9 @@ mean better real-world generalization. → Next: the same lesson, seen in classi
 
 ---
 
-<!-- SLIDE 25 — Classification: Data Quality > Model Architecture -->
+<!-- SLIDE 24 — Classification: Data Quality > Model Architecture -->
 
-<div class="act-tag">Act V · Final Results & Evidence</div>
+<div class="act-tag">RESULTS</div>
 
 # Classification: Data Quality > Model Architecture
 
@@ -815,9 +705,9 @@ model overfits despite a higher score. → Next: how we deploy for two very diff
 
 ---
 
-<!-- SLIDE 26 — Speed vs. Precision -->
+<!-- SLIDE 25 — Speed vs. Precision -->
 
-<div class="act-tag">Act V · Final Results & Evidence</div>
+<div class="act-tag">RESULTS</div>
 
 # Speed vs. Precision: Two Deployment Modes
 
@@ -832,45 +722,17 @@ model overfits despite a higher score. → Next: how we deploy for two very diff
 
 <!--
 Two deployment modes — precision vs speed. Be precise: the 876-seed image is a model demo of
-dense detection; the product realtime experience is the mobile frame-streaming mode shown in Act VI.
+dense detection; the product realtime experience is the mobile frame-streaming mode shown in the platform section.
 → Next: how we compare to what's already out there.
--->
-
----
-
-<!-- SLIDE 27 — Competitor Landscape -->
-
-<div class="act-tag">Act V · Final Results & Evidence</div>
-
-# Competitor Landscape
-
-<div v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 150 } }">
-
-| Feature | Seed Bank | LemnaTec | PCS Agri Track | Seedy | GerminationPrediction |
-|---|---|---|---|---|---|
-| Cost | <span class="ok">Low</span> | <span class="bad">Very high</span> | <span class="mid">Medium</span> | <span class="mid">Subscription</span> | <span class="ok">Free</span> |
-| Accessibility | <span class="ok">Web + Mobile</span> | <span class="bad">Custom HW</span> | <span class="mid">Needs internet</span> | <span class="mid">iOS only</span> | <span class="bad">CLI only</span> |
-| Multi-crop | <span class="ok">~20 species</span> | <span class="ok">Many</span> | <span class="mid">Limited</span> | <span class="ok">Good DB</span> | <span class="bad">Germination only</span> |
-| Defect granularity | <span class="ok">7-class multi-label</span> | <span class="ok">Industrial</span> | <span class="mid">Basic</span> | <span class="bad">Visual ID</span> | <span class="bad">No quality</span> |
-| Mobile | <span class="ok">Native app</span> | <span class="bad">No</span> | <span class="mid">Web</span> | <span class="ok">iOS</span> | <span class="bad">No</span> |
-| Open / extensible | <span class="ok">Pluggable</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="bad">Proprietary</span> | <span class="ok">OSS</span> |
-
-</div>
-
-<p class="lead center" style="margin-top:0.7rem; font-size:0.9rem;">Affordable, accessible, multi-crop, fine-grained, and extensible — the all-green column is <strong>Seed Bank</strong>.</p>
-
-<!--
-Where we sit — affordable, accessible, multi-crop, fine-grained, and extensible. Highlight the
-column that's all-green (us). → Next: the models are only half the story — now the platform.
 -->
 
 ---
 class: center-slide
 ---
 
-<!-- SLIDE 28 — From Trained Models to a Real Product -->
+<!-- SLIDE 26 — From Trained Models to a Real Product -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # A Model in a Notebook Helps No One
 
@@ -894,9 +756,9 @@ lab actually use — the IS/backend team's contribution. The three anchor words 
 
 ---
 
-<!-- SLIDE 29 — Live App Showcase -->
+<!-- SLIDE 27 — Live App Showcase -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # Live App Showcase
 
@@ -917,9 +779,9 @@ then reveal there's a whole ML platform behind it. Keep captions to one line eac
 
 ---
 
-<!-- SLIDE 30 — One Platform, Two Audiences, Two Languages -->
+<!-- SLIDE 28 — One Platform, Two Audiences, Two Languages -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # One Platform, Two Audiences — in Two Languages
 
@@ -939,9 +801,9 @@ web and mobile — a real accessibility win most projects skip. → Next: what's
 
 ---
 
-<!-- SLIDE 31 — System Architecture -->
+<!-- SLIDE 29 — System Architecture -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # System Architecture
 
@@ -961,10 +823,10 @@ web and mobile — a real accessibility win most projects skip. → Next: what's
   </div>
 </div>
 
-<p class="lead center" style="margin-top:0.5rem; font-size:0.85rem;">The deep dive on the high-level view from Slide 12 — clean layering is <em>why</em> each piece is swappable and testable.</p>
+<p class="lead center" style="margin-top:0.5rem; font-size:0.85rem;">The deep dive on the high-level view from Slide 9 — clean layering is <em>why</em> each piece is swappable and testable.</p>
 
 <!--
-The payoff of the high-level architecture we teased at Slide 12 — clean layered design, async
+The payoff of the high-level architecture we teased at Slide 9 — clean layered design, async
 end-to-end, seven core services that come up with one command. Don't go deeper than that.
 → Next: let's follow one photo all the way through.
 -->
@@ -973,9 +835,9 @@ end-to-end, seven core services that come up with one command. Don't go deeper t
 class: dense
 ---
 
-<!-- SLIDE 32 — The Analyze Pipeline, End-to-End -->
+<!-- SLIDE 30 — The Analyze Pipeline, End-to-End -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # The Analyze Pipeline, End-to-End
 
@@ -996,16 +858,16 @@ class: dense
 <div class="fwd center" style="margin-top:0.5rem;">Concurrency-safe state machine · per-seed-type routing · graceful partial results</div>
 
 <!--
-Trace a single analyze request end-to-end — the two-stage pipeline from Slide 13 in motion: the
+Trace a single analyze request end-to-end — the two-stage pipeline from Slide 10 in motion: the
 fan-out, per-seed-type routing, and the concurrency-safe state machine that degrades gracefully to
 "partial" instead of failing. → Next: how every result stays traceable to a model.
 -->
 
 ---
 
-<!-- SLIDE 33 — Model Traceability & Lifecycle -->
+<!-- SLIDE 31 — Model Traceability & Lifecycle -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # Model Traceability & Lifecycle
 
@@ -1035,30 +897,30 @@ production model. Swapping models is a promotion, not a redeploy. → Next: how 
 
 ---
 
-<!-- SLIDE 34 — Secure by Design -->
+<!-- SLIDE 32 - Secure by Design -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # Secure by Design
 
 <div class="grid4" style="margin-top:0.5rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
   <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/key.png" /></div><h3>JWT + refresh rotation</h3><p>Short-lived tokens; a reused refresh token invalidates the chain</p></div>
   <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/link.png" /></div><h3>Google OAuth</h3><p>Social sign-in alongside email / password</p></div>
-  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/users.png" /></div><h3>Role-based access</h3><p>end_user · ai_developer · admin — on every route</p></div>
+  <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/users.png" /></div><h3>Role-based access</h3><p>end_user · ai_developer · admin, on every route</p></div>
   <div class="card"><div class="chip-ic" style="margin-bottom:0.4rem;"><img src="./media/icons/scroll-text.png" /></div><h3>Audit log + one error shape</h3><p>Append-only trail; consistent typed errors (RFC 9457)</p></div>
 </div>
 
 <!--
-Security done properly for a student project — rotating refresh tokens with replay detection,
+Security done properly for a student project: rotating refresh tokens with replay detection,
 OAuth, real role-based access, an audit trail, and one consistent error contract. Keep it to the
 four tiles; don't rabbit-hole. → Next: the full toolset at a glance.
 -->
 
 ---
 
-<!-- SLIDE 35 — Tech Stack at a Glance -->
+<!-- SLIDE 33 - Tech Stack at a Glance -->
 
-<div class="act-tag">Act VI · The Platform & Engineering</div>
+<div class="act-tag">THE PLATFORM</div>
 
 # Tech Stack at a Glance
 
@@ -1074,22 +936,22 @@ four tiles; don't rabbit-hole. → Next: the full toolset at a glance.
 </div>
 
 <!--
-A quick grouped inventory — don't read every item, let it convey breadth and coherence. Note that
+A quick grouped inventory: don't read every item, let it convey breadth and coherence. Note that
 SAM lives in MultiSeedGen, our separate data tool, not the runtime backend. → Next: what we learned.
 -->
 
 ---
 
-<!-- SLIDE 36 — Key Takeaways -->
+<!-- SLIDE 34 — Key Takeaways -->
 
-<div class="act-tag">Act VII · Closing</div>
+<div class="act-tag">CONCLUSION</div>
 
 # Key Takeaways
 
 <div class="grid3" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/bar-chart-3.png" /></div><h3>Data quality &gt; architecture</h3><p>The maize model won because its training data matched the real world.</p></div>
-  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/git-branch.png" /></div><h3>Decouple detection from classification</h3><p>Independent stages let us diagnose and swap each without disturbing the other.</p></div>
-  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/factory.png" /></div><h3>Synthetic data narrows the gap</h3><p>MultiSeedGen removed the annotation bottleneck — but always test on real photos.</p></div>
+  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/bar-chart-3.png" /></div><h3>Data quality &gt; architecture</h3><p>The maize model won not because it was fancier, but because its data looked like the real world.</p></div>
+  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/git-branch.png" /></div><h3>Decouple detection from classification</h3><p>Keeping the two stages apart let us fix or upgrade one without ever touching the other.</p></div>
+  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/factory.png" /></div><h3>Synthetic data narrows the gap</h3><p>MultiSeedGen freed us from hand-labelling — but real photos are still the only honest test.</p></div>
 </div>
 
 <!--
@@ -1099,17 +961,17 @@ the gap but real evaluation is the only fair test. → Next: where it goes from 
 
 ---
 
-<!-- SLIDE 37 — Future Roadmap -->
+<!-- SLIDE 35 — Future Roadmap -->
 
-<div class="act-tag">Act VII · Closing</div>
+<div class="act-tag">FUTURE WORK</div>
 
 # Future Roadmap
 
 <div class="tl" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/sprout.png" /></div> <strong>More Crops</strong> — expand real-world datasets for all 20+ species</div>
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/cpu.png" /></div> <strong>Edge AI</strong> — on-device quantized inference, no internet needed</div>
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/refresh-cw.png" /></div> <strong>Active Learning</strong> — low-confidence scans feed back into MultiSeedGen</div>
-  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/factory.png" /></div> <strong>Hardware-Integrated Conveyor</strong> — realtime already ships on mobile; next is fixed-camera lines + instance segmentation</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/sprout.png" /></div> <strong>More crops</strong> — grow real-world datasets to cover all 20+ species</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/cpu.png" /></div> <strong>Edge AI</strong> — run it right on the phone, with no internet needed</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/refresh-cw.png" /></div> <strong>Active learning</strong> — the scans it finds hardest flow back in to make it sharper</div>
+  <div class="step"><div class="chip-ic" style="width:2rem;height:2rem;"><img src="./media/icons/factory.png" /></div> <strong>Real conveyor lines</strong> — realtime already runs on mobile; next we take it to fixed cameras over the belt itself</div>
 </div>
 
 <!--
@@ -1122,7 +984,7 @@ overlap, not realtime itself. → Next: thanks and questions.
 class: cover-slide
 ---
 
-<!-- SLIDE 38 — Team + Thank You + Questions -->
+<!-- SLIDE 36 — Team + Thank You + Questions -->
 
 <div v-motion :initial="{ opacity: 0, y: 26 }" :enter="{ opacity: 1, y: 0, transition: { duration: 650 } }">
 
