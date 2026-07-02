@@ -22,7 +22,7 @@ class: cover-slide
 
 </div>
 
-<div class="inst">Faculty of Computers and Artificial Intelligence · Cairo University</div>
+<div class="inst">Faculty of Computers and Artificial Intelligence / Cairo University</div>
 <div class="sup">
   Supervisors<br/>
   Dr. Eman<br/>
@@ -52,7 +52,7 @@ class: center-slide
 
 <!-- SLIDE 2 — What is Seed Bank? -->
 
-<div style="position: absolute; inset: 0; z-index: -2;">
+<div style="position: absolute; inset: 0; pointer-events: none; z-index: 0;">
   <img src="./media/Online-images/a-conveyor.jpeg" style="width: 100%; height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 80%); opacity: 0.5;" />
 </div>
 
@@ -60,23 +60,23 @@ class: center-slide
 
 <h1 v-motion :initial="{ opacity: 0, y: 10 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 100 } }">What is Seed Bank?</h1>
 
-<div class="card center" style="margin-top: 1.5rem; padding: 2rem; background: var(--card); border-radius: 1rem; border: 1px solid var(--leaf-line); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.15);" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 250 } }">
+<div class="card center" style="margin-top: 1.5rem; padding: 2rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border-radius: 1rem; border: 1px solid var(--leaf-line); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.15);" v-motion :initial="{ opacity: 0, scale: 0.95 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 650, delay: 250 } }">
   <p style="font-size: 1.4rem; color: var(--text); line-height: 1.6; font-weight: 500; margin: 0;">
     Seed bank is a quality control application for seeds that relies on Computer Vision for this task
   </p>
 </div>
 
 <div class="grid4" style="margin-top: 2rem;">
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
     <h3 style="margin:0;">Quality assessment</h3>
   </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
     <h3 style="margin:0;">Realtime inference</h3>
   </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
     <h3 style="margin:0;">Data analytics</h3>
   </div>
-  <div v-click class="card accent center" style="padding: 1.5rem 1rem; box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
+  <div v-click class="card accent center" style="padding: 1.5rem 1rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(20, 83, 45, 0.1);">
     <h3 style="margin:0;">User Management</h3>
   </div>
 </div>
@@ -88,7 +88,70 @@ The simplified overview slide.
 
 ---
 
-<!-- SLIDE 3 — The 30-Second Pitch -->
+<!-- SLIDE 3 — The Problem -->
+
+<div class="act-tag">INTRODUCTION</div>
+
+# What problem does Seed Bank address?
+
+<div class="center" style="margin:1.2rem 0;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 100 } }">
+  <div class="chip-ic" style="width:5rem; height:5rem; margin:0 auto; border-radius:1rem;"><img src="./media/icons/hand.png" style="width:2.8rem; height:2.8rem;" /></div>
+  <p class="mut" style="margin-top:0.5rem; font-size:1.2rem;">The labor-intensive process of classifying seed quality by hand.</p>
+</div>
+
+<div class="grid2" style="margin-top:1.5rem;" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 250 } }">
+  <div class="card accent center" style="padding:1.5rem;">
+    <h3 style="color:var(--text); margin-bottom:0.5rem;"><img src="./media/icons/help-circle.png" style="width:1.2rem; vertical-align:middle; margin-right:0.5rem;" />Human Error</h3>
+    <p class="mut">Manual sorting is subjective and prone to inconsistencies across different inspectors and conditions.</p>
+  </div>
+  <div class="card accent center" style="padding:1.5rem;">
+    <h3 style="color:var(--text); margin-bottom:0.5rem;"><img src="./media/icons/clock.png" style="width:1.2rem; vertical-align:middle; margin-right:0.5rem;" />Labor Intensive</h3>
+    <p class="mut">Sifting through massive batches of seeds one by one is slow and cannot scale effectively.</p>
+  </div>
+</div>
+
+<!--
+Introduce the problem: grading seeds manually is prone to human error and is extremely slow.
+-->
+
+---
+
+<!-- SLIDE 4 — The Balanced Choice -->
+
+<div class="act-tag">INTRODUCTION</div>
+
+# The Balanced Choice
+
+<div class="pipeline" style="margin-top:1.4rem; gap:1.2rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
+  <div class="card center" style="flex:1;">
+    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/factory.png" /></div>
+    <h3>Mechanical Sieves</h3>
+    <p class="mut">High effectiveness</p>
+    <p class="bad" style="font-weight:700; margin-top:0.5rem;">Extremely Expensive</p>
+  </div>
+  
+  <div class="card center" style="flex:1.2; border: 2px solid var(--leaf); background: rgba(30,122,64,0.05); transform: scale(1.05);">
+    <h3 style="color:var(--leaf-deep); margin-bottom:0.3rem;">Seed Bank</h3>
+    <div class="chip-ic" style="margin:0.4rem auto; background:transparent;"><img src="./media/icons/leaf.png" style="width:2rem;height:2rem;" /></div>
+    <p style="color:var(--text); font-weight:600;">The perfect middle ground</p>
+    <p class="mut" style="font-size:0.9rem; margin-top:0.4rem;">More effective than human labor.<br/>Much cheaper than machines.</p>
+  </div>
+  
+  <div class="card center" style="flex:1;">
+    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/hand.png" /></div>
+    <h3>Human Labor</h3>
+    <p class="mut">Lowest cost initially</p>
+    <p class="bad" style="font-weight:700; margin-top:0.5rem;">Low Effectiveness</p>
+  </div>
+</div>
+
+<!--
+Seed Bank is the balanced choice: it brings automation without the massive capital investment of industrial machinery.
+-->
+
+---
+
+<!-- SLIDE 5 — The 30-Second Pitch -->
 
 <div class="act-tag">INTRODUCTION</div>
 
@@ -111,12 +174,12 @@ The simplified overview slide.
 
 <!--
 The whole product in one breath — photograph → analyze → report, on web and mobile. Keep it
-to three beats; details come later. → Next: who actually needs this.
+to three beats; details come later.
 -->
 
 ---
 
-<!-- SLIDE 4 — Who Is This For? -->
+<!-- SLIDE 6 — Who Is This For? -->
 
 <div class="act-tag">INTRODUCTION</div>
 
@@ -145,64 +208,7 @@ to three beats; details come later. → Next: who actually needs this.
 
 <!--
 Two audiences, two different pains — the farmer wants speed and objectivity; the lab wants
-throughput without a six-figure machine. Stress that one backend serves both (paid off in the
-platform act). → Next: what today's manual grading looks like.
--->
-
----
-
-<!-- SLIDE 5 — The Problem: Manual Grading -->
-
-<div class="act-tag">INTRODUCTION</div>
-
-# The Problem: Manual Grading
-
-<div class="center" style="margin:1.2rem 0;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 200 } }">
-  <div class="chip-ic" style="width:5rem; height:5rem; margin:0 auto; border-radius:1rem;"><img src="./media/icons/hand.png" style="width:2.8rem; height:2.8rem;" /></div>
-  <p class="mut" style="margin-top:0.5rem;">Sorting seeds by hand, one tray at a time</p>
-</div>
-
-<div class="pills" style="margin-top:0.6rem;">
-  <span class="pill"><img src="./media/icons/clock.png" /> Slow</span>
-  <span class="pill"><img src="./media/icons/help-circle.png" /> Subjective</span>
-  <span class="pill"><img src="./media/icons/x-red.png" /> Inconsistent</span>
-  <span class="pill"><img src="./media/icons/trending-down-red.png" /> Can't scale</span>
-</div>
-
-<!--
-Manual grading is slow, subjective, inconsistent, and doesn't scale — the core pain in four
-words. → Next: the market gap between manual and industrial.
--->
-
----
-
-<!-- SLIDE 6 — The Technology Gap -->
-
-<div class="act-tag">INTRODUCTION</div>
-
-# The Technology Gap
-
-<div class="pipeline" style="margin-top:1.4rem; gap:1rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
-  <div class="card center" style="flex:1;">
-    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/factory.png" /></div>
-    <h3>Industrial Optical Sorters</h3>
-    <p class="bad" style="font-weight:700; font-size:1.1rem;">$$$$$</p>
-  </div>
-  <div class="card amber center" style="flex:1.1;">
-    <h3 style="color:var(--leaf-deep);">Nothing affordable here</h3>
-    <div class="chip-ic" style="margin:0.4rem auto; background:transparent;"><img src="./media/icons/leaf.png" style="width:1.8rem;height:1.8rem;" /></div>
-    <p style="color:var(--leaf-deep); font-weight:700;">Seed Bank fills this gap</p>
-  </div>
-  <div class="card center" style="flex:1;">
-    <div class="chip-ic" style="margin:0 auto 0.5rem;"><img src="./media/icons/hand.png" /></div>
-    <h3>Manual Counting</h3>
-    <p class="mut">Cheap, but slow &amp; subjective</p>
-  </div>
-</div>
-
-<!--
-There's nothing affordable between hand-counting and industrial optical sorters — that empty
-middle is our wedge. → Next: why this is genuinely hard for AI.
+throughput without a six-figure machine. Stress that one backend serves both.
 -->
 
 ---
