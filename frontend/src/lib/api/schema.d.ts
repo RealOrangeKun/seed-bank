@@ -698,6 +698,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Yolo
+         * @description Import a YOLO-labelled dataset from a previously-uploaded ``.zip``
+         *     (``images/`` + ``labels/``). The archive must already be in MinIO (via
+         *     ``POST /datasets/{id}/upload-url`` then a presigned PUT). Unpacking runs in
+         *     a background worker; poll ``GET /datasets/{id}`` for the growing item
+         *     count.
+         */
+        post: operations["import_yolo_api_v1_datasets__dataset_id__import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/experiments": {
         parameters: {
             query?: never;
@@ -1083,6 +1107,30 @@ export interface components {
             description?: string | null;
         };
         /**
+         * DatasetImportIn
+         * @description Request body for ``POST /datasets/{id}/import``.
+         *
+         *     The client first uploads a ``.zip`` (``images/`` + ``labels/``, YOLO
+         *     ``class_id xc yc w h`` annotations) to MinIO via a presigned PUT, then
+         *     passes the resulting ``zip_storage_key`` here. A background worker unpacks
+         *     the archive, converts the labels, and appends one dataset item per image.
+         */
+        DatasetImportIn: {
+            /** Zip Storage Key */
+            zip_storage_key: string;
+        };
+        /**
+         * DatasetImportOut
+         * @description Acknowledges that a YOLO import was dispatched.
+         *
+         *     The import runs asynchronously; poll ``GET /datasets/{id}`` and watch
+         *     ``item_count`` grow to observe progress.
+         */
+        DatasetImportOut: {
+            /** Dispatched */
+            dispatched: boolean;
+        };
+        /**
          * DatasetItemCreateIn
          * @description One item inside a bulk-add request.
          *
@@ -1220,6 +1268,10 @@ export interface components {
         /** Envelope[BatchOut] */
         Envelope_BatchOut_: {
             data: components["schemas"]["BatchOut"];
+        };
+        /** Envelope[DatasetImportOut] */
+        Envelope_DatasetImportOut_: {
+            data: components["schemas"]["DatasetImportOut"];
         };
         /** Envelope[DatasetItemsAddedOut] */
         Envelope_DatasetItemsAddedOut_: {
@@ -3370,6 +3422,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_DatasetUploadUrlOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_yolo_api_v1_datasets__dataset_id__import_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DatasetImportOut_"];
                 };
             };
             /** @description Validation Error */

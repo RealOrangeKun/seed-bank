@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, unwrap } from "@/lib/api/client";
 import type {
+  DatasetImportOut,
   DatasetItemOut,
   DatasetOut,
   DatasetUploadUrlOut,
@@ -22,10 +23,6 @@ export interface DatasetItemsParams {
 export interface CreateDatasetInput {
   name: string;
   description?: string | null;
-}
-
-export interface DatasetItemsAddedOut {
-  added: number;
 }
 
 async function listDatasets(params: DatasetListParams): Promise<Page<DatasetOut>> {
@@ -75,20 +72,6 @@ async function createDataset(input: CreateDatasetInput): Promise<DatasetOut> {
   return env.data;
 }
 
-async function addDatasetItems(
-  datasetId: string,
-  storageKeys: string[],
-): Promise<DatasetItemsAddedOut> {
-  const result = await api.POST("/api/v1/datasets/{dataset_id}/items", {
-    params: { path: { dataset_id: datasetId } },
-    body: {
-      items: storageKeys.map((image_storage_key) => ({ image_storage_key })),
-    },
-  });
-  const env = await unwrap<Envelope<DatasetItemsAddedOut>>(result);
-  return env.data;
-}
-
 async function getDatasetUploadUrl(
   datasetId: string,
   file: File,
@@ -105,33 +88,27 @@ async function getDatasetUploadUrl(
 }
 
 /**
- * Upload images to a dataset humanely: for each file, mint a presigned PUT URL,
- * PUT the bytes straight to MinIO (bypassing the API), then register all keys
- * via the existing bulk-add endpoint. `onProgress(done, total)` fires after
- * each successful upload so the dialog can show progress.
+ * Import a labelled dataset from a single YOLO `.zip` (images/ + labels/).
+ * The archive is PUT straight to MinIO via a presigned URL (bytes never hit
+ * the API), then a background worker unpacks it. Returns once dispatch is
+ * acknowledged; callers should poll the dataset's `item_count` for progress.
  */
-async function uploadDatasetImages(
-  datasetId: string,
-  files: File[],
-  onProgress?: (done: number, total: number) => void,
-): Promise<DatasetItemsAddedOut> {
-  const keys: string[] = [];
-  for (const [i, file] of files.entries()) {
-    const { upload_url, storage_key } = await getDatasetUploadUrl(datasetId, file);
-    // Raw PUT to the presigned URL — not through the openapi client (the bytes
-    // go directly to object storage, never the API process).
-    const put = await fetch(upload_url, {
-      method: "PUT",
-      body: file,
-      headers: { "Content-Type": file.type || "application/octet-stream" },
-    });
-    if (!put.ok) {
-      throw new Error(`Upload failed for ${file.name} (HTTP ${put.status})`);
-    }
-    keys.push(storage_key);
-    onProgress?.(i + 1, files.length);
+async function importYoloDataset(datasetId: string, zip: File): Promise<DatasetImportOut> {
+  const { upload_url, storage_key } = await getDatasetUploadUrl(datasetId, zip);
+  const put = await fetch(upload_url, {
+    method: "PUT",
+    body: zip,
+    headers: { "Content-Type": zip.type || "application/zip" },
+  });
+  if (!put.ok) {
+    throw new Error(`Upload failed for ${zip.name} (HTTP ${put.status})`);
   }
-  return addDatasetItems(datasetId, keys);
+  const result = await api.POST("/api/v1/datasets/{dataset_id}/import", {
+    params: { path: { dataset_id: datasetId } },
+    body: { zip_storage_key: storage_key },
+  });
+  const env = await unwrap<Envelope<DatasetImportOut>>(result);
+  return env.data;
 }
 
 export const datasetKeys = {
@@ -177,23 +154,10 @@ export function useCreateDataset() {
   });
 }
 
-export function useAddDatasetItems(datasetId: string) {
+export function useImportYoloDataset(datasetId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (storageKeys: string[]) => addDatasetItems(datasetId, storageKeys),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: datasetKeys.all });
-    },
-  });
-}
-
-export function useUploadDatasetImages(datasetId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: {
-      files: File[];
-      onProgress?: (done: number, total: number) => void;
-    }) => uploadDatasetImages(datasetId, vars.files, vars.onProgress),
+    mutationFn: (zip: File) => importYoloDataset(datasetId, zip),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: datasetKeys.all });
     },

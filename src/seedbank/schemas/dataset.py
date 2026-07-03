@@ -118,8 +118,34 @@ class DatasetUploadUrlOut(BaseModel):
     storage_key: str
 
 
+class DatasetImportIn(BaseModel):
+    """Request body for ``POST /datasets/{id}/import``.
+
+    The client first uploads a ``.zip`` (``images/`` + ``labels/``, YOLO
+    ``class_id xc yc w h`` annotations) to MinIO via a presigned PUT, then
+    passes the resulting ``zip_storage_key`` here. A background worker unpacks
+    the archive, converts the labels, and appends one dataset item per image.
+    """
+
+    model_config = STRICT_INPUT
+
+    zip_storage_key: str = Field(min_length=1, max_length=512)
+
+
+class DatasetImportOut(BaseModel):
+    """Acknowledges that a YOLO import was dispatched.
+
+    The import runs asynchronously; poll ``GET /datasets/{id}`` and watch
+    ``item_count`` grow to observe progress.
+    """
+
+    dispatched: bool
+
+
 __all__ = [
     "DatasetCreateIn",
+    "DatasetImportIn",
+    "DatasetImportOut",
     "DatasetItemCreateIn",
     "DatasetItemOut",
     "DatasetItemsAddedOut",

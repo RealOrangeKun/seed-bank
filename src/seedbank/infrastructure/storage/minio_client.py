@@ -93,6 +93,15 @@ class MinioStorage:
         except S3Error as exc:
             raise ExternalServiceError(f"minio: get {bucket}/{key}: {exc}") from exc
 
+    async def download_to_file(self, bucket: str, key: str, file_path: str) -> None:
+        # Streams the object straight to disk (never fully into memory), so a
+        # large archive (e.g. a YOLO dataset .zip) can be processed on a small
+        # worker. ``fget_object`` manages its own HTTP session internally.
+        try:
+            await self._client.fget_object(bucket, key, file_path)
+        except S3Error as exc:
+            raise ExternalServiceError(f"minio: fget {bucket}/{key}: {exc}") from exc
+
     async def remove_object(self, bucket: str, key: str) -> None:
         try:
             await self._client.remove_object(bucket, key)

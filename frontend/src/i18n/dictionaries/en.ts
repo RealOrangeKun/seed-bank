@@ -435,20 +435,24 @@ export const en = {
   "datasets.detailDescription": "Images and ground truth used for offline evaluation.",
   "datasets.detailFallback": "Dataset {id}",
   "datasets.copyId": "Copy dataset id",
-  "datasets.addItems": "Add images",
-  "datasets.addItemsDesc":
-    "Upload images from your device — they're stored directly and added to this dataset.",
   "datasets.storageKeysLabel": "Image storage keys",
   "datasets.onePerLine": "One per line",
   "datasets.pasteAtLeastOne": "Paste at least one image storage key.",
-  "datasets.selectAtLeastOne": "Select at least one image.",
-  "datasets.uploading": "Uploading {done}/{total}…",
-  "datasets.addFailed": "Failed to add items.",
   "datasets.itemsEmpty": "No items yet",
-  "datasets.itemsEmptyDesc": "Upload images to populate this dataset.",
+  "datasets.itemsEmptyDesc":
+    "Import a labeled .zip (images/ + labels/) to populate this dataset.",
   "datasets.colStorageKey": "Image storage key",
   "datasets.colChecksum": "Checksum",
   "datasets.colGroundTruth": "Ground truth",
+  "datasets.import": "Import labeled (.zip)",
+  "datasets.importTitle": "Import a YOLO dataset",
+  "datasets.importDesc":
+    "Upload one .zip containing an images/ folder and a labels/ folder. Each label is a YOLO .txt (class_id x_center y_center width height, normalized 0–1) named to match its image; images without a label are treated as background.",
+  "datasets.importSelectZip": "Select a .zip file to import.",
+  "datasets.importSubmit": "Import",
+  "datasets.importing": "Uploading…",
+  "datasets.importStarted": "Import started — items will appear as they're processed.",
+  "datasets.importFailed": "Import failed.",
 
   // ── Models ────────────────────────────────────────────────────────────────
   "models.title": "Models",
@@ -532,8 +536,6 @@ export const enPlurals = {
   compareCount: { one: "Compare ({count})", other: "Compare ({count})" },
   seedsBadge: { one: "{count} seed", other: "{count} seeds" },
   datasetKeys: { one: "{count} key", other: "{count} keys" },
-  datasetItemsAdded: { one: "Added {count} item.", other: "Added {count} items." },
-  datasetAddBtn: { one: "Add {count} item", other: "Add {count} items" },
 } satisfies Record<string, PluralForms>;
 
 export type PluralKey = keyof typeof enPlurals;

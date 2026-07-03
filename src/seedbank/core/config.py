@@ -196,6 +196,16 @@ class Settings(BaseSettings):
     # Cap on how many processed frames contribute detection rows for the
     # good/bad stats (the annotated video still shows every processed frame).
     analyze_video_max_stats_frames: int = Field(default=40, ge=1, le=500)
+    # ── Dataset YOLO import ──────────────────────────────────────────────────
+    # A labelled dataset is uploaded as one .zip (images/ + labels/, YOLO
+    # `class_id xc yc w h`). The worker streams it to disk and unpacks one image
+    # at a time, so this cap bounds decompressed size (a zip-bomb guard), not
+    # worker RAM. Real datasets (hundreds of full-res JPEGs) run to ~1 GB.
+    dataset_import_max_zip_bytes: int = 2 * 1024 * 1024 * 1024
+    dataset_import_max_items: int = Field(default=5000, ge=1, le=20000)
+    dataset_import_image_extensions: list[str] = Field(
+        default_factory=lambda: [".jpg", ".jpeg", ".png", ".webp"]
+    )
     # Test-only: when true, Celery tasks run inline in the calling process
     # (instead of being sent to a broker). Must remain False in prod.
     celery_task_always_eager: bool = False

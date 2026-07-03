@@ -21,11 +21,17 @@ from typing import TYPE_CHECKING
 from sqlalchemy.exc import IntegrityError
 
 from seedbank.core.config import get_settings
-from seedbank.core.exceptions import ConflictError, NotFoundError
+from seedbank.core.exceptions import ConflictError, NotFoundError, ValidationError
 from seedbank.core.ids import uuid7
 from seedbank.core.logging import get_logger
 from seedbank.infrastructure.db.models import Dataset, DatasetItem
 from seedbank.infrastructure.storage import get_storage
+from seedbank.workers.celery_app import celery_app
+
+# The YOLO import task runs on the CPU worker (no torch): it only unpacks the
+# archive, writes images to MinIO, and inserts rows.
+_IMPORT_TASK_NAME = "seedbank.import_yolo_dataset"
+_IMPORT_TASK_QUEUE = "default"
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -162,6 +168,41 @@ class DatasetService:
         )
         log.info("dataset.upload_url_minted", dataset_id=str(ds.id), storage_key=key)
         return url, key
+
+    async def dispatch_yolo_import(
+        self,
+        *,
+        dataset_id: UUID,
+        zip_storage_key: str,
+    ) -> None:
+        """Kick off a background YOLO import for a previously-uploaded ``.zip``.
+
+        The archive must already be in MinIO ``seedbank-datasets`` (via a
+        presigned PUT). We verify the dataset is active and the object exists,
+        then dispatch the CPU worker task that unpacks it. Raises
+        :class:`NotFoundError` if the dataset is gone and
+        :class:`ValidationError` if the archive object is missing.
+        """
+        ds = await self.datasets.get_active(dataset_id)
+        if ds is None:
+            raise NotFoundError("Dataset not found.")
+
+        exists = await self.storage.object_exists(
+            self.settings.minio_bucket_datasets, zip_storage_key
+        )
+        if not exists:
+            raise ValidationError("Uploaded archive not found; upload it before importing.")
+
+        celery_app.send_task(
+            _IMPORT_TASK_NAME,
+            args=[str(ds.id), zip_storage_key],
+            queue=_IMPORT_TASK_QUEUE,
+        )
+        log.info(
+            "dataset.import_dispatched",
+            dataset_id=str(ds.id),
+            zip_storage_key=zip_storage_key,
+        )
 
     async def add_items(
         self,
