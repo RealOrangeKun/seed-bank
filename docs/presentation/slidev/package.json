@@ -13,5 +13,8 @@
     "@slidev/theme-default": "^0.25.0",
     "lucide-static": "^1.23.0",
     "vue": "^3.5.39"
+  },
+  "devDependencies": {
+    "playwright-chromium": "^1.61.1"
   }
 }
