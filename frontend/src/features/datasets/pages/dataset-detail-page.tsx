@@ -1,10 +1,9 @@
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Upload } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { CopyButton } from "@/components/shared/copy-button";
-import { FileDropzone } from "@/components/shared/file-dropzone";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
@@ -33,7 +32,7 @@ import { useI18n } from "@/i18n";
 import { usePagination } from "@/hooks/use-pagination";
 import { formatDateTime, shortId } from "@/lib/format";
 
-import { useDataset, useDatasetItems, useUploadDatasetImages } from "../api";
+import { useDataset, useDatasetItems, useImportYoloDataset } from "../api";
 
 function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -44,34 +43,27 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function AddItemsDialog({ datasetId }: { datasetId: string }) {
-  const { t, tn } = useI18n();
+function ImportYoloDialog({ datasetId }: { datasetId: string }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const upload = useUploadDatasetImages(datasetId);
+  const [zip, setZip] = useState<File | null>(null);
+  const importYolo = useImportYoloDataset(datasetId);
 
-  const reset = () => {
-    setFiles([]);
-    setProgress(null);
-  };
+  const reset = () => setZip(null);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (files.length === 0) {
-      toast.error(t("datasets.selectAtLeastOne"));
+    if (!zip) {
+      toast.error(t("datasets.importSelectZip"));
       return;
     }
     try {
-      const result = await upload.mutateAsync({
-        files,
-        onProgress: (done, total) => setProgress({ done, total }),
-      });
-      toast.success(tn("datasetItemsAdded", result.added));
+      await importYolo.mutateAsync(zip);
+      toast.success(t("datasets.importStarted"));
       reset();
       setOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("datasets.addFailed"));
+      toast.error(err instanceof Error ? err.message : t("datasets.importFailed"));
     }
   };
 
@@ -85,24 +77,26 @@ function AddItemsDialog({ datasetId }: { datasetId: string }) {
     >
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4" /> {t("datasets.addItems")}
+          <Upload className="h-4 w-4" /> {t("datasets.import")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("datasets.addItems")}</DialogTitle>
-          <DialogDescription>{t("datasets.addItemsDesc")}</DialogDescription>
+          <DialogTitle>{t("datasets.importTitle")}</DialogTitle>
+          <DialogDescription>{t("datasets.importDesc")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
-          <FileDropzone files={files} onChange={setFiles} disabled={upload.isPending} />
+          <input
+            type="file"
+            accept=".zip,application/zip,application/x-zip-compressed"
+            disabled={importYolo.isPending}
+            onChange={(e) => setZip(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-muted-foreground file:me-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+          />
           <DialogFooter>
-            <Button type="submit" disabled={upload.isPending || files.length === 0}>
-              {upload.isPending ? <Spinner /> : null}
-              {upload.isPending && progress
-                ? t("datasets.uploading", { done: progress.done, total: progress.total })
-                : files.length > 0
-                  ? tn("datasetAddBtn", files.length)
-                  : t("datasets.addItems")}
+            <Button type="submit" disabled={importYolo.isPending || !zip}>
+              {importYolo.isPending ? <Spinner /> : null}
+              {importYolo.isPending ? t("datasets.importing") : t("datasets.importSubmit")}
             </Button>
           </DialogFooter>
         </form>
@@ -132,7 +126,7 @@ export function DatasetDetailPage() {
         description={t("datasets.detailDescription")}
         actions={
           <div className="flex items-center gap-2">
-            <AddItemsDialog datasetId={datasetId} />
+            <ImportYoloDialog datasetId={datasetId} />
             <Button variant="outline" asChild>
               <Link to="/datasets">
                 <ArrowLeft className="h-4 w-4" /> {t("common.back")}
@@ -179,7 +173,7 @@ export function DatasetDetailPage() {
         <EmptyState
           title={t("datasets.itemsEmpty")}
           description={t("datasets.itemsEmptyDesc")}
-          action={<AddItemsDialog datasetId={datasetId} />}
+          action={<ImportYoloDialog datasetId={datasetId} />}
         />
       ) : (
         <Card>

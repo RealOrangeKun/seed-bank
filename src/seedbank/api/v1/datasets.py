@@ -26,6 +26,8 @@ from seedbank.domain.user import Role
 from seedbank.schemas.common import Envelope, Page, paginate
 from seedbank.schemas.dataset import (
     DatasetCreateIn,
+    DatasetImportIn,
+    DatasetImportOut,
     DatasetItemOut,
     DatasetItemsAddedOut,
     DatasetItemsBulkIn,
@@ -118,6 +120,29 @@ async def create_upload_url(
         content_type=body.content_type,
     )
     return Envelope[DatasetUploadUrlOut](data=DatasetUploadUrlOut(upload_url=url, storage_key=key))
+
+
+@router.post(
+    "/{dataset_id}/import",
+    response_model=Envelope[DatasetImportOut],
+    status_code=202,
+    dependencies=[_AI_GATE],
+)
+async def import_yolo(
+    dataset_id: UUID,
+    body: DatasetImportIn,
+    service: DatasetServiceDep,
+) -> Envelope[DatasetImportOut]:
+    """Import a YOLO-labelled dataset from a previously-uploaded ``.zip``
+    (``images/`` + ``labels/``). The archive must already be in MinIO (via
+    ``POST /datasets/{id}/upload-url`` then a presigned PUT). Unpacking runs in
+    a background worker; poll ``GET /datasets/{id}`` for the growing item
+    count."""
+    await service.dispatch_yolo_import(
+        dataset_id=dataset_id,
+        zip_storage_key=body.zip_storage_key,
+    )
+    return Envelope[DatasetImportOut](data=DatasetImportOut(dispatched=True))
 
 
 @router.get(

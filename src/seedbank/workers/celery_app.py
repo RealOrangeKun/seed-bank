@@ -50,7 +50,12 @@ def _make_celery_app(settings: Settings) -> Celery:
         task_eager_propagates=settings.celery_task_always_eager,
         task_routes={
             "seedbank.analyze_image": {"queue": "inference"},
-            "seedbank.run_experiment": {"queue": "experiments"},
+            # Offline eval runs torch models → the inference worker's
+            # ``evaluation`` queue, not the torch-less CPU worker.
+            "seedbank.run_experiment": {"queue": "evaluation"},
+            # YOLO dataset import — unpack + insert only, no torch, so it runs
+            # on the CPU worker's default queue.
+            "seedbank.import_yolo_dataset": {"queue": "default"},
             # DWH dual-write tasks (Phase 8). All routed to a single ``dwh``
             # queue so a separate light worker can drain them without
             # contending with inference compute.

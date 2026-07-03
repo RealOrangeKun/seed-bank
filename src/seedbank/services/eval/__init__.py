@@ -12,16 +12,20 @@ from .classification import (
     evaluate_classification_item,
 )
 from .detection import (
+    COCO_IOU_THRESHOLDS,
     DetectionAggregate,
     DetectionItemMetrics,
     GroundTruthBox,
     aggregate_detection,
+    average_precision,
+    compute_map,
     evaluate_detection_item,
     iou,
 )
 from .report import render_report
 
 __all__ = [
+    "COCO_IOU_THRESHOLDS",
     "ClassificationAggregate",
     "ClassificationItemResult",
     "DetectionAggregate",
@@ -29,6 +33,8 @@ __all__ = [
     "GroundTruthBox",
     "aggregate_classification",
     "aggregate_detection",
+    "average_precision",
+    "compute_map",
     "evaluate_classification_item",
     "evaluate_detection_item",
     "iou",

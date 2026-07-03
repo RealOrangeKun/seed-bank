@@ -434,20 +434,24 @@ export const ar: Record<TranslationKey, string> = {
   "datasets.detailDescription": "الصور والبيانات المرجعية المستخدمة للتقييم دون اتصال.",
   "datasets.detailFallback": "مجموعة البيانات {id}",
   "datasets.copyId": "نسخ معرّف مجموعة البيانات",
-  "datasets.addItems": "إضافة صور",
-  "datasets.addItemsDesc":
-    "ارفع صورًا من جهازك — تُخزَّن مباشرةً وتُضاف إلى هذه المجموعة.",
   "datasets.storageKeysLabel": "مفاتيح تخزين الصور",
   "datasets.onePerLine": "واحد في كل سطر",
   "datasets.pasteAtLeastOne": "الصق مفتاح تخزين صورة واحدًا على الأقل.",
-  "datasets.selectAtLeastOne": "اختر صورة واحدة على الأقل.",
-  "datasets.uploading": "جارٍ الرفع {done}/{total}…",
-  "datasets.addFailed": "تعذّرت إضافة العناصر.",
   "datasets.itemsEmpty": "لا توجد عناصر بعد",
-  "datasets.itemsEmptyDesc": "ارفع صورًا لملء مجموعة البيانات هذه.",
+  "datasets.itemsEmptyDesc":
+    "استورد ملف ‎.zip‎ مُعنوَن (‎images/‎ + ‎labels/‎) لملء مجموعة البيانات هذه.",
   "datasets.colStorageKey": "مفتاح تخزين الصورة",
   "datasets.colChecksum": "المجموع الاختباري",
   "datasets.colGroundTruth": "البيانات المرجعية",
+  "datasets.import": "استيراد موسوم (‎.zip)",
+  "datasets.importTitle": "استيراد مجموعة بيانات YOLO",
+  "datasets.importDesc":
+    "ارفع ملف ‎.zip واحدًا يحتوي على مجلد images ومجلد labels. كل ملف تسمية هو ملف YOLO نصي (‎class_id x_center y_center width height، مُطبَّع بين 0 و1) باسم مطابق لصورته؛ والصور بلا تسمية تُعامَل كخلفية.",
+  "datasets.importSelectZip": "اختر ملف ‎.zip للاستيراد.",
+  "datasets.importSubmit": "استيراد",
+  "datasets.importing": "جارٍ الرفع…",
+  "datasets.importStarted": "بدأ الاستيراد — ستظهر العناصر أثناء معالجتها.",
+  "datasets.importFailed": "فشل الاستيراد.",
 
   // ── Models ────────────────────────────────────────────────────────────────
   "models.title": "النماذج",
@@ -578,21 +582,5 @@ export const arPlurals: Record<PluralKey, PluralForms> = {
     few: "{count} مفاتيح",
     many: "{count} مفتاحًا",
     other: "{count} مفتاح",
-  },
-  datasetItemsAdded: {
-    zero: "لم تتم إضافة أي عنصر.",
-    one: "تمت إضافة عنصر واحد.",
-    two: "تمت إضافة عنصرين.",
-    few: "تمت إضافة {count} عناصر.",
-    many: "تمت إضافة {count} عنصرًا.",
-    other: "تمت إضافة {count} عنصر.",
-  },
-  datasetAddBtn: {
-    zero: "إضافة عناصر",
-    one: "إضافة عنصر واحد",
-    two: "إضافة عنصرين",
-    few: "إضافة {count} عناصر",
-    many: "إضافة {count} عنصرًا",
-    other: "إضافة {count} عنصر",
   },
 };

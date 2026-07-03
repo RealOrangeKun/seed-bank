@@ -57,6 +57,7 @@ from seedbank.infrastructure.db.repositories import (
 )
 from seedbank.infrastructure.ml.backends.base import (
     ClassificationConfig,
+    Detection,
     DetectionConfig,
 )
 from seedbank.infrastructure.ml.pipeline.factory import (
@@ -69,6 +70,7 @@ from seedbank.services.eval import (
     GroundTruthBox,
     aggregate_classification,
     aggregate_detection,
+    compute_map,
     evaluate_classification_item,
     evaluate_detection_item,
     render_report,
@@ -288,6 +290,9 @@ async def _run_detection_eval(
     cfg = _detection_config(model)
 
     item_metrics: list[DetectionItemMetrics] = []
+    # (predictions, ground_truth) per evaluated image — retained for the
+    # dataset-wide mAP pass, which ranks predictions globally by confidence.
+    map_inputs: list[tuple[list[Detection], list[GroundTruthBox]]] = []
     result_rows: list[ExperimentResult] = []
     failed = 0
 
@@ -302,6 +307,7 @@ async def _run_detection_eval(
                 latency_ms=outcome.latency_ms,
             )
             item_metrics.append(metrics)
+            map_inputs.append((outcome.detections, gt_boxes))
             result_rows.append(
                 ExperimentResult(
                     id=uuid7(),
@@ -346,9 +352,16 @@ async def _run_detection_eval(
     await repos.results.add_many(result_rows)
 
     aggregate = aggregate_detection(item_metrics, failed=failed)
+    map_metrics = compute_map(map_inputs)
+
+    summary: dict[str, Any] = aggregate.as_summary()
+    summary.update({name: float(value) for name, value in map_metrics.items()})
+    metric_values: dict[str, Any] = aggregate.as_metrics()
+    metric_values.update(map_metrics)
+
     return (
-        aggregate.as_summary(),
-        aggregate.as_metrics(),
+        summary,
+        metric_values,
         aggregate.items_evaluated,
         aggregate.items_failed,
     )
