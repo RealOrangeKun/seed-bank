@@ -31,9 +31,21 @@ class: cover-slide
   Dr. Ghada Dahy
 </div>
 
-<div class="teams">
-  <div><span class="tag">AI</span> Omar Ez-Eldin Abdullah · Yussuf Ahmed Awad</div>
-  <div><span class="tag">IS</span> Ali Abdelrahman · Mohamed Amr · Youssef Tarek Ali</div>
+<div class="teams" style="flex-direction: column; align-items: center; gap: 0.8rem;">
+  <div>
+    <span class="tag">AI</span> 
+    <span style="font-weight: 500;">Omar Ez-Eldin Abdullah</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220228</span>
+    <span style="color: var(--muted); margin: 0 0.4rem;">·</span> 
+    <span style="font-weight: 500;">Yussuf Ahmed Awad</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220385</span>
+  </div>
+  <div>
+    <span class="tag">IS</span> 
+    <span style="font-weight: 500;">Ali Abdelrahman</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220213</span>
+    <span style="color: var(--muted); margin: 0 0.4rem;">·</span> 
+    <span style="font-weight: 500;">Mohamed Amr</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220302</span>
+    <span style="color: var(--muted); margin: 0 0.4rem;">·</span> 
+    <span style="font-weight: 500;">Youssef Tarek Ali</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220397</span>
+  </div>
 </div>
 
 <img src="./media/logos/Cairo_University_new_logo.png" alt="Cairo University" style="position: absolute; top: 2.2rem; left: 3rem; height: 110px;" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }" />
@@ -226,6 +238,10 @@ checking a batch, and the AI team running the models behind it. No tooling detai
 
 ---
 
+<img src="./media/diagrams/FLOWCHART_SLIDE.png" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" />
+
+---
+
 <!-- SLIDE 8 - Competitor Landscape -->
 
 <div class="act-tag">RELATED WORK</div>
@@ -385,7 +401,7 @@ We split based on variance: Inter-class (macro differences between species used 
   </div>
 </div>
 
-<div class="card accent" style="padding: 0.6rem 0.9rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.2rem;">Metric</th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">YOLOv8s<br/><small>(Alternative)</small></th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Avg Inference Time</td><td style="padding: 0.2rem;">0.1511s</td><td style="padding: 0.2rem;">0.0621s</td><td style="padding: 0.2rem;">0.1038s</td><td style="padding: 0.2rem;">0.1106s</td><td style="padding: 0.2rem; font-weight:bold; color:var(--leaf-deep);">5.5ms</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@50 (Standard)</td><td style="padding: 0.2rem;">0.9780</td><td style="padding: 0.2rem;">0.9768</td><td style="padding: 0.2rem;">0.9838</td><td style="padding: 0.2rem;">0.9835</td><td style="padding: 0.2rem;">0.9410</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@75 (Strict)</td><td style="padding: 0.2rem;">0.6574</td><td style="padding: 0.2rem;">0.6576</td><td style="padding: 0.2rem;">0.8015</td><td style="padding: 0.2rem;">0.8020</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@.5:.95 (COCO)</td><td style="padding: 0.2rem;">0.5903</td><td style="padding: 0.2rem;">0.5867</td><td style="padding: 0.2rem;">0.7038</td><td style="padding: 0.2rem;">0.7211</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Precision</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9390</td></tr><tr><td style="padding: 0.2rem; font-weight: 600;">Recall</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem; color:var(--mut);">-</td><td style="padding: 0.2rem;">0.9410</td></tr></tbody></table></div>
+<div class="card accent" style="padding: 0.6rem 0.9rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 100 } }"><table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.8rem;"><thead><tr style="border-bottom: 1px solid var(--leaf-line);"><th style="padding: 0.2rem;">Metric</th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize only)</small></th><th style="padding: 0.2rem;">Std Faster R-CNN<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">+ CBAM<br/><small>(Maize & Coffee)</small></th><th style="padding: 0.2rem;">YOLOv8s<br/><small>(Alternative)</small></th></tr></thead><tbody><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">Avg Inference Time</td><td style="padding: 0.2rem;">0.1511s</td><td style="padding: 0.2rem;">0.0621s</td><td style="padding: 0.2rem;">0.1038s</td><td style="padding: 0.2rem;">0.1106s</td><td style="padding: 0.2rem; font-weight:bold; color:var(--leaf-deep);">5.5ms</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@50 (Standard)</td><td style="padding: 0.2rem;">0.9780</td><td style="padding: 0.2rem;">0.9768</td><td style="padding: 0.2rem;">0.9838</td><td style="padding: 0.2rem;">0.9835</td><td style="padding: 0.2rem;">0.9410</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@75 (Strict)</td><td style="padding: 0.2rem;">0.6574</td><td style="padding: 0.2rem;">0.6576</td><td style="padding: 0.2rem;">0.8015</td><td style="padding: 0.2rem;">0.8020</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr><tr style="border-bottom: 1px solid rgba(0,0,0,0.05);"><td style="padding: 0.2rem; font-weight: 600;">mAP@.5:.95 (COCO)</td><td style="padding: 0.2rem;">0.5903</td><td style="padding: 0.2rem;">0.5867</td><td style="padding: 0.2rem;">0.7038</td><td style="padding: 0.2rem;">0.7211</td><td style="padding: 0.2rem; color:var(--mut);">-</td></tr></tbody></table></div>
 
 <!--
 The Faster R-CNN metrics compared with and without CBAM for single vs multi class.
@@ -564,6 +580,13 @@ exactly why we built MultiSeedGen. → Next: how MultiSeedGen works.
   <div class="card accent" style="padding: 1.1rem 1.2rem;">
     <h3 style="margin: 0 0 0.5rem 0;"><img class="ic" src="./media/icons/alert-amber.png" /> Why we built it</h3>
     <p style="font-size: 0.9rem; line-height: 1.55; text-align: justify; margin: 0;">Synthetic datasets combat two critical failure modes: <strong>(1) insufficient real-sample diversity</strong>, which causes the model to overfit to source-specific pixel patterns, and <strong>(2) sterile, controlled backgrounds</strong> that prevent generalization to real-world noise. MultiSeedGen was built to solve both simultaneously.</p>
+    <ul style="font-size: 0.8rem; line-height: 1.4; margin: 0.6rem 0 0 0; color: var(--text);">
+      <li><strong>Dataset Imbalance Resolution</strong>: Counters uneven source counts via uniform class sampling.</li>
+      <li><strong>Geometric &amp; Photometric Variety</strong>: Random scaling, rotation, jitter, and camera degradation.</li>
+      <li><strong>Clutter Simulation</strong>: Controls overlapping seeds by rejecting placements exceeding max IoU.</li>
+      <li><strong>Lighting &amp; Background Shift</strong>: Composites seeds onto noise, texture, or real backgrounds.</li>
+      <li><strong>Data Leakage Prevention</strong>: Strict deterministic holdout ensures validation seeds never leak into training.</li>
+    </ul>
   </div>
   <div class="card accent" style="padding: 1.1rem 1.2rem;">
     <h3 style="margin: 0 0 0.7rem 0;"><img class="ic" src="./media/icons/factory.png" /> How the pipeline works</h3>
@@ -596,8 +619,10 @@ varied backgrounds with realistic augmentation. → Next: the full configuration
 
 # Generated Dataset Sample
 
-<div style="display: flex; justify-content: center; margin-top: 0.8rem;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 150 } }">
-  <img src="./media/screenshots/MultiseedGen-seeds_annotatedWithBB.jpg" style="max-height: 340px; border-radius: 0.5rem; box-shadow: 0 6px 20px rgba(0,0,0,0.18);" />
+<div style="display: flex; justify-content: center; align-items: center; gap: 0.8rem; margin-top: 0.8rem; width: 100%;" v-motion :initial="{ opacity: 0, scale: 0.94 }" :enter="{ opacity: 1, scale: 1, transition: { duration: 600, delay: 150 } }">
+  <img src="./media/seeds/train_000000.jpg" style="max-height: 340px; max-width: 32%; border-radius: 0.5rem; box-shadow: 0 6px 20px rgba(0,0,0,0.18);" />
+  <img src="./media/screenshots/MultiseedGen-seeds_annotatedWithBB.jpg" style="max-height: 340px; max-width: 32%; border-radius: 0.5rem; box-shadow: 0 6px 20px rgba(0,0,0,0.18);" />
+  <img src="./media/seeds/train_000001.jpg" style="max-height: 340px; max-width: 32%; border-radius: 0.5rem; box-shadow: 0 6px 20px rgba(0,0,0,0.18);" />
 </div>
 
 <div class="warn" style="margin-top: 1.1rem;" v-motion :initial="{ opacity: 0, y: 15 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500, delay: 300 } }">
@@ -1164,9 +1189,8 @@ A quick grouped inventory. Let it convey breadth and coherence. This is a real, 
 
 # Key Takeaways
 
-<div class="grid3" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
+<div class="grid2" style="margin-top:0.6rem;" v-motion :initial="{ opacity: 0, y: 24 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 200 } }">
   <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/bar-chart-3.png" /></div><h3>Data quality &gt; architecture</h3><p>The maize model won because its training data matched the real world.</p></div>
-  <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/git-branch.png" /></div><h3>Decouple detection from classification</h3><p>Independent stages let us diagnose and swap each without disturbing the other.</p></div>
   <div class="card accent"><div class="chip-ic" style="margin-bottom:0.5rem;"><img src="./media/icons/factory.png" /></div><h3>Synthetic data narrows the gap</h3><p>MultiSeedGen helped narrow the sim-to-real gap and killed the annotation bottleneck, but it never removed the gap, so always test on real photos.</p></div>
 </div>
 
@@ -1207,17 +1231,27 @@ class: cover-slide
 
 </div>
 
-<div class="teams">
-  <div><span class="tag">AI</span> Omar Ez-Eldin Abdullah · Yussuf Ahmed Awad</div>
-  <div><span class="tag">IS</span> Ali Abdelrahman · Mohamed Amr · Youssef Tarek Ali</div>
+<div class="teams" style="flex-direction: column; align-items: center; gap: 0.8rem;">
+  <div>
+    <span class="tag">AI</span> 
+    <span style="font-weight: 500;">Omar Ez-Eldin Abdullah</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220228</span>
+    <span style="color: var(--muted); margin: 0 0.4rem;">·</span> 
+    <span style="font-weight: 500;">Yussuf Ahmed Awad</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220385</span>
+  </div>
+  <div>
+    <span class="tag">IS</span> 
+    <span style="font-weight: 500;">Ali Abdelrahman</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220213</span>
+    <span style="color: var(--muted); margin: 0 0.4rem;">·</span> 
+    <span style="font-weight: 500;">Mohamed Amr</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220302</span>
+    <span style="color: var(--muted); margin: 0 0.4rem;">·</span> 
+    <span style="font-weight: 500;">Youssef Tarek Ali</span> <span style="font-family: monospace; font-size: 0.8em; color: var(--muted); opacity: 0.85;">20220397</span>
+  </div>
 </div>
 
 <div class="sup" style="margin-top:1rem;">Special thanks to Dr. Ali Zidane · Dr. Ghada Dahy · Dr. Heba Sherif · Dr. Eman Ahmed</div>
 
-<div class="logos" v-motion :initial="{ opacity: 0, y: 18 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 350 } }">
-  <img src="./media/logos/Cairo_University_new_logo.png" alt="Cairo University" />
-  <img src="./media/logos/FCAI.jpg" alt="FCAI" />
-</div>
+<img src="./media/logos/Cairo_University_new_logo.png" alt="Cairo University" style="position: absolute; top: 2.2rem; left: 3rem; height: 110px;" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }" />
+<img src="./media/logos/FCAI.jpg" alt="FCAI" style="position: absolute; top: 2.2rem; right: 3rem; height: 110px;" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 600, delay: 400 } }" />
 
 <!--
 Thank the supervisors, credit both sub-teams explicitly (research and engineering), and open the floor warmly. End on the logo.
