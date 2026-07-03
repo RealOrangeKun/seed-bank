@@ -119,11 +119,27 @@ async def test_ai_developer_can_register_and_list(
     assert r.status_code == 200, r.text
     assert r.json()["data"]["status"] == "staging"
 
-    # illegal transition: registered already left, can't go back
+    # roll back to registered — now allowed: any non-archived status may
+    # transition to any other non-archived status.
     r = await app_client.patch(
         f"/api/v1/models/{model_id}",
         headers=auth,
         json={"status": "registered"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["status"] == "registered"
+
+    # archived is terminal — no transition out of it.
+    r = await app_client.patch(
+        f"/api/v1/models/{model_id}",
+        headers=auth,
+        json={"status": "archived"},
+    )
+    assert r.status_code == 200, r.text
+    r = await app_client.patch(
+        f"/api/v1/models/{model_id}",
+        headers=auth,
+        json={"status": "staging"},
     )
     # ValidationError → 422 in api.errors mapping
     assert r.status_code in (400, 409, 422)
