@@ -40,12 +40,22 @@ from seedbank.infrastructure.storage import MinioStorage
 log = get_logger(__name__)
 
 
-# Allowed forward transitions. ``archived`` is a terminal sink reachable
-# from anywhere except itself.
+# Allowed transitions. Any non-archived state can move to any other
+# non-archived state (promote or roll back) or to ``archived``. ``archived``
+# is a terminal sink — the only forbidden source. Promotion to ``production``
+# stays safe under this relaxed graph because ``change_status`` auto-archives
+# the incumbent production model for the segment (the partial-unique index
+# guarantees at most one production per ``(kind, seed_type_id)``).
 _TRANSITIONS: dict[ModelStatus, frozenset[ModelStatus]] = {
-    ModelStatus.REGISTERED: frozenset({ModelStatus.STAGING, ModelStatus.ARCHIVED}),
-    ModelStatus.STAGING: frozenset({ModelStatus.PRODUCTION, ModelStatus.ARCHIVED}),
-    ModelStatus.PRODUCTION: frozenset({ModelStatus.ARCHIVED}),
+    ModelStatus.REGISTERED: frozenset(
+        {ModelStatus.STAGING, ModelStatus.PRODUCTION, ModelStatus.ARCHIVED}
+    ),
+    ModelStatus.STAGING: frozenset(
+        {ModelStatus.REGISTERED, ModelStatus.PRODUCTION, ModelStatus.ARCHIVED}
+    ),
+    ModelStatus.PRODUCTION: frozenset(
+        {ModelStatus.REGISTERED, ModelStatus.STAGING, ModelStatus.ARCHIVED}
+    ),
     ModelStatus.ARCHIVED: frozenset(),
 }
 

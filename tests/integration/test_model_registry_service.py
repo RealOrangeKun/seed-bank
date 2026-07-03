@@ -115,17 +115,45 @@ async def test_promote_through_full_state_machine(db_session: AsyncSession) -> N
     assert row.status == ModelStatus.ARCHIVED.value
 
 
-async def test_illegal_transition_raises(db_session: AsyncSession) -> None:
-    row = await _register(db_session, name="m-illegal", version="v1")
+async def test_archived_is_terminal(db_session: AsyncSession) -> None:
+    row = await _register(db_session, name="m-archived", version="v1")
     svc = _service(db_session)
     user_id = row.created_by
     assert user_id is not None
-    # registered → production is illegal (must go through staging). An illegal
-    # transition conflicts with the resource's current state → ConflictError (409).
-    with pytest.raises(ConflictError):
-        await svc.change_status(
-            actor_id=user_id, model_id=row.id, new_status=ModelStatus.PRODUCTION
-        )
+    row = await svc.change_status(
+        actor_id=user_id, model_id=row.id, new_status=ModelStatus.ARCHIVED
+    )
+    assert row.status == ModelStatus.ARCHIVED.value
+    # ``archived`` is the only forbidden source — any move out of it conflicts
+    # with the resource's terminal state → ConflictError (409).
+    for target in (ModelStatus.REGISTERED, ModelStatus.STAGING, ModelStatus.PRODUCTION):
+        with pytest.raises(ConflictError):
+            await svc.change_status(actor_id=user_id, model_id=row.id, new_status=target)
+
+
+async def test_non_archived_transitions_are_flexible(db_session: AsyncSession) -> None:
+    """Any non-archived state can promote, skip, or roll back to any other
+    non-archived state (only ``archived`` is a one-way sink)."""
+    row = await _register(db_session, name="m-flex", version="v1")
+    svc = _service(db_session)
+    user_id = row.created_by
+    assert user_id is not None
+
+    # registered → production (skip staging)
+    row = await svc.change_status(
+        actor_id=user_id, model_id=row.id, new_status=ModelStatus.PRODUCTION
+    )
+    assert row.status == ModelStatus.PRODUCTION.value
+
+    # production → staging (roll back)
+    row = await svc.change_status(actor_id=user_id, model_id=row.id, new_status=ModelStatus.STAGING)
+    assert row.status == ModelStatus.STAGING.value
+
+    # staging → registered (roll back)
+    row = await svc.change_status(
+        actor_id=user_id, model_id=row.id, new_status=ModelStatus.REGISTERED
+    )
+    assert row.status == ModelStatus.REGISTERED.value
 
 
 async def test_promotion_archives_incumbent(db_session: AsyncSession) -> None:

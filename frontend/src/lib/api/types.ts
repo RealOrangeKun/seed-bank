@@ -40,6 +40,7 @@ export type OfflineMetricOut = S["OfflineMetricOut"];
 export type DatasetOut = S["DatasetOut"];
 export type DatasetItemOut = S["DatasetItemOut"];
 export type DatasetUploadUrlOut = S["DatasetUploadUrlOut"];
+export type DatasetImportOut = S["DatasetImportOut"];
 export type ExperimentSummaryOut = S["ExperimentSummaryOut"];
 export type ExperimentDetailOut = S["ExperimentDetailOut"];
 
@@ -83,12 +84,13 @@ export const MODEL_STATUSES = [
   "production",
   "archived",
 ] as const satisfies ModelStatus[];
-// Allowed forward transitions — mirrors `_TRANSITIONS` in
-// services/model_registry_service.py. `archived` is a terminal sink.
+// Allowed transitions — mirrors `_TRANSITIONS` in
+// services/model_registry_service.py. Any non-archived state can move to any
+// other non-archived state or to `archived`; `archived` is a terminal sink.
 export const MODEL_STATUS_TRANSITIONS = {
-  registered: ["staging", "archived"],
-  staging: ["production", "archived"],
-  production: ["archived"],
+  registered: ["staging", "production", "archived"],
+  staging: ["production", "registered", "archived"],
+  production: ["staging", "registered", "archived"],
   archived: [],
 } as const satisfies Record<ModelStatus, ModelStatus[]>;
 export const BATCH_STATUSES = [
