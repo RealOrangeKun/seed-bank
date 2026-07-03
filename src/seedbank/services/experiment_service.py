@@ -43,7 +43,10 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _RUN_TASK_NAME = "seedbank.run_experiment"
-_RUN_TASK_QUEUE = "experiments"
+# Offline eval runs the detection/classification model, so it must land on the
+# torch-capable inference worker. worker-inference drains ``inference`` +
+# ``evaluation``; the CPU worker (``experiments`` queue) has no torch.
+_RUN_TASK_QUEUE = "evaluation"
 
 # Models in ``archived`` cannot be evaluated — the artifact may have been
 # deleted from MinIO. ``registered`` is allowed because that's the entire

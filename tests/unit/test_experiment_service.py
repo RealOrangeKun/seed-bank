@@ -169,5 +169,6 @@ async def test_create_inserts_audit_and_dispatches_after_commit() -> None:
     send_task.assert_called_once()
     args, kwargs = send_task.call_args
     assert args[0] == "seedbank.run_experiment"
-    assert kwargs["queue"] == "experiments"
+    # Offline eval runs torch → the inference worker's ``evaluation`` queue.
+    assert kwargs["queue"] == "evaluation"
     assert kwargs["args"] == [str(out.id)]

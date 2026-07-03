@@ -8,10 +8,14 @@ import pytest
 
 from seedbank.infrastructure.ml.backends.base import BoundingBox, Detection
 from seedbank.services.eval.detection import (
+    COCO_IOU_THRESHOLDS,
     GroundTruthBox,
     aggregate_detection,
+    average_precision,
+    compute_map,
     evaluate_detection_item,
     iou,
+    match_predictions,
 )
 
 pytestmark = pytest.mark.unit
@@ -142,3 +146,85 @@ def test_aggregate_handles_empty_input() -> None:
     assert agg.recall == Decimal("0")
     assert agg.f1 == Decimal("0")
     assert agg.items_evaluated == 0
+
+
+# ── match_predictions ──────────────────────────────────────────────────────
+
+
+def test_match_predictions_orders_by_confidence_and_flags_tp_fp() -> None:
+    lo = _det(0.1, 0.1, 0.2, 0.2, conf=0.3)
+    hi = _det(0.1, 0.1, 0.2, 0.2, conf=0.99)
+    gts = [_gt(0.1, 0.1, 0.2, 0.2)]
+    matches = match_predictions([lo, hi], gts, iou_threshold=0.5)
+    # Highest-confidence prediction is processed first and claims the GT.
+    assert [m.confidence for m in matches] == [0.99, 0.3]
+    assert matches[0].is_tp is True
+    assert matches[0].gt_index == 0
+    # The duplicate on the same GT is a false positive.
+    assert matches[1].is_tp is False
+    assert matches[1].gt_index is None
+
+
+# ── average_precision ──────────────────────────────────────────────────────
+
+
+def test_average_precision_perfect_is_one() -> None:
+    scored = [(0.9, True), (0.8, True)]
+    assert average_precision(scored, total_gt=2) == Decimal("1.000000")
+
+
+def test_average_precision_all_false_is_zero() -> None:
+    assert average_precision([(0.9, False), (0.7, False)], total_gt=1) == Decimal("0")
+
+
+def test_average_precision_no_gt_or_no_preds_is_zero() -> None:
+    assert average_precision([(0.9, True)], total_gt=0) == Decimal("0")
+    assert average_precision([], total_gt=3) == Decimal("0")
+
+
+def test_average_precision_partial_recall() -> None:
+    # One correct prediction but two GT boxes → recall caps at 0.5, precision 1.
+    assert average_precision([(0.9, True)], total_gt=2) == Decimal("0.500000")
+
+
+# ── compute_map ────────────────────────────────────────────────────────────
+
+
+def test_coco_thresholds_are_the_ten_standard_values() -> None:
+    assert COCO_IOU_THRESHOLDS == (0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95)
+
+
+def test_compute_map_perfect_predictions_is_one() -> None:
+    per_image = [
+        ([_det(0.1, 0.1, 0.2, 0.2)], [_gt(0.1, 0.1, 0.2, 0.2)]),
+        ([_det(0.5, 0.5, 0.2, 0.2)], [_gt(0.5, 0.5, 0.2, 0.2)]),
+    ]
+    out = compute_map(per_image)
+    assert out["map_50"] == Decimal("1.000000")
+    assert out["map_75"] == Decimal("1.000000")
+    assert out["map_50_95"] == Decimal("1.000000")
+
+
+def test_compute_map_no_predictions_is_zero() -> None:
+    per_image: list[tuple[list[Detection], list[GroundTruthBox]]] = [
+        ([], [_gt(0.1, 0.1, 0.2, 0.2)])
+    ]
+    out = compute_map(per_image)
+    assert out["map_50"] == Decimal("0")
+    assert out["map_75"] == Decimal("0")
+    assert out["map_50_95"] == Decimal("0")
+
+
+def test_compute_map_is_iou_threshold_sensitive() -> None:
+    """A prediction overlapping its GT at IoU≈0.6 is a TP at 0.50 but a FP at
+    0.75 — so map_50 is perfect, map_75 is zero, and the averaged
+    map_50_95 lands strictly between."""
+    # 0.2×0.2 boxes shifted by 0.05 in x → intersection 0.03, union 0.05 → IoU 0.6.
+    pred = _det(0.05, 0.0, 0.2, 0.2)
+    gt = _gt(0.0, 0.0, 0.2, 0.2)
+    assert iou(pred.bbox, gt) == pytest.approx(0.6)
+
+    out = compute_map([([pred], [gt])])
+    assert out["map_50"] == Decimal("1.000000")
+    assert out["map_75"] == Decimal("0")
+    assert Decimal("0") < out["map_50_95"] < Decimal("1")
