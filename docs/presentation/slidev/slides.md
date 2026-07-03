@@ -210,7 +210,7 @@ four things it does. Next: our proposed system and what it does.
   <span class="arrow">→</span>
   <div class="stage classify"><img class="ic" src="./media/icons/badge-check.png" /> Grade each one</div>
   <span class="arrow">→</span>
-  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Get a report</div>
+  <div class="stage io"><img class="ic" src="./media/icons/bar-chart-3.png" /> Analysis</div>
 </div>
 
 <div class="grid2" style="margin-top:0.7rem;" v-motion :initial="{ opacity: 0, y: 22 }" :enter="{ opacity: 1, y: 0, transition: { duration: 550, delay: 300 } }">
@@ -625,7 +625,7 @@ are exact and free, exported in COCO/YOLO - plug-and-play for any detector. → 
   <div class="step"><span class="n">5</span> YOLOv8 <img class="ic" src="./media/icons/star-amber.png" /> <span class="mut">fast + accurate, best all-round</span> <span class="m">0.975</span></div>
 </div>
 
-<p class="lead center" style="margin-top:0.7rem; font-size:0.92rem;"><strong>Lower test metrics ≠ worse model.</strong> After MultiSeedGen, detection trained on 40 seed types with great performance.</p>
+<p class="lead center" style="margin-top:0.7rem; font-size:0.92rem;"><strong>Lower test metrics ≠ worse model.</strong> After MultiSeedGen, detection trained on 20 seed types with great performance.</p>
 
 <!--
 The full detection experiment journey - and the counter-intuitive lesson: lower test metrics can
