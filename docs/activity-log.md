@@ -10,3 +10,4 @@ Append-only log of routine housekeeping touches.
 - entry 05 — 2026-07-06T11:28:04Z
 - entry 06 — 2026-07-06T11:28:12Z
 - entry 07 — 2026-07-06T11:28:19Z
+- entry 08 — 2026-07-06T11:28:25Z
